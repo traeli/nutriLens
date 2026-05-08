@@ -1,0 +1,31 @@
+server:
+  port: ":8080"
+  mode: "debug"
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "nutrilens"
+  password: "nutrilens123"
+  dbname: "nutrilens"
+  sslmode: "disable"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+wechat:
+  app_id: "wx93f56eec335dada8"
+  app_secret: "2911bed7800186fab510b2e5ef03d04b"
+
+deepseek:
+  api_key: "sk-e363bbe501984ff59396a2e4c25a9c47"
+  base_url: "https://api.deepseek.com"
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expire: 72  # hours
+
+upload:
+  dir: "./uploads"

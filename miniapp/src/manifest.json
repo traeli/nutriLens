@@ -1,0 +1,31 @@
+{
+  "name": "NutriLens",
+  "appid": "__UNI__NUTRILENS",
+  "description": "营养镜头 - AI智能饮食分析",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "permission": {
+      "scope.camera": {
+        "desc": "用于拍照识别食物"
+      },
+      "scope.writePhotosAlbum": {
+        "desc": "保存图片到相册"
+      }
+    },
+    "requiredPrivateInfos": [
+      "chooseAddress",
+      "getLocation"
+    ],
+    "__usePrivacyCheck__": true
+  }
+}
