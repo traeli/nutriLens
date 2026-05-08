@@ -26,6 +26,32 @@ services:
     volumes:
       - redisdata:/data
 
+  directus:
+    image: directus/directus:latest
+    container_name: nutrilens-directus
+    ports:
+      - "8055:8055"
+    environment:
+      KEY: 'nutrilens-directus-key'
+      SECRET: 'nutrilens-directus-secret'
+      ADMIN_EMAIL: 'trae.li@outlook.com'
+      ADMIN_PASSWORD: 'lx199876@'
+      DB_CLIENT: 'pg'
+      DB_HOST: 'postgres'
+      DB_PORT: '5432'
+      DB_USER: 'nutrilens'
+      DB_PASSWORD: 'nutrilens123'
+      DB_DATABASE: 'nutrilens'
+      WEBSOCKETS_ENABLED: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - directus_data:/directus/uploads
+      - directus_extensions:/directus/extensions
+
 volumes:
   pgdata:
   redisdata:
+  directus_data:
+  directus_extensions:

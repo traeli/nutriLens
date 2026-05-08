@@ -44,7 +44,7 @@
 
       <text class="section-title">八、联系我们</text>
       <text class="section-text">如您对本隐私政策有任何疑问或建议，请通过以下方式联系我们：</text>
-      <text class="section-text">邮箱：support@nutrilens.app</text>
+      <text class="section-text">邮箱：trae.li@outlook.com</text>
     </view>
   </view>
 </template>

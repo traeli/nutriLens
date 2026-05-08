@@ -48,7 +48,7 @@
 
           <text class="sec-title">八、联系我们</text>
           <text class="sec-text">如您对本隐私政策有任何疑问或建议，请通过以下方式联系我们：</text>
-          <text class="sec-text">邮箱：support@nutrilens.app</text>
+          <text class="sec-text">邮箱：trae.li@outlook.com</text>
         </view>
 
         <!-- 用户协议内容 -->
@@ -92,7 +92,7 @@
 
           <text class="sec-title">九、联系我们</text>
           <text class="sec-text">如您对本协议有任何疑问，请联系：</text>
-          <text class="sec-text">邮箱：support@nutrilens.app</text>
+          <text class="sec-text">邮箱：trae.li@outlook.com</text>
         </view>
       </scroll-view>
     </view>
@@ -501,6 +501,16 @@ export default {
   color: #666;
 }
 
+.login-agreement {
+  width: 100%;
+  margin-bottom: 30rpx;
+}
+
+.link-inline {
+  color: #4CAF50;
+  font-weight: bold;
+}
+
 .login-btn {
   width: 100%;
   background: linear-gradient(135deg, #4CAF50, #45a049);
@@ -514,6 +524,11 @@ export default {
 
 .login-btn::after {
   border: none;
+}
+
+.login-btn[disabled] {
+  background: #ccc;
+  color: #fff;
 }
 
 .login-links {

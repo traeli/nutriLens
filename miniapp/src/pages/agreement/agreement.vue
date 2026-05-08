@@ -48,7 +48,7 @@
 
       <text class="section-title">九、联系我们</text>
       <text class="section-text">如您对本协议有任何疑问，请联系：</text>
-      <text class="section-text">邮箱：support@nutrilens.app</text>
+      <text class="section-text">邮箱：trae.li@outlook.com</text>
     </view>
   </view>
 </template>

@@ -65,7 +65,7 @@
 </template>
 
 <script>
-import { api } from '@/api/request.js'
+import { api, SERVER_URL } from '@/api/request.js'
 
 export default {
   data() {
@@ -74,7 +74,7 @@ export default {
       summary: {},
       currentDate: '',
       showDatePicker: false,
-      baseUrl: 'http://localhost:8080',
+      baseUrl: SERVER_URL,
     }
   },
   onShow() {
