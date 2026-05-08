@@ -6,26 +6,13 @@
   "versionCode": "100",
   "transformPx": false,
   "mp-weixin": {
-    "appid": "",
+    "appid": "wx93f56eec335dada8",
     "setting": {
       "urlCheck": false,
       "es6": true,
       "postcss": true,
       "minified": true
     },
-    "usingComponents": true,
-    "permission": {
-      "scope.camera": {
-        "desc": "用于拍照识别食物"
-      },
-      "scope.writePhotosAlbum": {
-        "desc": "保存图片到相册"
-      }
-    },
-    "requiredPrivateInfos": [
-      "chooseAddress",
-      "getLocation"
-    ],
-    "__usePrivacyCheck__": true
+    "usingComponents": true
   }
 }

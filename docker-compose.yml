@@ -26,6 +26,24 @@ services:
     volumes:
       - redisdata:/data
 
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: nutrilens-server
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: "postgres"
+      REDIS_ADDR: "redis:6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - server_uploads:/app/uploads
+
   directus:
     image: directus/directus:latest
     container_name: nutrilens-directus
@@ -53,5 +71,6 @@ services:
 volumes:
   pgdata:
   redisdata:
+  server_uploads:
   directus_data:
   directus_extensions:

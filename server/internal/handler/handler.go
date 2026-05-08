@@ -48,11 +48,20 @@ func (h *Handler) WxLogin(c *gin.Context) {
 		return
 	}
 
-	openID, _, err := h.Svc.Auth.Code2Session(req.Code)
-	if err != nil {
-		log.Printf("[WxLogin] code2Session failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "wechat login failed: " + err.Error()})
-		return
+	var openID string
+
+	// Dev mock: 游客模式下 code 为 "the code is a mock one"
+	if req.Code == "the code is a mock one" {
+		openID = "mock_openid_dev"
+		log.Println("[WxLogin] dev mock mode, using mock_openid_dev")
+	} else {
+		var err error
+		openID, _, err = h.Svc.Auth.Code2Session(req.Code)
+		if err != nil {
+			log.Printf("[WxLogin] code2Session failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "wechat login failed: " + err.Error()})
+			return
+		}
 	}
 
 	db := h.Svc.Food.DB()

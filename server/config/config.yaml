@@ -3,7 +3,7 @@ server:
   mode: "debug"
 
 database:
-  host: "localhost"
+  host: "${DB_HOST:-localhost}"
   port: "5432"
   user: "nutrilens"
   password: "nutrilens123"
@@ -11,7 +11,7 @@ database:
   sslmode: "disable"
 
 redis:
-  addr: "localhost:6379"
+  addr: "${REDIS_ADDR:-localhost:6379}"
   password: ""
   db: 0
 
