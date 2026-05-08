@@ -1,0 +1,6 @@
+server
+uploads
+*.exe
+*.test
+.git
+.idea
