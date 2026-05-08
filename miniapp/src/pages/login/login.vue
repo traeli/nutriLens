@@ -147,7 +147,19 @@
         </view>
       </view>
 
-      <button class="login-btn" @tap="doLogin" :loading="loginLoading">
+      <view class="login-agreement">
+        <view class="checkbox-wrap" @tap="loginChecked = !loginChecked">
+          <view class="checkbox-box" :class="{ checked: loginChecked }">
+            <text class="checkbox-icon" v-if="loginChecked">✓</text>
+          </view>
+          <text class="checkbox-label">登录即表示同意
+            <text class="link-inline" @tap.stop="viewType = 'privacy'">《隐私保护政策》</text>和
+            <text class="link-inline" @tap.stop="viewType = 'agreement'">《用户服务协议》</text>
+          </text>
+        </view>
+      </view>
+
+      <button class="login-btn" @tap="doLogin" :loading="loginLoading" :disabled="!loginChecked">
         微信一键登录
       </button>
 
@@ -168,6 +180,7 @@ export default {
     return {
       privacyAgreed: false,
       checked: false,
+      loginChecked: false,
       countdown: 3,
       timer: null,
       loginLoading: false,
