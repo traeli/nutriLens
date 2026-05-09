@@ -29,3 +29,6 @@ jwt:
 
 upload:
   dir: "./uploads"
+
+rate_limit:
+  daily: 30

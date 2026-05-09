@@ -1,13 +1,14 @@
 package router
 
 import (
+	"nutrilens/internal/cache"
 	"nutrilens/internal/handler"
 	"nutrilens/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler) {
+func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.RateLimiter, getTag middleware.UserTagGetter, dailyLimit int64) {
 	r.Use(middleware.CORS())
 
 	api := r.Group("/api/v1")
@@ -26,20 +27,33 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler) {
 			protected.GET("/user/profile", h.GetProfile)
 			protected.PUT("/user/profile", h.UpdateProfile)
 
-			// Food analysis
-			protected.POST("/food/analyze/image", h.AnalyzeImage)
-			protected.POST("/food/analyze/text", h.AnalyzeText)
+			// Food (non-AI)
 			protected.GET("/food/records", h.ListFoodRecords)
 			protected.GET("/food/records/:id", h.GetFoodRecord)
 			protected.DELETE("/food/records/:id", h.DeleteFoodRecord)
 			protected.GET("/food/daily-summary", h.DailySummary)
 			protected.GET("/food/monthly-summary", h.MonthlySummary)
 
+			// Food AI analysis (rate limited)
+			aiFood := protected.Group("")
+			aiFood.Use(middleware.RateLimit(limiter, getTag, dailyLimit))
+			{
+				aiFood.POST("/food/analyze/image", h.AnalyzeImage)
+				aiFood.POST("/food/analyze/text", h.AnalyzeText)
+			}
+
 			// Wheel
 			protected.GET("/wheel/dishes", h.ListDishes)
 			protected.POST("/wheel/spin", h.SpinWheel)
 			protected.POST("/wheel/dishes", h.CreateDish)
-			protected.POST("/wheel/dishes/ai", h.CreateDishAI)
+
+			// Wheel AI dish creation (rate limited)
+			aiWheel := protected.Group("")
+			aiWheel.Use(middleware.RateLimit(limiter, getTag, dailyLimit))
+			{
+				aiWheel.POST("/wheel/dishes/ai", h.CreateDishAI)
+			}
+
 			protected.DELETE("/wheel/dishes/:id", h.DeleteDish)
 
 			// Privacy

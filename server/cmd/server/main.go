@@ -1,16 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"nutrilens/config"
+	"nutrilens/internal/cache"
 	"nutrilens/internal/handler"
 	"nutrilens/internal/model"
 	"nutrilens/internal/router"
 	"nutrilens/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -20,8 +21,8 @@ type appConfig struct {
 }
 
 func (a *appConfig) GetJWTSecret() string { return a.JWT.Secret }
-func (a *appConfig) GetJWTExpire() int     { return a.JWT.Expire }
-func (a *appConfig) GetUploadDir() string  { return a.Upload.Dir }
+func (a *appConfig) GetJWTExpire() int    { return a.JWT.Expire }
+func (a *appConfig) GetUploadDir() string { return a.Upload.Dir }
 
 func main() {
 	cfg, err := config.Load("config/config.yaml")
@@ -37,12 +38,25 @@ func main() {
 	initDB(db)
 
 	// Redis
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
-	_ = rdb // TODO: wire redis into services for caching
+	redisClient, err := cache.NewClient(cfg.Redis)
+	if err != nil {
+		log.Fatalf("Failed to create redis client: %v", err)
+	}
+	if err := redisClient.Ping(context.Background()); err != nil {
+		log.Fatalf("Failed to connect redis: %v", err)
+	}
+	fmt.Println("Redis connected")
+
+	rateLimiter := cache.NewRateLimiter(redisClient, "ai_rate")
+
+	// User tag getter — queries DB for user's tag
+	getTag := func(userID uint) string {
+		var user model.User
+		if err := db.Select("tag").Where("id = ?", userID).First(&user).Error; err != nil {
+			return ""
+		}
+		return user.Tag
+	}
 
 	// Services
 	wechatSvc := service.NewWechatService(cfg.WeChat.AppID, cfg.WeChat.AppSecret)
@@ -65,7 +79,7 @@ func main() {
 	gin.SetMode(cfg.Server.Mode)
 	r := gin.Default()
 	r.Static("/uploads", cfg.Upload.Dir)
-	router.Setup(r, cfg.JWT.Secret, h)
+	router.Setup(r, cfg.JWT.Secret, h, rateLimiter, getTag, cfg.RateLimit.Daily)
 
 	addr := cfg.Server.Port
 	fmt.Printf("Server starting on %s\n", addr)

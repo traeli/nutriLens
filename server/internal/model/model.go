@@ -28,10 +28,11 @@ type User struct {
 	OpenID    string         `gorm:"uniqueIndex;size:128;not null" json:"openid"`
 	Nickname  string         `gorm:"size:64" json:"nickname"`
 	AvatarURL string         `gorm:"size:512" json:"avatar_url"`
-	Height    float64        `json:"height"`   // cm
-	Weight    float64        `json:"weight"`   // kg
+	Height    float64        `json:"height"` // cm
+	Weight    float64        `json:"weight"` // kg
 	Age       int            `json:"age"`
-	Gender    int            `json:"gender"` // 0=unknown, 1=male, 2=female
+	Gender    int            `json:"gender"`                        // 0=unknown, 1=male, 2=female
+	Tag       string         `gorm:"size:32;default:''" json:"tag"` // 用户标签: 空串=普通用户, vip=无限制
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
@@ -40,11 +41,11 @@ type User struct {
 type FoodRecord struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
 	UserID       uint           `gorm:"index;not null" json:"user_id"`
-	GroupID      string         `gorm:"size:64;index" json:"group_id"`  // 同一次分析的多条记录共享
-	MealType     int            `json:"meal_type"`                      // 1=breakfast, 2=lunch, 3=dinner, 4=snack
+	GroupID      string         `gorm:"size:64;index" json:"group_id"` // 同一次分析的多条记录共享
+	MealType     int            `json:"meal_type"`                     // 1=breakfast, 2=lunch, 3=dinner, 4=snack
 	FoodName     string         `gorm:"size:256" json:"food_name"`
-	Unit         string         `gorm:"size:16;default:'kg'" json:"unit"`       // 单位: kg, bowl, piece 等
-	UnitAmount   float64        `gorm:"default:0" json:"unit_amount"`           // 单位数量
+	Unit         string         `gorm:"size:16;default:'kg'" json:"unit"` // 单位: kg, bowl, piece 等
+	UnitAmount   float64        `gorm:"default:0" json:"unit_amount"`     // 单位数量
 	Calories     float64        `json:"calories"`
 	ImageURL     string         `gorm:"size:512" json:"image_url"`
 	Description  string         `gorm:"type:text" json:"description"`
@@ -55,21 +56,21 @@ type FoodRecord struct {
 }
 
 type Dish struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	Name      string         `gorm:"size:128;not null" json:"name"`
-	Category  string         `gorm:"size:64" json:"category"`
-	Calories  float64        `json:"calories"`
-	Unit      string         `gorm:"size:16;default:'kg'" json:"unit"`
-	UnitAmount float64       `gorm:"default:0" json:"unit_amount"`
-	Weight    int            `gorm:"default:50" json:"weight"`            // 1-100 喜爱程度
-	IsSystem  bool           `gorm:"default:false" json:"is_system"`
-	UserID    uint           `gorm:"index" json:"user_id"`
-	ImageURL  string         `gorm:"size:512" json:"image_url"`
-	Recipe    string         `gorm:"type:text" json:"recipe"`
-	Nutrients JSONMap        `gorm:"type:jsonb" json:"nutrients"` // 缓存AI分析的营养数据
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	ID         uint           `gorm:"primaryKey" json:"id"`
+	Name       string         `gorm:"size:128;not null" json:"name"`
+	Category   string         `gorm:"size:64" json:"category"`
+	Calories   float64        `json:"calories"`
+	Unit       string         `gorm:"size:16;default:'kg'" json:"unit"`
+	UnitAmount float64        `gorm:"default:0" json:"unit_amount"`
+	Weight     int            `gorm:"default:50" json:"weight"` // 1-100 喜爱程度
+	IsSystem   bool           `gorm:"default:false" json:"is_system"`
+	UserID     uint           `gorm:"index" json:"user_id"`
+	ImageURL   string         `gorm:"size:512" json:"image_url"`
+	Recipe     string         `gorm:"type:text" json:"recipe"`
+	Nutrients  JSONMap        `gorm:"type:jsonb" json:"nutrients"` // 缓存AI分析的营养数据
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 type PrivacyAgreement struct {

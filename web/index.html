@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>技术小站</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; color: #333; background: #fafafa; line-height: 1.7; }
+    a { color: #4CAF50; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .header { background: #fff; border-bottom: 1px solid #eee; padding: 14px 0; position: sticky; top: 0; z-index: 100; }
+    .container { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+    .nav { display: flex; justify-content: space-between; align-items: center; }
+    .site-name { font-size: 18px; font-weight: 600; color: #333; }
+
+    .posts { padding: 40px 0; }
+    .post { background: #fff; border-radius: 8px; padding: 32px; margin-bottom: 24px; border: 1px solid #eee; }
+    .post h2 { font-size: 20px; margin-bottom: 8px; color: #222; }
+    .post-meta { font-size: 13px; color: #aaa; margin-bottom: 16px; }
+    .post p { font-size: 15px; color: #555; margin-bottom: 12px; }
+    .post pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+    .post code { font-family: "SF Mono", "Fira Code", "Consolas", monospace; }
+    .post .inline-code { background: #f0f0f0; color: #c7254e; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+    .post h3 { font-size: 16px; color: #333; margin: 20px 0 8px; }
+    .post ul { padding-left: 20px; margin-bottom: 12px; }
+    .post li { font-size: 15px; color: #555; margin-bottom: 4px; }
+    .post .highlight { color: #4CAF50; font-weight: 600; }
+
+    .footer { text-align: center; padding: 32px 0; color: #aaa; font-size: 13px; }
+    .footer a { color: #aaa; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <span class="site-name">技术小站</span>
+        <span style="font-size:13px;color:#aaa;">记录开发中的点滴</span>
+      </nav>
+    </div>
+  </header>
+
+  <main class="posts">
+    <div class="container">
+
+      <article class="post">
+        <h2>Go + Gin 搭建 RESTful API 服务</h2>
+        <div class="post-meta">2026-05-09 &middot; Go</div>
+        <p>用 Go 的 Gin 框架搭建后端 API 非常轻量。核心结构如下：</p>
+        <pre><code>r := gin.Default()
+
+api := r.Group("/api/v1")
+api.GET("/users/:id", getUser)
+api.POST("/users", createUser)
+
+r.Run(":8080")</code></pre>
+        <p>Gin 的路由分组 + 中间件机制很优雅。比如 JWT 认证只需要一行：</p>
+        <pre><code>protected := api.Group("")
+protected.Use(middleware.JWTAuth(secret))</code></pre>
+        <p>所有 <span class="inline-code">protected</span> 下的路由自动走鉴权，干净利落。</p>
+      </article>
+
+      <article class="post">
+        <h2>微信小程序登录流程梳理</h2>
+        <div class="post-meta">2026-05-08 &middot; 微信小程序</div>
+        <p>小程序登录的核心流程就三步：</p>
+        <ul>
+          <li>前端调用 <span class="inline-code">wx.login()</span> 拿到临时 code</li>
+          <li>把 code 发给自己的后端</li>
+          <li>后端拿 code 调微信的 <span class="inline-code">code2Session</span> 接口换 openid</li>
+        </ul>
+        <pre><code>// 后端 Go 伪代码
+func wxLogin(code string) {
+    resp := http.Get(
+        "https://api.weixin.qq.com/sns/jscode2session" +
+        "?appid=" + appID +
+        "&secret=" + appSecret +
+        "&js_code=" + code +
+        "&grant_type=authorization_code",
+    )
+    // 从 resp 中取 openid，生成 JWT token 返回前端
+}</code></pre>
+        <p>拿到 openid 后生成自己的 JWT token 返回前端即可，不需要存 session。注意 code 只能用一次，5 分钟过期。</p>
+      </article>
+
+      <article class="post">
+        <h2>Redis 实现接口限流</h2>
+        <div class="post-meta">2026-05-07 &middot; Redis</div>
+        <p>用 Redis 的 INCR + EXPIRE 实现固定窗口限流，简单有效：</p>
+        <pre><code>func Allow(rdb *redis.Client, key string, limit int64, ttl time.Duration) bool {
+    count, _ := rdb.Incr(ctx, key).Result()
+    if count == 1 {
+        rdb.Expire(ctx, key, ttl) // 首次设置过期时间
+    }
+    return count <= limit
+}</code></pre>
+        <p>Key 按用户 + 日期设计，比如 <span class="inline-code">ai_rate:user_123:20260507</span>，TTL 设到当天 24:00 自动过期。这样每天自动重置，无需手动清理。</p>
+        <p>如果是 VIP 用户不受限制，只需要在中间件里判断用户角色，VIP 直接放行即可。</p>
+      </article>
+
+      <article class="post">
+        <h2>Docker Compose 一键部署 Go + PostgreSQL + Redis</h2>
+        <div class="post-meta">2026-05-06 &middot; Docker</div>
+        <p>一个典型的 <span class="inline-code">docker-compose.yml</span> 长这样：</p>
+        <pre><code>services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: appdb
+  redis:
+    image: redis:7-alpine
+  server:
+    build: ./server
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      REDIS_ADDR: redis:6379
+    depends_on:
+      - postgres
+      - redis</code></pre>
+        <p>几个要点：</p>
+        <ul>
+          <li>服务间用服务名互相访问，如 <span class="inline-code">DB_HOST: postgres</span></li>
+          <li>Go 的 Dockerfile 用多阶段构建，编译阶段用 <span class="inline-code">golang:alpine</span>，运行阶段用 <span class="inline-code">alpine</span>，镜像只有十几 MB</li>
+          <li>数据卷别忘挂载，不然容器重建数据就没了</li>
+        </ul>
+      </article>
+
+      <article class="post">
+        <h2>uni-app 开发小程序踩坑记录</h2>
+        <div class="post-meta">2026-05-05 &middot; 前端</div>
+        <p>用 uni-app 开发微信小程序，几个常见问题：</p>
+        <h3>环境变量区分开发/生产</h3>
+        <p>根目录放两个文件：</p>
+        <pre><code># .env.development
+VITE_BASE_URL=http://localhost:8080
+
+# .env.production
+VITE_BASE_URL=https://your-domain.com</code></pre>
+        <p>代码里用 <span class="inline-code">import.meta.env.VITE_BASE_URL</span> 读取，打包时自动切环境。</p>
+        <h3>网络请求封装</h3>
+        <p>不要到处写 <span class="inline-code">uni.request</span>，统一封装一层处理 token 注入和错误处理：</p>
+        <pre><code>function request(url, options) {
+  const token = uni.getStorageSync('token')
+  return new Promise((resolve, reject) => {
+    uni.request({
+      url: BASE_URL + url,
+      header: { Authorization: 'Bearer ' + token },
+      success(res) {
+        if (res.statusCode === 401) {
+          // 跳转登录
+        }
+        resolve(res.data)
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '网络请求失败'))
+      }
+    })
+  })
+}</code></pre>
+        <h3>上传注意事项</h3>
+        <ul>
+          <li><span class="inline-code">manifest.json</span> 开启 <span class="inline-code">"lazyCodeLoading": "requiredComponents"</span>，不然上传时会有警告</li>
+          <li>服务器域名必须在小程序后台「服务器域名」中配置，且要求 HTTPS</li>
+          <li>域名需要完成 ICP 备案</li>
+        </ul>
+      </article>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 技术小站 &nbsp;|&nbsp; <a href="https://beian.miit.gov.cn/" target="_blank" rel="nofollow">ICP备案号待填写</a></p>
+    </div>
+  </footer>
+
+</body>
+</html>

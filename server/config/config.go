@@ -8,13 +8,14 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Redis    RedisConfig    `yaml:"redis"`
-	WeChat   WeChatConfig   `yaml:"wechat"`
-	DeepSeek DeepSeekConfig `yaml:"deepseek"`
-	JWT      JWTConfig      `yaml:"jwt"`
-	Upload   UploadConfig   `yaml:"upload"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Redis     RedisConfig     `yaml:"redis"`
+	WeChat    WeChatConfig    `yaml:"wechat"`
+	DeepSeek  DeepSeekConfig  `yaml:"deepseek"`
+	JWT       JWTConfig       `yaml:"jwt"`
+	Upload    UploadConfig    `yaml:"upload"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
 }
 
 type ServerConfig struct {
@@ -59,6 +60,10 @@ type JWTConfig struct {
 
 type UploadConfig struct {
 	Dir string `yaml:"dir"` // local upload directory
+}
+
+type RateLimitConfig struct {
+	Daily int64 `yaml:"daily"` // 每日AI调用上限
 }
 
 func Load(path string) (*Config, error) {

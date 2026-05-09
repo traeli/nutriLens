@@ -32,7 +32,7 @@ function request(url, options = {}) {
         }
       },
       fail(err) {
-        reject(err)
+        reject(new Error(err.errMsg || '网络请求失败'))
       },
     })
   })
@@ -69,11 +69,8 @@ function uploadFile(url, filePath, name = 'image', formData = {}) {
         }
       },
       fail(err) {
-        reject(err)
+        reject(new Error(err.errMsg || '上传失败'))
       },
-    })
-  })
-}
 
 export const api = {
   // Auth
