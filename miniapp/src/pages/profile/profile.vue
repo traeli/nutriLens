@@ -5,9 +5,22 @@
       <text class="section-desc">用于提供更精准的营养建议</text>
 
       <view class="form">
+        <!-- Avatar -->
+        <view class="form-item avatar-item">
+          <text class="label">头像</text>
+          <button class="avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
+            <image v-if="form.avatar_url" class="avatar-img" :src="form.avatar_url" mode="aspectFill" />
+            <view v-else class="avatar-placeholder">
+              <text class="avatar-placeholder-text">+</text>
+            </view>
+          </button>
+        </view>
+
+        <!-- Nickname (WeChat nickname capability) -->
         <view class="form-item">
           <text class="label">昵称</text>
-          <input class="input" v-model="form.nickname" placeholder="请输入昵称" />
+          <input class="input nickname-input" type="nickname" v-model="form.nickname"
+            placeholder="点击获取微信昵称" @blur="onNicknameBlur" />
         </view>
 
         <view class="form-item">
@@ -51,11 +64,13 @@ export default {
     return {
       form: {
         nickname: '',
+        avatar_url: '',
         gender: 1,
         height: '',
         weight: '',
         age: '',
       },
+      avatarTempPath: '',
     }
   },
   onLoad() {
@@ -67,6 +82,7 @@ export default {
         const res = await api.getProfile()
         if (res.height > 0) {
           this.form.nickname = res.nickname || ''
+          this.form.avatar_url = res.avatar_url || ''
           this.form.gender = res.gender || 1
           this.form.height = String(res.height)
           this.form.weight = String(res.weight)
@@ -76,20 +92,51 @@ export default {
         // New user, form stays empty
       }
     },
+    async onChooseAvatar(e) {
+      const tempPath = e.detail.avatarUrl
+      this.avatarTempPath = tempPath
+      this.form.avatar_url = tempPath
+    },
+    onNicknameBlur(e) {
+      // type="nickname" input fills the value from WeChat on blur
+      if (e.detail.value) {
+        this.form.nickname = e.detail.value
+      }
+    },
     async submit() {
       if (!this.form.height || !this.form.weight || !this.form.age) {
         uni.showToast({ title: '请填写完整信息', icon: 'none' })
         return
       }
+
+      let avatarUrl = this.form.avatar_url
+
+      // Upload avatar to COS if it's a local temp file
+      if (this.avatarTempPath && this.avatarTempPath === avatarUrl) {
+        try {
+          uni.showLoading({ title: '上传头像...' })
+          const res = await api.uploadToCOS(this.avatarTempPath, 'avatar')
+          avatarUrl = res.object_url
+          this.form.avatar_url = avatarUrl
+        } catch (e) {
+          console.error('avatar upload failed:', e)
+          // Continue without avatar upload
+        } finally {
+          uni.hideLoading()
+        }
+      }
+
       try {
         await api.updateProfile({
           nickname: this.form.nickname,
+          avatar_url: avatarUrl,
           gender: this.form.gender,
           height: parseFloat(this.form.height),
           weight: parseFloat(this.form.weight),
           age: parseInt(this.form.age),
         })
         uni.setStorageSync('has_profile', true)
+        uni.setStorageSync('nickname', this.form.nickname)
         uni.showToast({ title: '保存成功', icon: 'success' })
         setTimeout(() => {
           uni.switchTab({ url: '/pages/home/home' })
@@ -126,6 +173,50 @@ export default {
   margin-bottom: 36rpx;
 }
 
+.avatar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.avatar-btn {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+  background: #f5f5f5;
+  border: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: normal;
+}
+
+.avatar-btn::after {
+  border: none;
+}
+
+.avatar-img {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+}
+
+.avatar-placeholder {
+  width: 120rpx;
+  height: 120rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-placeholder-text {
+  font-size: 48rpx;
+  color: #ccc;
+}
+
 .label {
   font-size: 28rpx;
   color: #666;
@@ -138,6 +229,10 @@ export default {
   border-radius: 16rpx;
   padding: 24rpx;
   font-size: 30rpx;
+}
+
+.nickname-input {
+  background: #FFF8E1;
 }
 
 .gender-picker {
