@@ -1,15 +1,12 @@
 package handler
 
 import (
-	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
+	"nutrilens/internal/cos"
 	"nutrilens/internal/middleware"
 	"nutrilens/internal/model"
 	"nutrilens/internal/service"
@@ -18,8 +15,12 @@ import (
 )
 
 type Handler struct {
-	Svc *Services
-	Cfg ConfigProvider
+	Svc        *Services
+	Cfg        ConfigProvider
+	COS        *cos.Client
+	ScoreSvc   *service.ScoreService
+	AchieveSvc *service.AchievementService
+	ShareSvc   *service.ShareService
 }
 
 type Services struct {
@@ -37,7 +38,8 @@ type ConfigProvider interface {
 // ==================== Auth ====================
 
 type WxLoginReq struct {
-	Code string `json:"code" binding:"required"`
+	Code      string `json:"code" binding:"required"`
+	InviterID uint   `json:"inviter_id"`
 }
 
 func (h *Handler) WxLogin(c *gin.Context) {
@@ -67,12 +69,21 @@ func (h *Handler) WxLogin(c *gin.Context) {
 	db := h.Svc.Food.DB()
 	var user model.User
 	result := db.Where("open_id = ?", openID).First(&user)
-	if result.Error != nil {
+	isNewUser := result.Error != nil
+
+	if isNewUser {
 		user = model.User{OpenID: openID}
 		if err := db.Create(&user).Error; err != nil {
 			log.Printf("[WxLogin] create user failed: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "create user failed"})
 			return
+		}
+
+		// Handle invitation
+		if req.InviterID > 0 && h.ShareSvc != nil {
+			if err := h.ShareSvc.HandleInvite(req.InviterID, user.ID); err != nil {
+				log.Printf("[WxLogin] handle invite failed: inviter=%d, err=%v", req.InviterID, err)
+			}
 		}
 	}
 
@@ -104,11 +115,12 @@ func (h *Handler) GetProfile(c *gin.Context) {
 }
 
 type UpdateProfileReq struct {
-	Nickname string  `json:"nickname"`
-	Height   float64 `json:"height" binding:"required"`
-	Weight   float64 `json:"weight" binding:"required"`
-	Age      int     `json:"age" binding:"required"`
-	Gender   int     `json:"gender" binding:"required,oneof=1 2"`
+	Nickname  string  `json:"nickname"`
+	AvatarURL string  `json:"avatar_url"`
+	Height    float64 `json:"height" binding:"required"`
+	Weight    float64 `json:"weight" binding:"required"`
+	Age       int     `json:"age" binding:"required"`
+	Gender    int     `json:"gender" binding:"required,oneof=1 2"`
 }
 
 func (h *Handler) UpdateProfile(c *gin.Context) {
@@ -121,11 +133,12 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := h.Svc.Food.DB().Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
-		"nickname": req.Nickname,
-		"height":   req.Height,
-		"weight":   req.Weight,
-		"age":      req.Age,
-		"gender":   req.Gender,
+		"nickname":   req.Nickname,
+		"avatar_url": req.AvatarURL,
+		"height":     req.Height,
+		"weight":     req.Weight,
+		"age":        req.Age,
+		"gender":     req.Gender,
 	}).Error; err != nil {
 		log.Printf("[UpdateProfile] db update failed: user_id=%d, err=%v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "update failed"})
@@ -139,40 +152,27 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 
 func (h *Handler) AnalyzeImage(c *gin.Context) {
 	userID := c.GetUint("user_id")
-
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		log.Printf("[AnalyzeImage] missing image: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "image is required"})
+	var req struct {
+		ImageKey string `json:"image_key" binding:"required"`
+		MealType int    `json:"meal_type"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[AnalyzeImage] bad request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "image_key is required"})
 		return
 	}
-	defer file.Close()
 
-	uploadDir := h.Cfg.GetUploadDir()
-	filename := fmt.Sprintf("%d_%d_%s", userID, time.Now().UnixMilli(), header.Filename)
-	filePath := filepath.Join(uploadDir, filename)
-
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		log.Printf("[AnalyzeImage] mkdir failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "create upload dir failed"})
-		return
+	if req.MealType == 0 {
+		req.MealType = 1
 	}
-	dst, err := os.Create(filePath)
-	if err != nil {
-		log.Printf("[AnalyzeImage] create file failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save image failed"})
-		return
-	}
-	defer dst.Close()
-	io.Copy(dst, file)
 
-	fileBytes, _ := os.ReadFile(filePath)
-	mealType, _ := strconv.Atoi(c.DefaultPostForm("meal_type", "1"))
+	// Build full COS URL from image_key
+	imageURL := h.COS.ObjectURL(req.ImageKey)
 
-	record, err := h.Svc.Food.AnalyzeImage(c.Request.Context(), userID, mealType, fileBytes, "/uploads/"+filename)
+	records, suggestion, err := h.Svc.Food.AnalyzeImage(c.Request.Context(), userID, req.MealType, imageURL)
 	if err != nil {
 		if err.Error() == "not_food" {
-			c.JSON(http.StatusOK, gin.H{"is_food": false})
+			c.JSON(http.StatusOK, gin.H{"is_food": false, "records": nil, "suggestion": ""})
 			return
 		}
 		log.Printf("[AnalyzeImage] AI analysis failed: user_id=%d, err=%v", userID, err)
@@ -180,7 +180,22 @@ func (h *Handler) AnalyzeImage(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"is_food": true, "record": record})
+	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion})
+
+	// Trigger score and achievement check asynchronously
+	go func() {
+		if h.ScoreSvc != nil {
+			if err := h.ScoreSvc.OnAnalyze(userID); err != nil {
+				log.Printf("[AnalyzeImage] score update failed: user_id=%d, err=%v", userID, err)
+			}
+		}
+		if h.ShareSvc != nil {
+			h.ShareSvc.HandleInviteeFirstAnalyze(userID)
+		}
+		if h.AchieveSvc != nil {
+			h.AchieveSvc.CheckAndUnlock(userID)
+		}
+	}()
 }
 
 type AnalyzeTextReq struct {
@@ -213,6 +228,21 @@ func (h *Handler) AnalyzeText(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion})
+
+	// Trigger score and achievement check asynchronously
+	go func() {
+		if h.ScoreSvc != nil {
+			if err := h.ScoreSvc.OnAnalyze(userID); err != nil {
+				log.Printf("[AnalyzeText] score update failed: user_id=%d, err=%v", userID, err)
+			}
+		}
+		if h.ShareSvc != nil {
+			h.ShareSvc.HandleInviteeFirstAnalyze(userID)
+		}
+		if h.AchieveSvc != nil {
+			h.AchieveSvc.CheckAndUnlock(userID)
+		}
+	}()
 }
 
 func (h *Handler) ListFoodRecords(c *gin.Context) {
@@ -267,6 +297,19 @@ func (h *Handler) DailySummary(c *gin.Context) {
 	c.JSON(http.StatusOK, summary)
 }
 
+func (h *Handler) DailyAnalysis(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	date := c.Query("date")
+
+	analysis, err := h.Svc.Food.GetDailyAnalysis(c.Request.Context(), userID, date)
+	if err != nil {
+		log.Printf("[DailyAnalysis] failed: user_id=%d, err=%v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, analysis)
+}
+
 func (h *Handler) MonthlySummary(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	month := c.Query("month") // format: 2006-01
@@ -312,6 +355,13 @@ func (h *Handler) SpinWheel(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"dish": dish, "total": total})
+
+	// Award spin score asynchronously
+	go func() {
+		if h.ScoreSvc != nil {
+			h.ScoreSvc.AddScore(userID, "spin", 2, "使用转盘")
+		}
+	}()
 }
 
 type CreateDishReq struct {
@@ -392,6 +442,20 @@ func (h *Handler) DeleteDish(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
+// ==================== Rank Visibility ====================
+
+func (h *Handler) ToggleRank(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var user model.User
+	if err := h.Svc.Food.DB().Select("id, show_on_rank").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	newVal := !user.ShowOnRank
+	h.Svc.Food.DB().Model(&user).Update("show_on_rank", newVal)
+	c.JSON(http.StatusOK, gin.H{"show_on_rank": newVal})
+}
+
 // ==================== Privacy ====================
 
 type AgreePrivacyReq struct {
@@ -431,36 +495,218 @@ func (h *Handler) PrivacyStatus(c *gin.Context) {
 
 // ==================== Upload ====================
 
+type PresignUploadReq struct {
+	BizType  string `json:"biz_type" binding:"required"`
+	Filename string `json:"filename" binding:"required"`
+}
+
+func (h *Handler) PresignUpload(c *gin.Context) {
+	var req PresignUploadReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[PresignUpload] bad request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	uploadURL, objectKey, objectURL, err := h.COS.PresignPutURL(c.Request.Context(), cos.BizType(req.BizType), req.Filename, 30*time.Minute)
+	if err != nil {
+		log.Printf("[PresignUpload] presign failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"upload_url": uploadURL,
+		"object_key": objectKey,
+		"object_url": objectURL,
+	})
+}
+
 func (h *Handler) UploadImage(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	// 5MB limit
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 5<<20)
+
 	file, header, err := c.Request.FormFile("image")
 	if err != nil {
-		log.Printf("[UploadImage] missing image: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "image is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "image is required or too large (max 5MB)"})
 		return
 	}
 	defer file.Close()
 
-	uploadDir := h.Cfg.GetUploadDir()
-	filename := fmt.Sprintf("%d_%d_%s", userID, time.Now().UnixMilli(), filepath.Base(header.Filename))
-	filePath := filepath.Join(uploadDir, filename)
-
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		log.Printf("[UploadImage] mkdir failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "create dir failed"})
-		return
-	}
-	dst, err := os.Create(filePath)
+	bizType := cos.BizType(c.DefaultPostForm("biz_type", string(cos.BizFeedback)))
+	result, err := h.COS.Upload(c.Request.Context(), bizType, header.Filename, file)
 	if err != nil {
-		log.Printf("[UploadImage] create file failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save failed"})
+		log.Printf("[UploadImage] COS upload failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "upload failed"})
 		return
 	}
-	defer dst.Close()
-	io.Copy(dst, file)
 
 	c.JSON(http.StatusOK, gin.H{
-		"url":      "/uploads/" + filename,
-		"filename": filename,
+		"object_key": result.ObjectKey,
+		"object_url": result.ObjectURL,
 	})
+}
+
+// ==================== Feedback ====================
+
+func (h *Handler) CreateFeedback(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var req struct {
+		Type        string          `json:"type" binding:"required"`
+		Subject     string          `json:"subject" binding:"required"`
+		Content     string          `json:"content" binding:"required"`
+		Attachments model.JSONArray `json:"attachments"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[CreateFeedback] bad request: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	feedback := model.Feedback{
+		UserID:      userID,
+		Type:        req.Type,
+		Subject:     req.Subject,
+		Content:     req.Content,
+		Attachments: req.Attachments,
+	}
+	if err := h.Svc.Food.DB().Create(&feedback).Error; err != nil {
+		log.Printf("[CreateFeedback] create failed: user_id=%d, err=%v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "create feedback failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"feedback": feedback})
+}
+
+func (h *Handler) ListFeedback(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var list []model.Feedback
+	if err := h.Svc.Food.DB().Where("user_id = ?", userID).Order("created_at DESC").Find(&list).Error; err != nil {
+		log.Printf("[ListFeedback] query failed: user_id=%d, err=%v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"feedbacks": list})
+}
+
+// ==================== Score / Rank ====================
+
+func (h *Handler) GetMyScore(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	if h.ScoreSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"total_score": 0, "week_score": 0, "streak_days": 0, "total_rank": 0, "week_rank": 0})
+		return
+	}
+	c.JSON(http.StatusOK, h.ScoreSvc.GetMyScore(userID))
+}
+
+func (h *Handler) GetRank(c *gin.Context) {
+	scope := c.DefaultQuery("scope", "week")
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	if limit > 100 {
+		limit = 100
+	}
+
+	if h.ScoreSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"rank": []interface{}{}})
+		return
+	}
+
+	if scope == "friend" {
+		userID := c.GetUint("user_id")
+		c.JSON(http.StatusOK, gin.H{"rank": h.ScoreSvc.GetFriendRank(userID, offset, limit)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"rank": h.ScoreSvc.GetRank(scope, offset, limit)})
+}
+
+func (h *Handler) GetScoreLogs(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if h.ScoreSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"logs": []interface{}{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"logs": h.ScoreSvc.GetScoreLogs(userID, offset, limit)})
+}
+
+// ==================== Share ====================
+
+func (h *Handler) RecordShare(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var req struct {
+		ShareType string `json:"share_type"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.ShareType = "poster"
+	}
+
+	if h.ShareSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "recorded"})
+		return
+	}
+
+	if err := h.ShareSvc.RecordShare(userID, req.ShareType); err != nil {
+		log.Printf("[RecordShare] failed: user_id=%d, err=%v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "record share failed"})
+		return
+	}
+
+	// Check achievements after share
+	var newUnlocks []interface{}
+	if h.AchieveSvc != nil {
+		newUnlocks = make([]interface{}, 0)
+		for _, a := range h.AchieveSvc.CheckAndUnlock(userID) {
+			newUnlocks = append(newUnlocks, a)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "recorded", "new_achievements": newUnlocks})
+}
+
+// ==================== Achievement ====================
+
+func (h *Handler) ListAchievements(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	if h.AchieveSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"achievements": []interface{}{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"achievements": h.AchieveSvc.ListAchievements(userID)})
+}
+
+func (h *Handler) SetTitle(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var req struct {
+		AchievementID uint `json:"achievement_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "achievement_id is required"})
+		return
+	}
+
+	if h.AchieveSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "achievement service not available"})
+		return
+	}
+
+	if err := h.AchieveSvc.SetTitle(userID, req.AchievementID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "title updated"})
+}
+
+func (h *Handler) CheckAchievements(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	if h.AchieveSvc == nil {
+		c.JSON(http.StatusOK, gin.H{"new_achievements": []interface{}{}})
+		return
+	}
+	newUnlocks := h.AchieveSvc.CheckAndUnlock(userID)
+	c.JSON(http.StatusOK, gin.H{"new_achievements": newUnlocks})
 }

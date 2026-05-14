@@ -26,6 +26,7 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 			// User profile
 			protected.GET("/user/profile", h.GetProfile)
 			protected.PUT("/user/profile", h.UpdateProfile)
+			protected.PUT("/user/rank-visibility", h.ToggleRank)
 
 			// Food (non-AI)
 			protected.GET("/food/records", h.ListFoodRecords)
@@ -33,6 +34,7 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 			protected.DELETE("/food/records/:id", h.DeleteFoodRecord)
 			protected.GET("/food/daily-summary", h.DailySummary)
 			protected.GET("/food/monthly-summary", h.MonthlySummary)
+			protected.GET("/food/daily-analysis", h.DailyAnalysis)
 
 			// Food AI analysis (rate limited)
 			aiFood := protected.Group("")
@@ -61,7 +63,25 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 			protected.GET("/privacy/status", h.PrivacyStatus)
 
 			// Upload
+			protected.POST("/upload/presign", h.PresignUpload)
 			protected.POST("/upload/image", h.UploadImage)
+
+			// Feedback
+			protected.POST("/feedback", h.CreateFeedback)
+			protected.GET("/feedback", h.ListFeedback)
+
+			// Score / Rank
+			protected.GET("/score/my", h.GetMyScore)
+			protected.GET("/score/rank", h.GetRank)
+			protected.GET("/score/log", h.GetScoreLogs)
+
+			// Share
+			protected.POST("/share/record", h.RecordShare)
+
+			// Achievement
+			protected.GET("/achievement/list", h.ListAchievements)
+			protected.PUT("/achievement/title", h.SetTitle)
+			protected.POST("/achievement/check", h.CheckAchievements)
 		}
 	}
 }

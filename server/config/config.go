@@ -16,6 +16,7 @@ type Config struct {
 	JWT       JWTConfig       `yaml:"jwt"`
 	Upload    UploadConfig    `yaml:"upload"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	COS       COSConfig       `yaml:"cos"`
 }
 
 type ServerConfig struct {
@@ -64,6 +65,13 @@ type UploadConfig struct {
 
 type RateLimitConfig struct {
 	Daily int64 `yaml:"daily"` // 每日AI调用上限
+}
+
+type COSConfig struct {
+	SecretID  string `yaml:"secret_id"`
+	SecretKey string `yaml:"secret_key"`
+	Bucket    string `yaml:"bucket"`
+	Region    string `yaml:"region"`
 }
 
 func Load(path string) (*Config, error) {

@@ -49,45 +49,74 @@ function buildQuery(params) {
   return parts.length ? '?' + parts.join('&') : ''
 }
 
-function uploadFile(url, filePath, name = 'image', formData = {}) {
-  const token = uni.getStorageSync('token')
-  return new Promise((resolve, reject) => {
-    uni.uploadFile({
-      url: BASE_URL + url,
-      filePath,
-      name,
-      formData,
-      header: {
-        Authorization: token ? 'Bearer ' + token : '',
-      },
+// COS upload: get presigned URL from COS SDK, then PUT file directly
+async function uploadToCOS(filePath, bizType) {
+  const filename = filePath.split('/').pop() || 'image.jpg'
+  console.log('[COS] step1: requesting presign...', { bizType, filename, filePath })
+
+  const { upload_url, object_key, object_url } = await request('/upload/presign', {
+    method: 'POST',
+    data: { biz_type: bizType, filename },
+  })
+  console.log('[COS] step1 OK: presign result', { upload_url, object_key })
+
+  // Read file as ArrayBuffer and PUT to COS presigned URL
+  const fs = uni.getFileSystemManager()
+  const fileData = fs.readFileSync(filePath)
+
+  console.log('[COS] step2: PUT to COS...')
+  await new Promise((resolve, reject) => {
+    uni.request({
+      url: upload_url,
+      method: 'PUT',
+      data: fileData,
       success(res) {
-        const data = JSON.parse(res.data)
+        console.log('[COS] step2 response:', res.statusCode)
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(data)
+          resolve()
         } else {
-          reject(new Error(data.error || '上传失败'))
+          console.error('[COS] step2 FULL ERROR:', res.data)
+          reject(new Error('COS upload failed: ' + res.statusCode))
         }
       },
       fail(err) {
-        reject(new Error(err.errMsg || '上传失败'))
+        console.error('[COS] step2 FAILED:', err)
+        reject(new Error(err.errMsg || 'COS upload failed'))
       },
+    })
+  })
+
+  console.log('[COS] upload success:', { object_key, object_url })
+  return { object_key, object_url }
+}
 
 export const api = {
   // Auth
-  wxLogin: (code) => request('/auth/wx-login', { method: 'POST', data: { code } }),
+  wxLogin: (code, inviterId) => request('/auth/wx-login', { method: 'POST', data: { code, inviter_id: inviterId || 0 } }),
 
   // User
   getProfile: () => request('/user/profile'),
   updateProfile: (data) => request('/user/profile', { method: 'PUT', data }),
 
-  // Food
-  analyzeImage: (filePath, mealType) => uploadFile('/food/analyze/image', filePath, 'image', { meal_type: String(mealType) }),
+  // Upload
+  getPresignedUrl: (data) => request('/upload/presign', { method: 'POST', data }),
+  uploadToCOS,
+
+  // Food — image analyze: upload to COS first, then analyze
+  async analyzeImage(filePath, mealType) {
+    const { object_key } = await uploadToCOS(filePath, 'food')
+    return request('/food/analyze/image', {
+      method: 'POST',
+      data: { image_key: object_key, meal_type: mealType },
+    })
+  },
   analyzeText: (data) => request('/food/analyze/text', { method: 'POST', data }),
   getFoodRecords: (params) => request('/food/records' + buildQuery(params)),
   getFoodRecord: (id) => request('/food/records/' + id),
   deleteFoodRecord: (id) => request('/food/records/' + id, { method: 'DELETE' }),
   getDailySummary: (date) => request('/food/daily-summary' + (date ? '?date=' + date : '')),
   getMonthlySummary: (month) => request('/food/monthly-summary?month=' + month),
+  getDailyAnalysis: (date) => request('/food/daily-analysis' + (date ? '?date=' + date : '')),
 
   // Wheel
   getDishes: (category) => request('/wheel/dishes' + (category ? '?category=' + category : '')),
@@ -100,8 +129,23 @@ export const api = {
   agreePrivacy: (data) => request('/privacy/agree', { method: 'POST', data }),
   getPrivacyStatus: () => request('/privacy/status'),
 
-  // Upload
-  uploadImage: (filePath) => uploadFile('/upload/image', filePath),
+  // Feedback
+  createFeedback: (data) => request('/feedback', { method: 'POST', data }),
+  getFeedbacks: () => request('/feedback'),
+
+  // Score / Rank
+  getMyScore: () => request('/score/my'),
+  getRank: (params) => request('/score/rank' + buildQuery(params)),
+  getScoreLogs: (params) => request('/score/log' + buildQuery(params)),
+  toggleRankVisibility: () => request('/user/rank-visibility', { method: 'PUT' }),
+
+  // Share
+  recordShare: (shareType) => request('/share/record', { method: 'POST', data: { share_type: shareType || 'poster' } }),
+
+  // Achievement
+  getAchievements: () => request('/achievement/list'),
+  setTitle: (data) => request('/achievement/title', { method: 'PUT', data }),
+  checkAchievements: () => request('/achievement/check', { method: 'POST' }),
 }
 
 export default api

@@ -20,6 +20,15 @@
         <view class="nutrient-chip">
           <text>脂肪 {{ (summary.total_nutrients.fat || 0).toFixed(1) }}g</text>
         </view>
+        <view class="nutrient-chip">
+          <text>膳食纤维 {{ (summary.total_nutrients.fiber || 0).toFixed(1) }}g</text>
+        </view>
+        <view class="nutrient-chip sugar-chip">
+          <text>糖分 {{ (summary.total_nutrients.sugar || 0).toFixed(1) }}g</text>
+        </view>
+        <view class="nutrient-chip">
+          <text>维C {{ (summary.total_nutrients.vitamin_c || 0).toFixed(1) }}mg</text>
+        </view>
       </view>
     </view>
 
@@ -32,16 +41,22 @@
           <text class="record-time">{{ formatTime(group.time) }}</text>
         </view>
         <view class="record-body">
-          <image v-if="group.imageURL" :src="baseUrl + group.imageURL" class="record-image" mode="aspectFill" />
+          <image v-if="group.imageURL" :src="resolveImageUrl(group.imageURL)" class="record-image" mode="aspectFill" />
           <view class="record-info">
             <view class="food-item" v-for="item in group.items" :key="item.id">
-              <text class="food-name">{{ item.food_name }}</text>
-              <text class="food-weight" v-if="item.unit_amount">{{ (item.unit_amount * 1000).toFixed(0) }}g</text>
-              <text class="food-cal">{{ item.calories }} kcal</text>
-            </view>
-            <view class="food-nutrients-row" v-if="group.totalSugar > 0 || group.totalVitC > 0">
-              <text class="nutrient-mini sugar" v-if="group.totalSugar > 0">糖分 {{ group.totalSugar.toFixed(1) }}g</text>
-              <text class="nutrient-mini" v-if="group.totalVitC > 0">VitC {{ group.totalVitC.toFixed(1) }}mg</text>
+              <view class="food-main-row">
+                <text class="food-name">{{ item.food_name }}</text>
+                <text class="food-weight" v-if="item.unit_amount">{{ (item.unit_amount * 1000).toFixed(0) }}g</text>
+                <text class="food-cal">{{ item.calories }} kcal</text>
+              </view>
+              <view class="food-nutrients-row" v-if="item.nutrients">
+                <text class="nutrient-mini" v-if="item.nutrients.protein">蛋白质 {{ item.nutrients.protein.toFixed(1) }}g</text>
+                <text class="nutrient-mini" v-if="item.nutrients.carbs">碳水 {{ item.nutrients.carbs.toFixed(1) }}g</text>
+                <text class="nutrient-mini" v-if="item.nutrients.fat">脂肪 {{ item.nutrients.fat.toFixed(1) }}g</text>
+                <text class="nutrient-mini" v-if="item.nutrients.fiber">膳食纤维 {{ item.nutrients.fiber.toFixed(1) }}g</text>
+                <text class="nutrient-mini sugar" v-if="item.nutrients.sugar">糖分 {{ item.nutrients.sugar.toFixed(1) }}g</text>
+                <text class="nutrient-mini" v-if="item.nutrients.vitamin_c">VitC {{ item.nutrients.vitamin_c.toFixed(1) }}mg</text>
+              </view>
             </view>
             <text class="food-desc" v-if="group.description">{{ group.description }}</text>
           </view>
@@ -60,6 +75,45 @@
         <text class="empty-text">暂无饮食记录</text>
         <text class="empty-hint">去首页拍照或文字记录吧</text>
       </view>
+
+      <!-- AI Daily Analysis -->
+      <view class="ai-section" v-if="records.length > 0">
+        <button class="ai-btn" @tap="toggleAnalysis" :loading="aiLoading" v-if="!dailyAnalysis || !showAnalysis">
+          {{ aiLoading ? 'AI 分析中...' : '查看今日健康建议' }}
+        </button>
+        <view class="card ai-card" v-if="dailyAnalysis && showAnalysis">
+          <view class="ai-card-header">
+            <text class="ai-card-title">今日健康建议</text>
+            <text class="ai-card-collapse" @tap="showAnalysis = false">收起</text>
+          </view>
+          <!-- Structured JSON display -->
+          <view v-if="parsedAnalysis">
+            <view class="ai-block">
+              <view class="ai-block-header">
+                <text class="ai-block-icon">🍎</text>
+                <text class="ai-block-title">营养评估</text>
+              </view>
+              <text class="ai-block-text">{{ parsedAnalysis.nutrition_eval }}</text>
+            </view>
+            <view class="ai-block">
+              <view class="ai-block-header">
+                <text class="ai-block-icon">🥗</text>
+                <text class="ai-block-title">饮食建议</text>
+              </view>
+              <text class="ai-block-text">{{ parsedAnalysis.diet_advice }}</text>
+            </view>
+            <view class="ai-block">
+              <view class="ai-block-header">
+                <text class="ai-block-icon">🏃</text>
+                <text class="ai-block-title">运动建议</text>
+              </view>
+              <text class="ai-block-text">{{ parsedAnalysis.exercise_advice }}</text>
+            </view>
+          </view>
+          <!-- Fallback for old plain text -->
+          <text class="ai-block-text" v-else>{{ dailyAnalysis.analysis_text }}</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -72,6 +126,9 @@ export default {
     return {
       records: [],
       summary: {},
+      dailyAnalysis: null,
+      showAnalysis: false,
+      aiLoading: false,
       currentDate: '',
       showDatePicker: false,
       baseUrl: SERVER_URL,
@@ -101,22 +158,29 @@ export default {
             suggestion: r.ai_suggestion,
             items: [],
             totalCal: 0,
-            totalSugar: 0,
-            totalVitC: 0,
           }
           result.push(map[gid])
         }
         map[gid].items.push(r)
         map[gid].totalCal += r.calories
-        if (r.nutrients) {
-          map[gid].totalSugar += r.nutrients.sugar || 0
-          map[gid].totalVitC += r.nutrients.vitamin_c || 0
-        }
       }
       return result
     },
+    parsedAnalysis() {
+      if (!this.dailyAnalysis || !this.dailyAnalysis.analysis_text) return null
+      try {
+        const obj = JSON.parse(this.dailyAnalysis.analysis_text)
+        if (obj.nutrition_eval || obj.diet_advice || obj.exercise_advice) return obj
+      } catch (e) {}
+      return null
+    },
   },
   methods: {
+    resolveImageUrl(url) {
+      if (!url) return ''
+      if (url.startsWith('http')) return url
+      return this.baseUrl + url
+    },
     async loadData() {
       try {
         const [recordsRes, summaryRes] = await Promise.all([
@@ -156,6 +220,36 @@ export default {
     formatTime(dateStr) {
       const d = new Date(dateStr)
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    },
+    async toggleAnalysis() {
+      if (this.dailyAnalysis) {
+        this.showAnalysis = !this.showAnalysis
+        return
+      }
+      this.aiLoading = true
+      try {
+        const res = await api.getDailyAnalysis(this.currentDate)
+        this.dailyAnalysis = res
+        this.showAnalysis = true
+      } catch (e) {
+        console.log('load daily analysis failed', e)
+        uni.showToast({ title: '分析失败，请稍后再试', icon: 'none' })
+      } finally {
+        this.aiLoading = false
+      }
+    },
+    async loadDailyAnalysis() {
+      this.aiLoading = true
+      try {
+        const res = await api.getDailyAnalysis(this.currentDate)
+        this.dailyAnalysis = res
+        this.showAnalysis = true
+      } catch (e) {
+        console.log('load daily analysis failed', e)
+        uni.showToast({ title: '分析失败，请稍后再试', icon: 'none' })
+      } finally {
+        this.aiLoading = false
+      }
     },
     confirmDelete(record) {
       uni.showModal({
@@ -251,6 +345,10 @@ export default {
   font-size: 22rpx;
 }
 
+.sugar-chip {
+  background: rgba(255, 112, 67, 0.3);
+}
+
 .record-card {
   margin-bottom: 20rpx;
 }
@@ -289,14 +387,66 @@ export default {
 }
 
 .food-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 8rpx 0;
 }
 
 .food-item + .food-item {
   border-top: 1rpx dashed #f0f0f0;
+}
+
+.food-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6rpx;
+}
+
+.food-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  flex: 1;
+}
+
+.food-weight {
+  font-size: 22rpx;
+  color: #999;
+  background: #f5f5f5;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  margin: 0 12rpx;
+}
+
+.food-cal {
+  font-size: 28rpx;
+  color: #FF7043;
+  flex-shrink: 0;
+}
+
+.food-nutrients-row {
+  display: flex;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  margin-top: 6rpx;
+}
+
+.nutrient-mini {
+  font-size: 20rpx;
+  color: #666;
+  background: #e8f5e9;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+}
+
+.nutrient-mini.sugar {
+  background: #fff3e0;
+  color: #FF7043;
+}
+
+.food-desc {
+  font-size: 24rpx;
+  color: #999;
+  display: block;
 }
 
 .record-total {
@@ -317,54 +467,6 @@ export default {
   font-size: 28rpx;
   font-weight: bold;
   color: #FF7043;
-}
-
-.food-weight {
-  font-size: 22rpx;
-  color: #999;
-  background: #f5f5f5;
-  padding: 2rpx 10rpx;
-  border-radius: 6rpx;
-}
-
-.food-nutrients-row {
-  display: flex;
-  gap: 12rpx;
-  margin-top: 8rpx;
-}
-
-.nutrient-mini {
-  font-size: 20rpx;
-  color: #666;
-  background: #e8f5e9;
-  padding: 4rpx 12rpx;
-  border-radius: 12rpx;
-}
-
-.nutrient-mini.sugar {
-  background: #fff3e0;
-  color: #FF7043;
-}
-
-.food-name {
-  font-size: 30rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.food-cal {
-  font-size: 28rpx;
-  color: #FF7043;
-  display: block;
-  margin-bottom: 4rpx;
-}
-
-.food-desc {
-  font-size: 24rpx;
-  color: #999;
-  display: block;
 }
 
 .record-suggestion {
@@ -401,5 +503,75 @@ export default {
 .empty-hint {
   font-size: 24rpx;
   color: #ddd;
+}
+
+.ai-section {
+  margin-top: 30rpx;
+  padding-bottom: 40rpx;
+}
+
+.ai-btn {
+  background: linear-gradient(135deg, #FF8F00, #FFA726);
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 16rpx;
+  border: none;
+}
+
+.ai-card {
+  background: #fffdf5;
+}
+
+.ai-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.ai-card-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #FF8F00;
+}
+
+.ai-card-collapse {
+  font-size: 24rpx;
+  color: #FFA726;
+  padding: 6rpx 20rpx;
+  background: rgba(255, 167, 38, 0.15);
+  border-radius: 16rpx;
+}
+
+.ai-block {
+  margin-bottom: 20rpx;
+}
+
+.ai-block:last-child {
+  margin-bottom: 0;
+}
+
+.ai-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-bottom: 8rpx;
+}
+
+.ai-block-icon {
+  font-size: 28rpx;
+}
+
+.ai-block-title {
+  font-size: 26rpx;
+  font-weight: bold;
+  color: #5D4037;
+}
+
+.ai-block-text {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.6;
+  padding-left: 36rpx;
 }
 </style>

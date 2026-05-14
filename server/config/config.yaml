@@ -32,3 +32,9 @@ upload:
 
 rate_limit:
   daily: 30
+
+cos:
+  secret_id: "AKIDpoqqqsy27664wwxwmaQD4wrkXIIKJDFG"
+  secret_key: "8EZwMj5SoBe7Qbdrvz0sCc2X8bwJucHm"
+  bucket: "nutrilens-1429775067"
+  region: "ap-guangzhou"

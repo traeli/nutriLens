@@ -13,12 +13,12 @@ import (
 )
 
 type WheelService struct {
-	DB       *gorm.DB
-	DeepSeek *DeepSeekService
+	DB *gorm.DB
+	AI *AIProviderService
 }
 
-func NewWheelService(db *gorm.DB, ds *DeepSeekService) *WheelService {
-	return &WheelService{DB: db, DeepSeek: ds}
+func NewWheelService(db *gorm.DB, ai *AIProviderService) *WheelService {
+	return &WheelService{DB: db, AI: ai}
 }
 
 // ListDishes returns dishes visible to a user (system + user's own), optionally filtered by category.
@@ -100,7 +100,7 @@ func (s *WheelService) CreateDishWithAI(ctx context.Context, userID uint, name s
 	}
 
 	// No cached data — call AI
-	result, err := s.DeepSeek.AnalyzeDish(ctx, name)
+	result, err := s.AI.AnalyzeDish(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("AI分析失败: %w", err)
 	}

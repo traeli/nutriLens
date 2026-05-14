@@ -185,6 +185,7 @@ export default {
       timer: null,
       loginLoading: false,
       viewType: '', // '', 'privacy', 'agreement'
+      inviterId: 0,
     }
   },
   computed: {
@@ -197,8 +198,11 @@ export default {
       return '我已阅读并同意'
     },
   },
-  onLoad() {
+  onLoad(options) {
     this.privacyAgreed = uni.getStorageSync('privacy_agreed')
+    if (options && options.inviter_id) {
+      this.inviterId = parseInt(options.inviter_id) || 0
+    }
     if (!this.privacyAgreed) {
       this.startCountdown()
     }
@@ -245,7 +249,7 @@ export default {
         provider: 'weixin',
         success: async (loginRes) => {
           try {
-            const res = await api.wxLogin(loginRes.code)
+            const res = await api.wxLogin(loginRes.code, this.inviterId)
             uni.setStorageSync('token', res.token)
             uni.setStorageSync('user_id', res.user_id)
             uni.setStorageSync('has_profile', res.has_profile)

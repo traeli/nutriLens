@@ -10,7 +10,10 @@
     { "path": "pages/food-log/food-log", "style": { "navigationBarTitleText": "饮食记录" } },
     { "path": "pages/my-dishes/my-dishes", "style": { "navigationBarTitleText": "我的菜品" } },
     { "path": "pages/privacy/privacy", "style": { "navigationBarTitleText": "隐私保护政策" } },
-    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } }
+    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } },
+    { "path": "pages/feedback/feedback", "style": { "navigationBarTitleText": "意见反馈" } },
+    { "path": "pages/rank/rank", "style": { "navigationBarTitleText": "排行榜" } },
+    { "path": "pages/achievement/achievement", "style": { "navigationBarTitleText": "成就" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",

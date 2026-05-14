@@ -3,7 +3,8 @@
     <!-- Profile Card -->
     <view class="profile-card card">
       <view class="avatar-wrap">
-        <text class="avatar-text">{{ avatarText }}</text>
+        <image v-if="profile.avatar_url" class="avatar-img" :src="profile.avatar_url" mode="aspectFill" />
+        <text v-else class="avatar-text">{{ avatarText }}</text>
       </view>
       <view class="profile-info">
         <text class="nickname">{{ profile.nickname || '未设置昵称' }}</text>
@@ -44,10 +45,30 @@
         <text class="menu-text">关于</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" @tap="goFeedback">
+        <text class="menu-icon">💬</text>
+        <text class="menu-text">意见反馈</text>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" @tap="goRank">
+        <text class="menu-icon">🏆</text>
+        <text class="menu-text">排行榜</text>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" @tap="goAchievement">
+        <text class="menu-icon">🎖</text>
+        <text class="menu-text">我的成就</text>
+        <text class="menu-arrow">›</text>
+      </view>
     </view>
 
     <!-- Logout -->
     <button class="logout-btn" @tap="logout">退出登录</button>
+
+    <!-- ICP Filing -->
+    <view class="icp-footer">
+      <text class="icp-text">湘ICP备2024071320号-4</text>
+    </view>
   </view>
 </template>
 
@@ -112,10 +133,19 @@ export default {
     goMyDishes() {
       uni.navigateTo({ url: '/pages/my-dishes/my-dishes' })
     },
+    goFeedback() {
+      uni.navigateTo({ url: '/pages/feedback/feedback' })
+    },
+    goRank() {
+      uni.navigateTo({ url: '/pages/rank/rank' })
+    },
+    goAchievement() {
+      uni.navigateTo({ url: '/pages/achievement/achievement' })
+    },
     showAbout() {
       uni.showModal({
         title: 'NutriLens 营养镜头',
-        content: '版本: 1.0.0\nAI智能饮食分析助手\n拍照识别食物卡路里，获取个性化营养建议',
+        content: '版本: 1.0.0\nAI智能饮食分析助手\n拍照识别食物卡路里，获取个性化营养建议\n\n湘ICP备2024071320号-4',
         showCancel: false,
       })
     },
@@ -157,6 +187,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
 }
 
 .avatar-text {
@@ -256,5 +293,16 @@ export default {
   border: 1rpx solid #FF7043;
   border-radius: 50rpx;
   font-size: 28rpx;
+}
+
+.icp-footer {
+  text-align: center;
+  margin-top: 60rpx;
+  padding-bottom: 40rpx;
+}
+
+.icp-text {
+  font-size: 22rpx;
+  color: #bbb;
 }
 </style>

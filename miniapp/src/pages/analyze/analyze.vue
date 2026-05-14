@@ -26,47 +26,63 @@
     </view>
 
     <!-- Result -->
-    <view v-if="result && !analyzing">
+    <view v-if="records.length > 0 && !analyzing">
+      <!-- Total Calories Card -->
       <view class="card result-card">
-        <text class="result-title">{{ result.food_name }}</text>
+        <text class="result-title">{{ records.length > 1 ? '共 ' + records.length + ' 种食物' : records[0].food_name }}</text>
         <view class="calorie-display">
-          <text class="calorie-value">{{ result.calories }}</text>
+          <text class="calorie-value">{{ totalCalories }}</text>
           <text class="calorie-unit">kcal</text>
         </view>
       </view>
 
-      <view class="card nutrients-card" v-if="result.nutrients">
-        <text class="card-title">营养成分</text>
-        <view class="nutrients-grid">
+      <!-- Per-food items -->
+      <view class="card" v-for="(item, idx) in records" :key="item.id || idx">
+        <view class="food-header">
+          <text class="food-name-result">{{ item.food_name }}</text>
+          <text class="food-weight-result" v-if="item.unit_amount">{{ (item.unit_amount * 1000).toFixed(0) }}g</text>
+        </view>
+        <text class="food-cal-result">{{ item.calories }} kcal</text>
+        <view class="nutrients-grid" v-if="item.nutrients">
           <view class="nutrient-item">
             <text class="nutrient-name">蛋白质</text>
-            <text class="nutrient-val">{{ (result.nutrients.protein || 0).toFixed(1) }}g</text>
+            <text class="nutrient-val">{{ (item.nutrients.protein || 0).toFixed(1) }}g</text>
           </view>
           <view class="nutrient-item">
             <text class="nutrient-name">碳水化合物</text>
-            <text class="nutrient-val">{{ (result.nutrients.carbs || 0).toFixed(1) }}g</text>
+            <text class="nutrient-val">{{ (item.nutrients.carbs || 0).toFixed(1) }}g</text>
           </view>
           <view class="nutrient-item">
             <text class="nutrient-name">脂肪</text>
-            <text class="nutrient-val">{{ (result.nutrients.fat || 0).toFixed(1) }}g</text>
+            <text class="nutrient-val">{{ (item.nutrients.fat || 0).toFixed(1) }}g</text>
           </view>
           <view class="nutrient-item">
             <text class="nutrient-name">膳食纤维</text>
-            <text class="nutrient-val">{{ (result.nutrients.fiber || 0).toFixed(1) }}g</text>
+            <text class="nutrient-val">{{ (item.nutrients.fiber || 0).toFixed(1) }}g</text>
+          </view>
+          <view class="nutrient-item">
+            <text class="nutrient-name">糖分</text>
+            <text class="nutrient-val sugar-val">{{ (item.nutrients.sugar || 0).toFixed(1) }}g</text>
+          </view>
+          <view class="nutrient-item">
+            <text class="nutrient-name">维C</text>
+            <text class="nutrient-val">{{ (item.nutrients.vitamin_c || 0).toFixed(1) }}mg</text>
           </view>
         </view>
       </view>
 
-      <view class="card suggestion-card">
+      <!-- AI Suggestion -->
+      <view class="card suggestion-card" v-if="suggestion">
         <text class="card-title">AI 建议</text>
-        <text class="suggestion-text">{{ result.ai_suggestion }}</text>
+        <text class="suggestion-text">{{ suggestion }}</text>
       </view>
 
       <button class="btn-primary" @tap="goHome">返回首页</button>
+      <button class="btn-share" @tap="sharePoster">生成分享海报</button>
     </view>
 
     <!-- Analyze Button (before analysis) -->
-    <button class="btn-primary" v-if="!analyzing && !result" @tap="analyze">
+    <button class="btn-primary" v-if="!analyzing && records.length === 0" @tap="analyze">
       开始分析
     </button>
   </view>
@@ -81,7 +97,8 @@ export default {
       imageUrl: '',
       mealType: 1,
       analyzing: false,
-      result: null,
+      records: [],
+      suggestion: '',
       mealTypes: [
         { label: '早餐', value: 1 },
         { label: '午餐', value: 2 },
@@ -89,6 +106,11 @@ export default {
         { label: '加餐', value: 4 },
       ],
     }
+  },
+  computed: {
+    totalCalories() {
+      return this.records.reduce((sum, r) => sum + (r.calories || 0), 0)
+    },
   },
   onLoad(options) {
     if (options.image) {
@@ -100,6 +122,20 @@ export default {
     else if (h < 14) this.mealType = 2
     else if (h < 20) this.mealType = 3
     else this.mealType = 4
+  },
+  onShareAppMessage() {
+    const userId = uni.getStorageSync('user_id') || ''
+    return {
+      title: `我刚用NutriLens分析了食物热量，今天吃了${Math.round(this.totalCalories)}千卡！`,
+      path: '/pages/home/home?inviter_id=' + userId,
+    }
+  },
+  onShareTimeline() {
+    const userId = uni.getStorageSync('user_id') || ''
+    return {
+      title: `NutriLens — AI食物热量分析，今天吃了${Math.round(this.totalCalories)}千卡`,
+      path: '/pages/home/home?inviter_id=' + userId,
+    }
   },
   methods: {
     async analyze() {
@@ -118,7 +154,8 @@ export default {
           })
           return
         }
-        this.result = res.record
+        this.records = res.records || []
+        this.suggestion = res.suggestion || ''
       } catch (err) {
         uni.showToast({ title: '分析失败: ' + err.message, icon: 'none' })
       } finally {
@@ -127,6 +164,26 @@ export default {
     },
     goHome() {
       uni.switchTab({ url: '/pages/home/home' })
+    },
+    async sharePoster() {
+      try {
+        await api.recordShare('poster')
+        uni.showToast({ title: '分享已记录', icon: 'success' })
+      } catch (e) {
+        console.error('record share failed:', e)
+      }
+      // Trigger share via WeChat
+      uni.showActionSheet({
+        itemList: ['分享到微信好友', '生成海报图片'],
+        success: (res) => {
+          if (res.tapIndex === 0) {
+            // WeChat share is handled by onShareAppMessage
+            uni.showToast({ title: '请点击右上角分享给好友', icon: 'none' })
+          } else {
+            uni.showToast({ title: '海报功能开发中', icon: 'none' })
+          }
+        },
+      })
     },
   },
 }
@@ -230,6 +287,35 @@ export default {
   opacity: 0.8;
 }
 
+.food-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.food-name-result {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.food-weight-result {
+  font-size: 24rpx;
+  color: #999;
+  background: #f5f5f5;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+
+.food-cal-result {
+  font-size: 28rpx;
+  color: #FF7043;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
 .card-title {
   font-size: 30rpx;
   font-weight: bold;
@@ -264,6 +350,10 @@ export default {
   color: #333;
 }
 
+.sugar-val {
+  color: #FF7043;
+}
+
 .suggestion-text {
   font-size: 28rpx;
   color: #666;
@@ -272,6 +362,15 @@ export default {
 
 .btn-primary {
   margin-top: 30rpx;
+  margin-bottom: 16rpx;
+}
+
+.btn-share {
+  margin-top: 0;
   margin-bottom: 60rpx;
+  background: #FF9800;
+  color: #fff;
+  border-radius: 50rpx;
+  font-size: 28rpx;
 }
 </style>
