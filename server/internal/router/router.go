@@ -17,6 +17,9 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 
 	api := r.Group("/api/v1")
 	{
+		// WeChat server verification (no auth, used by public nginx proxy)
+		api.GET("/wx/callback", h.WechatVerify)
+
 		// Public routes
 		auth := api.Group("/auth")
 		{
