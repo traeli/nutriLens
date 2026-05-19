@@ -11,19 +11,27 @@ import (
 	"nutrilens/internal/model"
 	"nutrilens/internal/router"
 	"nutrilens/internal/service"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var beijingLoc = time.FixedZone("CST", 8*3600)
 
 type appConfig struct {
 	*config.Config
 }
 
-func (a *appConfig) GetJWTSecret() string { return a.JWT.Secret }
-func (a *appConfig) GetJWTExpire() int    { return a.JWT.Expire }
-func (a *appConfig) GetUploadDir() string { return a.Upload.Dir }
+func (a *appConfig) GetJWTSecret() string            { return a.JWT.Secret }
+func (a *appConfig) GetJWTExpire() int               { return a.JWT.Expire }
+func (a *appConfig) GetUploadDir() string            { return a.Upload.Dir }
+func (a *appConfig) GetTemplateID() string           { return a.Notify.TemplateID }
+func (a *appConfig) GetDefaultBreakfastTime() string { return a.Notify.BreakfastTime }
+func (a *appConfig) GetDefaultLunchTime() string     { return a.Notify.LunchTime }
+func (a *appConfig) GetDefaultDinnerTime() string    { return a.Notify.DinnerTime }
 
 func main() {
 	cfg, err := config.Load("config/config.yaml")
@@ -67,27 +75,30 @@ func main() {
 	}
 
 	// Services
-	wechatSvc := service.NewWechatService(cfg.WeChat.AppID, cfg.WeChat.AppSecret)
+	wechatSvc := service.NewWechatService(cfg.WeChat.AppID, cfg.WeChat.AppSecret, cfg.WeChat.Token, redisClient)
 	aiProvider := service.NewAIProviderService(db)
 	foodSvc := service.NewFoodService(db, aiProvider, cosClient)
 	wheelSvc := service.NewWheelService(db, aiProvider)
 	scoreSvc := service.NewScoreService(db)
 	achieveSvc := service.NewAchievementService(db, scoreSvc)
 	shareSvc := service.NewShareService(db, scoreSvc)
+	appCfg := &appConfig{cfg}
+	notifySvc := service.NewNotifyService(db, wechatSvc, aiProvider, appCfg)
 
 	// Handler
-	appCfg := &appConfig{cfg}
 	h := &handler.Handler{
 		Svc: &handler.Services{
-			Auth:  wechatSvc,
-			Food:  foodSvc,
-			Wheel: wheelSvc,
+			Auth:   wechatSvc,
+			Food:   foodSvc,
+			Wheel:  wheelSvc,
+			Notify: notifySvc,
 		},
 		Cfg:        appCfg,
 		COS:        cosClient,
 		ScoreSvc:   scoreSvc,
 		AchieveSvc: achieveSvc,
 		ShareSvc:   shareSvc,
+		NotifySvc:  notifySvc,
 	}
 
 	// Gin
@@ -95,11 +106,26 @@ func main() {
 	r := gin.Default()
 	router.Setup(r, cfg.JWT.Secret, h, rateLimiter, getTag, cfg.RateLimit.Daily)
 
+	// Start notification scheduler
+	checkInterval := cfg.Notify.CheckInterval
+	if checkInterval == "" {
+		checkInterval = "@every 1m"
+	}
+	c := cron.New(cron.WithLocation(beijingLoc))
+	c.AddFunc(checkInterval, func() {
+		if err := notifySvc.CheckAndNotify(context.Background()); err != nil {
+			log.Printf("[NotifyScheduler] check error: %v", err)
+		}
+	})
+	c.Start()
+	fmt.Println("Notification scheduler started")
+
 	addr := cfg.Server.Port
 	fmt.Printf("Server starting on %s\n", addr)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+	c.Stop()
 }
 
 // initDB runs DDL auto-migration via GORM and seeds initial data.
@@ -118,6 +144,9 @@ func initDB(db *gorm.DB, cfg *config.Config) {
 		&model.UserDailyAnalysis{},
 		&model.UserScore{},
 		&model.ScoreLog{},
+		&model.NotifySetting{},
+		&model.NotifyLog{},
+		&model.MealRecommendation{},
 		&model.FriendRelation{},
 		&model.Achievement{},
 		&model.UserAchievement{},
@@ -243,6 +272,18 @@ func seedAIModels(db *gorm.DB, deepseekKey string) {
 				APIKey:    deepseekKey,
 				BaseURL:   "https://api.deepseek.com/v1/chat/completions",
 				TaskType:  "daily_analysis",
+				Enabled:   true,
+			},
+		},
+		{
+			taskType: "meal_recommend",
+			model: model.AIModel{
+				Name:      "DeepSeek Chat (餐食推荐)",
+				Provider:  "deepseek",
+				ModelName: "deepseek-chat",
+				APIKey:    deepseekKey,
+				BaseURL:   "https://api.deepseek.com/v1/chat/completions",
+				TaskType:  "meal_recommend",
 				Enabled:   true,
 			},
 		},
@@ -406,6 +447,41 @@ func seedAIPrompts(db *gorm.DB) {
 - 如果糖分摄入过多，在diet_advice中重点提醒
 - 运动建议要具体(如: 快走30分钟、慢跑20分钟等)
 - 只返回JSON，不要markdown代码块或其他内容`,
+				Enabled: true,
+			},
+		},
+		{
+			taskType: "meal_recommend",
+			prompt: model.AIPrompt{
+				Title:        "餐食推荐推送",
+				TaskType:     "meal_recommend",
+				SystemPrompt: "你是一个专业的营养师AI助手。根据用户的个人信息、今日已摄入的食物和营养素、用户的菜品偏好，为指定餐次推荐合适的菜品。回复必须严格遵循JSON格式。",
+				UserPromptTemplate: `用户信息: {{user_info}}
+
+今日已摄入食物:
+{{today_foods}}
+
+今日营养素汇总:
+{{nutrient_summary}}
+
+用户偏好菜品(喜爱度1-100):
+{{preferred_dishes}}
+
+目标餐次: {{meal_type_name}}
+
+请为{{meal_type_name}}推荐2-3道菜品，结合用户偏好和今日营养缺口。返回JSON格式:
+{
+  "recommendations": [
+    {"name": "菜品名称", "reason": "推荐理由(30字内)", "calories": 估算卡路里数字}
+  ],
+  "tip": "一句话饮食小贴士(40字内)"
+}
+
+注意:
+- 优先从用户偏好菜品中选择，若没有合适偏好则推荐一般健康菜品
+- 推荐理由要结合用户今天的营养素摄入情况
+- 如果用户今天还没吃东西，按早餐标准推荐(清淡、有营养)
+- 只返回JSON，不要其他内容`,
 				Enabled: true,
 			},
 		},

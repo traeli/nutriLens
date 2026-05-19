@@ -11,6 +11,10 @@ import (
 func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.RateLimiter, getTag middleware.UserTagGetter, dailyLimit int64) {
 	r.Use(middleware.CORS())
 
+	// WeChat server verification (no auth)
+	r.GET("/", h.WechatVerify)
+	r.GET("/wx/callback", h.WechatVerify)
+
 	api := r.Group("/api/v1")
 	{
 		// Public routes
@@ -82,6 +86,10 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 			protected.GET("/achievement/list", h.ListAchievements)
 			protected.PUT("/achievement/title", h.SetTitle)
 			protected.POST("/achievement/check", h.CheckAchievements)
+
+			// Notify
+			protected.GET("/notify/settings", h.GetNotifySettings)
+			protected.PUT("/notify/settings", h.UpdateNotifySettings)
 		}
 	}
 }

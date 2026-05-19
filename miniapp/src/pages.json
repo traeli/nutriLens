@@ -13,7 +13,8 @@
     { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } },
     { "path": "pages/feedback/feedback", "style": { "navigationBarTitleText": "意见反馈" } },
     { "path": "pages/rank/rank", "style": { "navigationBarTitleText": "排行榜" } },
-    { "path": "pages/achievement/achievement", "style": { "navigationBarTitleText": "成就" } }
+    { "path": "pages/achievement/achievement", "style": { "navigationBarTitleText": "成就" } },
+    { "path": "pages/notify-settings/notify-settings", "style": { "navigationBarTitleText": "消息推送设置" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",

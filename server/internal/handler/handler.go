@@ -21,12 +21,14 @@ type Handler struct {
 	ScoreSvc   *service.ScoreService
 	AchieveSvc *service.AchievementService
 	ShareSvc   *service.ShareService
+	NotifySvc  *service.NotifyService
 }
 
 type Services struct {
-	Auth  *service.WechatService
-	Food  *service.FoodService
-	Wheel *service.WheelService
+	Auth   *service.WechatService
+	Food   *service.FoodService
+	Wheel  *service.WheelService
+	Notify *service.NotifyService
 }
 
 type ConfigProvider interface {

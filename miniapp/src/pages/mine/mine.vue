@@ -40,6 +40,11 @@
         <text class="menu-text">我的菜品</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" @tap="goNotifySettings">
+        <text class="menu-icon">🔔</text>
+        <text class="menu-text">消息推送</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" @tap="showAbout">
         <text class="menu-icon">ℹ️</text>
         <text class="menu-text">关于</text>
@@ -132,6 +137,9 @@ export default {
     },
     goMyDishes() {
       uni.navigateTo({ url: '/pages/my-dishes/my-dishes' })
+    },
+    goNotifySettings() {
+      uni.navigateTo({ url: '/pages/notify-settings/notify-settings' })
     },
     goFeedback() {
       uni.navigateTo({ url: '/pages/feedback/feedback' })

@@ -18,6 +18,8 @@ redis:
 wechat:
   app_id: "wx93f56eec335dada8"
   app_secret: "2911bed7800186fab510b2e5ef03d04b"
+  token: "yourlame12eewq2"
+  encoding_aes_key: "ULkl1aumB5B8KSisWZprRgmKV4lYB7XnY6DySuiOaXr"
 
 deepseek:
   api_key: "sk-e363bbe501984ff59396a2e4c25a9c47"
@@ -38,3 +40,10 @@ cos:
   secret_key: "8EZwMj5SoBe7Qbdrvz0sCc2X8bwJucHm"
   bucket: "nutrilens-1429775067"
   region: "ap-guangzhou"
+
+notify:
+  template_id: ""  # 微信订阅消息模板ID（需要在微信公众平台申请后填入）
+  breakfast_time: "08:00"
+  lunch_time: "12:00"
+  dinner_time: "18:00"
+  check_interval: "@every 1m"

@@ -293,6 +293,49 @@ func (s *AIProviderService) AnalyzeDish(ctx context.Context, dishName string) (*
 	return &result, nil
 }
 
+// RecommendMeal generates a personalized meal recommendation for push notifications.
+func (s *AIProviderService) RecommendMeal(ctx context.Context, userInfo, todayFoods, nutrientSummary, preferredDishes, mealTypeName string) (string, error) {
+	m, err := s.GetActiveModel("meal_recommend")
+	if err != nil {
+		return "", err
+	}
+	p, err := s.GetActivePrompt("meal_recommend")
+	if err != nil {
+		return "", err
+	}
+
+	userPrompt := renderPrompt(p.UserPromptTemplate, map[string]string{
+		"user_info":        userInfo,
+		"today_foods":      todayFoods,
+		"nutrient_summary": nutrientSummary,
+		"preferred_dishes": preferredDishes,
+		"meal_type_name":   mealTypeName,
+	})
+
+	messages := []map[string]interface{}{}
+	if p.SystemPrompt != "" {
+		messages = append(messages, map[string]interface{}{
+			"role":    "system",
+			"content": p.SystemPrompt,
+		})
+	}
+	messages = append(messages, map[string]interface{}{
+		"role":    "user",
+		"content": userPrompt,
+	})
+
+	payload := map[string]interface{}{
+		"model":    m.ModelName,
+		"messages": messages,
+	}
+
+	content, err := s.callAI(ctx, m, payload)
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
 // AnalyzeDailySummary generates a daily health suggestion based on the user's food intake.
 func (s *AIProviderService) AnalyzeDailySummary(ctx context.Context, foodList string, nutrientSummary string, user model.User) (string, error) {
 	m, err := s.GetActiveModel("daily_analysis")

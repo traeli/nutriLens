@@ -146,6 +146,10 @@ export const api = {
   getAchievements: () => request('/achievement/list'),
   setTitle: (data) => request('/achievement/title', { method: 'PUT', data }),
   checkAchievements: () => request('/achievement/check', { method: 'POST' }),
+
+  // Notify
+  getNotifySettings: () => request('/notify/settings'),
+  updateNotifySettings: (data) => request('/notify/settings', { method: 'PUT', data }),
 }
 
 export default api

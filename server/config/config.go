@@ -17,6 +17,7 @@ type Config struct {
 	Upload    UploadConfig    `yaml:"upload"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	COS       COSConfig       `yaml:"cos"`
+	Notify    NotifyConfig    `yaml:"notify"`
 }
 
 type ServerConfig struct {
@@ -45,8 +46,10 @@ type RedisConfig struct {
 }
 
 type WeChatConfig struct {
-	AppID     string `yaml:"app_id"`
-	AppSecret string `yaml:"app_secret"`
+	AppID          string `yaml:"app_id"`
+	AppSecret      string `yaml:"app_secret"`
+	Token          string `yaml:"token"`
+	EncodingAESKey string `yaml:"encoding_aes_key"`
 }
 
 type DeepSeekConfig struct {
@@ -72,6 +75,14 @@ type COSConfig struct {
 	SecretKey string `yaml:"secret_key"`
 	Bucket    string `yaml:"bucket"`
 	Region    string `yaml:"region"`
+}
+
+type NotifyConfig struct {
+	TemplateID    string `yaml:"template_id"`
+	BreakfastTime string `yaml:"breakfast_time"`
+	LunchTime     string `yaml:"lunch_time"`
+	DinnerTime    string `yaml:"dinner_time"`
+	CheckInterval string `yaml:"check_interval"`
 }
 
 func Load(path string) (*Config, error) {
