@@ -84,6 +84,7 @@ func main() {
 	shareSvc := service.NewShareService(db, scoreSvc)
 	appCfg := &appConfig{cfg}
 	notifySvc := service.NewNotifyService(db, wechatSvc, aiProvider, appCfg)
+	webhookSvc := service.NewWebhookService(cfg.Webhook.FeishuWebhookURL, cfg.DeepSeek.APIKey, cfg.DeepSeek.BaseURL, cfg.Webhook.RepoPath, cfg.Webhook.Keyword)
 
 	// Handler
 	h := &handler.Handler{
@@ -99,6 +100,7 @@ func main() {
 		AchieveSvc: achieveSvc,
 		ShareSvc:   shareSvc,
 		NotifySvc:  notifySvc,
+		WebhookSvc: webhookSvc,
 	}
 
 	// Gin
@@ -152,6 +154,7 @@ func initDB(db *gorm.DB, cfg *config.Config) {
 		&model.UserAchievement{},
 		&model.ShareRecord{},
 		&model.InviteRelation{},
+		&model.Share{},
 	); err != nil {
 		log.Fatalf("Database migration failed: %v", err)
 	}
@@ -161,6 +164,7 @@ func initDB(db *gorm.DB, cfg *config.Config) {
 	seedAIModels(db, cfg.DeepSeek.APIKey)
 	seedAIPrompts(db)
 	seedAchievements(db)
+	seedShare(db)
 }
 
 func seedDishes(db *gorm.DB) {
@@ -534,5 +538,22 @@ func seedAchievements(db *gorm.DB) {
 		log.Printf("Failed to seed achievements: %v", err)
 	} else {
 		fmt.Printf("Seeded %d achievements\n", len(achievements))
+	}
+}
+
+func seedShare(db *gorm.DB) {
+	var count int64
+	db.Model(&model.Share{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	share := model.Share{
+		ImageURL: "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/share/ee7a24a6-784f-4b2f-abe8-d919276ae850.png",
+		Type:     "poster",
+	}
+	if err := db.Create(&share).Error; err != nil {
+		log.Printf("Failed to seed share: %v", err)
+	} else {
+		fmt.Println("Seeded share poster")
 	}
 }

@@ -104,11 +104,13 @@ export const api = {
 
   // Food — image analyze: upload to COS first, then analyze
   async analyzeImage(filePath, mealType) {
-    const { object_key } = await uploadToCOS(filePath, 'food')
-    return request('/food/analyze/image', {
+    const { object_key, object_url } = await uploadToCOS(filePath, 'food')
+    const res = await request('/food/analyze/image', {
       method: 'POST',
       data: { image_key: object_key, meal_type: mealType },
     })
+    res._image_url = object_url
+    return res
   },
   analyzeText: (data) => request('/food/analyze/text', { method: 'POST', data }),
   getFoodRecords: (params) => request('/food/records' + buildQuery(params)),
@@ -140,6 +142,7 @@ export const api = {
   toggleRankVisibility: () => request('/user/rank-visibility', { method: 'PUT' }),
 
   // Share
+  getSharePoster: () => request('/share/poster'),
   recordShare: (shareType) => request('/share/record', { method: 'POST', data: { share_type: shareType || 'poster' } }),
 
   // Achievement

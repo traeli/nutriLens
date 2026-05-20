@@ -18,6 +18,7 @@ type Config struct {
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	COS       COSConfig       `yaml:"cos"`
 	Notify    NotifyConfig    `yaml:"notify"`
+	Webhook   WebhookConfig   `yaml:"webhook"`
 }
 
 type ServerConfig struct {
@@ -83,6 +84,13 @@ type NotifyConfig struct {
 	LunchTime     string `yaml:"lunch_time"`
 	DinnerTime    string `yaml:"dinner_time"`
 	CheckInterval string `yaml:"check_interval"`
+}
+
+type WebhookConfig struct {
+	FeishuWebhookURL string `yaml:"feishu_webhook_url"` // 飞书机器人 webhook
+	RepoPath         string `yaml:"repo_path"`          // 代码仓库路径
+	Secret           string `yaml:"secret"`             // webhook 签名密钥 (可选)
+	Keyword          string `yaml:"keyword"`            // webhook 关键词校验 (可选)
 }
 
 func Load(path string) (*Config, error) {

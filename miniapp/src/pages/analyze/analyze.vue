@@ -165,22 +165,14 @@ export default {
     goHome() {
       uni.switchTab({ url: '/pages/home/home' })
     },
-    async sharePoster() {
-      try {
-        await api.recordShare('poster')
-        uni.showToast({ title: '分享已记录', icon: 'success' })
-      } catch (e) {
-        console.error('record share failed:', e)
-      }
-      // Trigger share via WeChat
+    sharePoster() {
       uni.showActionSheet({
         itemList: ['分享到微信好友', '生成海报图片'],
         success: (res) => {
           if (res.tapIndex === 0) {
-            // WeChat share is handled by onShareAppMessage
             uni.showToast({ title: '请点击右上角分享给好友', icon: 'none' })
           } else {
-            uni.showToast({ title: '海报功能开发中', icon: 'none' })
+            uni.navigateTo({ url: '/pages/share-poster/share-poster' })
           }
         },
       })

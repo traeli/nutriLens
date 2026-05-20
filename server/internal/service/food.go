@@ -316,6 +316,47 @@ func (s *FoodService) MonthlySummary(userID uint, month string) (map[string]inte
 	}, nil
 }
 
+// ComputeStampText returns a stamp evaluation text based on total nutrition data.
+// Rules (priority order):
+//  1. 碳水占比 > 60%  → "良子本人"
+//  2. 总热量 > 800kcal → "夯爆了"
+//  3. 总热量 < 150kcal → "拉完了"
+//  4. 糖分 > 30g       → "甜蜜暴击"
+//  5. default          → "好好吃饭"
+func ComputeStampText(records []model.FoodRecord) string {
+	if len(records) == 0 {
+		return ""
+	}
+
+	var totalCal, totalCarbs, totalSugar float64
+	for _, r := range records {
+		totalCal += r.Calories
+		if r.Nutrients != nil {
+			totalCarbs += r.Nutrients["carbs"]
+			totalSugar += r.Nutrients["sugar"]
+		}
+	}
+
+	// Total calories < 800kcal threshold uses standard calorie ratio (1g carbs = 4kcal)
+	if totalCarbs > 0 && totalCal > 0 {
+		carbRatio := (totalCarbs * 4) / totalCal
+		if carbRatio > 0.6 {
+			return "良子本人"
+		}
+	}
+
+	if totalCal > 800 {
+		return "夯爆了"
+	}
+	if totalCal < 150 {
+		return "拉完了"
+	}
+	if totalSugar > 30 {
+		return "甜蜜暴击"
+	}
+	return "好好吃饭"
+}
+
 // GetDailyAnalysis returns AI-generated daily health suggestion with caching.
 // Cache is invalidated when record count or total calories change.
 func (s *FoodService) GetDailyAnalysis(ctx context.Context, userID uint, date string) (map[string]interface{}, error) {

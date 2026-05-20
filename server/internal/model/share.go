@@ -18,3 +18,10 @@ type InviteRelation struct {
 	InviteeUserID uint      `gorm:"index;not null" json:"invitee_user_id"`
 	CreatedAt     time.Time `json:"created_at"`
 }
+
+// Share stores the poster image configuration.
+type Share struct {
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	ImageURL string `gorm:"type:text;not null" json:"image_url"`
+	Type     string `gorm:"size:20;default:poster" json:"type"`
+}

@@ -45,6 +45,11 @@
         <text class="menu-text">消息推送</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" @tap="goSharePoster">
+        <text class="menu-icon">📸</text>
+        <text class="menu-text">分享海报</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item" @tap="showAbout">
         <text class="menu-icon">ℹ️</text>
         <text class="menu-text">关于</text>
@@ -69,11 +74,6 @@
 
     <!-- Logout -->
     <button class="logout-btn" @tap="logout">退出登录</button>
-
-    <!-- ICP Filing -->
-    <view class="icp-footer">
-      <text class="icp-text">湘ICP备2024071320号-4</text>
-    </view>
   </view>
 </template>
 
@@ -141,6 +141,9 @@ export default {
     goNotifySettings() {
       uni.navigateTo({ url: '/pages/notify-settings/notify-settings' })
     },
+    goSharePoster() {
+      uni.navigateTo({ url: '/pages/share-poster/share-poster' })
+    },
     goFeedback() {
       uni.navigateTo({ url: '/pages/feedback/feedback' })
     },
@@ -153,7 +156,7 @@ export default {
     showAbout() {
       uni.showModal({
         title: 'NutriLens 营养镜头',
-        content: '版本: 1.0.0\nAI智能饮食分析助手\n拍照识别食物卡路里，获取个性化营养建议\n\n湘ICP备2024071320号-4',
+        content: '版本: 1.0.0\nAI智能饮食分析助手\n拍照识别食物卡路里，获取个性化营养建议',
         showCancel: false,
       })
     },
@@ -303,14 +306,4 @@ export default {
   font-size: 28rpx;
 }
 
-.icp-footer {
-  text-align: center;
-  margin-top: 60rpx;
-  padding-bottom: 40rpx;
-}
-
-.icp-text {
-  font-size: 22rpx;
-  color: #bbb;
-}
 </style>

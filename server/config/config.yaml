@@ -47,3 +47,9 @@ notify:
   lunch_time: "12:00"
   dinner_time: "18:00"
   check_interval: "@every 1m"
+
+webhook:
+  feishu_webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/167cd842-e3cf-42f7-b5ac-9774e5507060"  # 飞书机器人 webhook URL
+  repo_path: "/home/hichs/apiService"           # 代码仓库路径
+  secret: "${WEBHOOK_SECRET:-}"                 # webhook 签名密钥 (可选)
+  keyword: "drhhh"               # webhook 关键词校验 (可选)

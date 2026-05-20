@@ -22,6 +22,7 @@ type Handler struct {
 	AchieveSvc *service.AchievementService
 	ShareSvc   *service.ShareService
 	NotifySvc  *service.NotifyService
+	WebhookSvc *service.WebhookService
 }
 
 type Services struct {
@@ -182,7 +183,9 @@ func (h *Handler) AnalyzeImage(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion})
+	stampText := service.ComputeStampText(records)
+
+	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion, "stamp_text": stampText})
 
 	// Trigger score and achievement check asynchronously
 	go func() {
@@ -229,7 +232,9 @@ func (h *Handler) AnalyzeText(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion})
+	stampText := service.ComputeStampText(records)
+
+	c.JSON(http.StatusOK, gin.H{"is_food": true, "records": records, "suggestion": suggestion, "stamp_text": stampText})
 
 	// Trigger score and achievement check asynchronously
 	go func() {
@@ -670,6 +675,17 @@ func (h *Handler) RecordShare(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "recorded", "new_achievements": newUnlocks})
 }
 
+// ==================== Share Poster ====================
+
+func (h *Handler) GetSharePoster(c *gin.Context) {
+	var share model.Share
+	if err := h.Svc.Food.DB().Where("type = ?", "poster").First(&share).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no poster available"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"image_url": share.ImageURL})
+}
+
 // ==================== Achievement ====================
 
 func (h *Handler) ListAchievements(c *gin.Context) {
@@ -711,4 +727,32 @@ func (h *Handler) CheckAchievements(c *gin.Context) {
 	}
 	newUnlocks := h.AchieveSvc.CheckAndUnlock(userID)
 	c.JSON(http.StatusOK, gin.H{"new_achievements": newUnlocks})
+}
+
+// ==================== Gitea Webhook ====================
+
+func (h *Handler) GiteaWebhook(c *gin.Context) {
+	//eventType := c.GetHeader("X-Gitea-Event")
+	//
+	//log.Printf("[GiteaWebhook] received event=%s", eventType)
+	//
+	//// Only process push events
+	//if eventType != "push" {
+	//	log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
+	//	c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
+	//	return
+	//}
+
+	// Process webhook asynchronously
+	if h.WebhookSvc != nil {
+		go func() {
+			if err := h.WebhookSvc.ProcessWebhook(); err != nil {
+				log.Printf("[Webhook] process failed: %v", err)
+			}
+		}()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "webhook received",
+	})
 }
