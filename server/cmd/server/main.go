@@ -166,6 +166,7 @@ func initDB(db *gorm.DB, cfg *config.Config) {
 	seedAIPrompts(db)
 	seedAchievements(db)
 	seedShare(db)
+	seedWebhookProjects(db)
 }
 
 func seedDishes(db *gorm.DB) {
@@ -556,5 +557,28 @@ func seedShare(db *gorm.DB) {
 		log.Printf("Failed to seed share: %v", err)
 	} else {
 		fmt.Println("Seeded share poster")
+	}
+}
+
+func seedWebhookProjects(db *gorm.DB) {
+	var count int64
+	db.Model(&model.WebhookProject{}).Count(&count)
+	if count > 0 {
+		return
+	}
+
+	project := model.WebhookProject{
+		Name:             "DRH APP服务",
+		RepoName:         "SmartWearables/apiService",
+		GitURL:           "http://120.76.141.107:33701/SmartWearables/apiService.git",
+		GitToken:         "b8595975da7bd154bdb2d19c74a0b4a7fd918980",
+		FeishuWebhookURL: "https://open.feishu.cn/open-apis/bot/v2/hook/167cd842-e3cf-42f7-b5ac-9774e5507060",
+		FeishuKeyword:    "drhhh",
+		Enabled:          true,
+	}
+	if err := db.Create(&project).Error; err != nil {
+		log.Printf("Failed to seed webhook project: %v", err)
+	} else {
+		fmt.Println("Seeded webhook project")
 	}
 }

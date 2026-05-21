@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -733,7 +734,6 @@ func (h *Handler) CheckAchievements(c *gin.Context) {
 // ==================== Gitea Webhook ====================
 
 func (h *Handler) GiteaWebhook(c *gin.Context) {
-	// Read and parse Gitea push event body
 	body, err := c.GetRawData()
 	if err != nil {
 		log.Printf("[GiteaWebhook] read body failed: %v", err)
@@ -741,10 +741,10 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 		return
 	}
 
-	// Debug: log raw request
 	eventType := c.GetHeader("X-Gitea-Event")
 	log.Printf("[GiteaWebhook] event=%s body=%s", eventType, string(body))
 
+	// Try standard Gitea push event format first
 	var giteaEvent struct {
 		Before     string `json:"before"`
 		After      string `json:"after"`
@@ -752,40 +752,93 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 			FullName string `json:"full_name"`
 		} `json:"repository"`
 	}
-	if err := json.Unmarshal(body, &giteaEvent); err != nil {
-		log.Printf("[GiteaWebhook] parse body failed: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
-		return
-	}
-
-	log.Printf("[GiteaWebhook] parsed: repo=%s before=%s after=%s", giteaEvent.Repository.FullName, giteaEvent.Before, giteaEvent.After)
-
-	repoName := giteaEvent.Repository.FullName
-	if repoName == "" || h.WebhookSvc == nil {
-		log.Printf("[GiteaWebhook] missing repo name or webhook service unavailable")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing repository info"})
-		return
-	}
-
-	// Look up project by repo full name in database
-	project, err := h.WebhookSvc.FindProjectByRepoName(repoName)
-	if err != nil {
-		log.Printf("[GiteaWebhook] project not found for repo=%s, err=%v", repoName, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "project not configured for " + repoName})
-		return
-	}
-
-	log.Printf("[GiteaWebhook] matched project=%s before=%s after=%s", project.Name, giteaEvent.Before, giteaEvent.After)
-
-	// Process webhook asynchronously
-	go func() {
-		if err := h.WebhookSvc.ProcessWebhook(project, giteaEvent.Before, giteaEvent.After); err != nil {
-			log.Printf("[Webhook] process failed for project=%s: %v", project.Name, err)
+	if err := json.Unmarshal(body, &giteaEvent); err == nil && giteaEvent.Repository.FullName != "" {
+		repoName := giteaEvent.Repository.FullName
+		if repoName == "" || h.WebhookSvc == nil {
+			log.Printf("[GiteaWebhook] missing repo name or webhook service unavailable")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing repository info"})
+			return
 		}
-	}()
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "webhook received",
-		"project": project.Name,
-	})
+		project, err := h.WebhookSvc.FindProjectByRepoName(repoName)
+		if err != nil {
+			log.Printf("[GiteaWebhook] project not found for repo=%s, err=%v", repoName, err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not configured for " + repoName})
+			return
+		}
+
+		log.Printf("[GiteaWebhook] matched project=%s before=%s after=%s", project.Name, giteaEvent.Before, giteaEvent.After)
+		go func() {
+			if err := h.WebhookSvc.ProcessWebhook(project, giteaEvent.Before, giteaEvent.After); err != nil {
+				log.Printf("[Webhook] process failed for project=%s: %v", project.Name, err)
+			}
+		}()
+
+		c.JSON(http.StatusOK, gin.H{"message": "webhook received", "project": project.Name})
+		return
+	}
+
+	// Try Feishu message format (Gitea webhook configured with Feishu body format)
+	var feishuMsg struct {
+		MsgType string `json:"msg_type"`
+		Content struct {
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &feishuMsg); err == nil && feishuMsg.MsgType == "text" {
+		text := feishuMsg.Content.Text
+		log.Printf("[GiteaWebhook] Feishu format detected, text=%s", text)
+
+		repoName, branch, commitHash := parseFeishuWebhookText(text)
+		if repoName == "" || commitHash == "" {
+			log.Printf("[GiteaWebhook] failed to parse Feishu text")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse Feishu text"})
+			return
+		}
+
+		log.Printf("[GiteaWebhook] Feishu parsed: repo=%s branch=%s commit=%s", repoName, branch, commitHash)
+
+		if h.WebhookSvc == nil {
+			log.Printf("[GiteaWebhook] webhook service unavailable")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "webhook service unavailable"})
+			return
+		}
+
+		project, err := h.WebhookSvc.FindProjectByRepoName(repoName)
+		if err != nil {
+			log.Printf("[GiteaWebhook] project not found for repo=%s, err=%v", repoName, err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not configured for " + repoName})
+			return
+		}
+
+		log.Printf("[GiteaWebhook] matched project=%s branch=%s commit=%s", project.Name, branch, commitHash)
+		go func() {
+			if err := h.WebhookSvc.ProcessWebhookPull(project, branch, commitHash); err != nil {
+				log.Printf("[Webhook] pull process failed for project=%s: %v", project.Name, err)
+			}
+		}()
+
+		c.JSON(http.StatusOK, gin.H{"message": "webhook received", "project": project.Name})
+		return
+	}
+
+	log.Printf("[GiteaWebhook] unrecognized body format")
+	c.JSON(http.StatusBadRequest, gin.H{"error": "unrecognized body format"})
+}
+
+// parseFeishuWebhookText extracts repo name, branch, and commit hash from Feishu-format text.
+// Format: [RepoName:Branch] \r\n[shortHash](url/commit/fullHash) commitMsg - Author
+func parseFeishuWebhookText(text string) (repoName, branch, commitHash string) {
+	reRepo := regexp.MustCompile(`\[([^:\]]+):([^\]]+)\]`)
+	if matches := reRepo.FindStringSubmatch(text); len(matches) >= 3 {
+		repoName = matches[1]
+		branch = matches[2]
+	}
+
+	reCommit := regexp.MustCompile(`/commit/([a-f0-9]{40})`)
+	if matches := reCommit.FindStringSubmatch(text); len(matches) >= 2 {
+		commitHash = matches[1]
+	}
+
+	return
 }

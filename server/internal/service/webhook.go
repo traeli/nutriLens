@@ -466,3 +466,153 @@ func truncate(s string, max int) string {
 	}
 	return s
 }
+
+// GitPull performs a git fetch + checkout + pull on the specified branch.
+func (s *WebhookService) GitPull(repoPath, branch string) error {
+	cmd := exec.Command("git", "fetch", "--all")
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch failed: %w, output: %s", err, string(output))
+	}
+
+	cmd = exec.Command("git", "checkout", branch)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git checkout %s failed: %w, output: %s", branch, err, string(output))
+	}
+
+	cmd = exec.Command("git", "pull", "--ff-only")
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git pull failed: %w, output: %s", err, string(output))
+	}
+
+	log.Printf("[Webhook] git pull success on branch %s", branch)
+	return nil
+}
+
+// GetCommitDiff retrieves diff for a specific commit compared to its parent.
+func (s *WebhookService) GetCommitDiff(repoPath, commitHash string) (*GitDiffResult, error) {
+	result := &GitDiffResult{
+		NewCommit: commitHash,
+		Success:   true,
+	}
+
+	commitMsg, err := runGitCmd(repoPath, "log", "-1", "--pretty=format:%s", commitHash)
+	if err != nil {
+		return nil, fmt.Errorf("get commit message failed: %w", err)
+	}
+	result.CommitMsg = strings.TrimSpace(commitMsg)
+
+	author, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%an", commitHash)
+	result.Author = strings.TrimSpace(author)
+
+	oldCommit, err := runGitCmd(repoPath, "rev-parse", commitHash+"~1")
+	if err != nil {
+		oldCommit = ""
+	}
+	result.OldCommit = strings.TrimSpace(oldCommit)
+
+	if oldCommit != "" {
+		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", oldCommit, commitHash)
+		if err != nil {
+			return nil, fmt.Errorf("get changed files failed: %w", err)
+		}
+		result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
+
+		diff, err := runGitCmd(repoPath, "diff", oldCommit, commitHash)
+		if err != nil {
+			return nil, fmt.Errorf("get diff failed: %w", err)
+		}
+		result.Diff = diff
+	} else {
+		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", "--root", commitHash)
+		if err != nil {
+			return nil, fmt.Errorf("get changed files failed: %w", err)
+		}
+		result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
+
+		diff, err := runGitCmd(repoPath, "diff", "--root", commitHash)
+		if err != nil {
+			return nil, fmt.Errorf("get diff failed: %w", err)
+		}
+		result.Diff = diff
+	}
+
+	return result, nil
+}
+
+// ProcessWebhookPull runs the full pipeline for Feishu-format webhooks:
+// clone/fetch → pull → diff → deploy → review → notify.
+func (s *WebhookService) ProcessWebhookPull(project *model.WebhookProject, branch, commitHash string) error {
+	repoPath := buildRepoPath(project.RepoName)
+	log.Printf("[Webhook] processing pull project=%s repo=%s branch=%s commit=%s", project.Name, project.RepoName, branch, commitHash)
+
+	// 1. Clone or fetch the repo
+	if err := s.GitCloneOrFetch(project.GitURL, project.GitToken, repoPath); err != nil {
+		log.Printf("[Webhook] git clone/fetch failed: %v", err)
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git 操作失败", err.Error())
+	}
+
+	// 2. Pull latest changes
+	if err := s.GitPull(repoPath, branch); err != nil {
+		log.Printf("[Webhook] git pull failed: %v", err)
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git Pull 失败", err.Error())
+	}
+
+	// 3. Get diff for the specific commit
+	result, err := s.GetCommitDiff(repoPath, commitHash)
+	if err != nil {
+		log.Printf("[Webhook] get commit diff failed: %v", err)
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "获取代码差异失败", err.Error())
+	}
+
+	// 4. Run deploy script (optional)
+	var deploySection string
+	if project.DeployScript != "" {
+		log.Printf("[Webhook] running deploy script for %s", project.Name)
+		output, err := s.RunDeployScript(repoPath, project.DeployScript)
+		if err != nil {
+			deploySection = fmt.Sprintf("\n\n**Deploy 结果:** 失败\n```\n%s\n```", truncate(output, 2000))
+		} else {
+			deploySection = fmt.Sprintf("\n\n**Deploy 结果:** 成功\n```\n%s\n```", truncate(output, 2000))
+		}
+	}
+
+	// 5. Code review
+	review, err := s.GenerateCodeReview(result)
+	if err != nil {
+		log.Printf("[Webhook] code review failed: %v", err)
+		review = fmt.Sprintf("Code Review 生成失败: %v", err)
+	}
+
+	// 6. Build Feishu card content
+	commitShort := commitHash
+	if len(commitShort) > 7 {
+		commitShort = commitShort[:7]
+	}
+
+	title := fmt.Sprintf("Code Review — %s", project.Name)
+
+	body := fmt.Sprintf(
+		"**项目:** %s\n"+
+			"**分支:** %s\n"+
+			"**提交信息:** %s\n"+
+			"**作者:** %s\n"+
+			"**Commit:** `%s`\n\n"+
+			"**变更文件:**\n%s\n\n"+
+			"---\n\n"+
+			"%s"+
+			"%s",
+		project.Name,
+		branch,
+		result.CommitMsg,
+		result.Author,
+		commitShort,
+		strings.Join(result.ChangedFiles, "\n"),
+		review,
+		deploySection,
+	)
+
+	return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, title, body)
+}
