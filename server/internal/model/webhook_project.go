@@ -7,7 +7,9 @@ type WebhookProject struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
 	Name             string    `gorm:"size:255;not null" json:"name"`                  // 项目名称
 	RepoName         string    `gorm:"size:255;uniqueIndex;not null" json:"repo_name"` // Gitea 仓库全名，如 "SmartWearables/apiService"
-	RepoPath         string    `gorm:"size:500;not null" json:"repo_path"`             // 本地 git 仓库路径
+	GitURL           string    `gorm:"size:500" json:"git_url"`                        // Git 仓库 clone 地址
+	GitToken         string    `gorm:"size:255" json:"git_token"`                      // Git 访问 token
+	RepoPath         string    `gorm:"size:500" json:"repo_path"`                      // 容器内 git 仓库路径（自动生成）
 	FeishuWebhookURL string    `gorm:"size:500" json:"feishu_webhook_url"`             // 飞书机器人 webhook 地址
 	FeishuKeyword    string    `gorm:"size:100" json:"feishu_keyword"`                 // 飞书机器人自定义关键词
 	DeployScript     string    `gorm:"type:text" json:"deploy_script"`                 // git pull 后执行的部署脚本
