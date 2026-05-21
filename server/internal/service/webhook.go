@@ -38,7 +38,7 @@ func (s *WebhookService) FindProjectByRepoName(repoName string) (*model.WebhookP
 	return &project, nil
 }
 
-type GitPullResult struct {
+type GitDiffResult struct {
 	Success      bool
 	OldCommit    string
 	NewCommit    string
@@ -48,45 +48,93 @@ type GitPullResult struct {
 	Diff         string
 }
 
-// GitPull executes git pull in the given repo path.
-func (s *WebhookService) GitPull(repoPath string) (*GitPullResult, error) {
-	result := &GitPullResult{}
+// repoBasePath is the directory inside the container where repos are cloned.
+const repoBasePath = "/app/repos"
 
-	oldCommit, err := runGitCmd(repoPath, "rev-parse", "HEAD")
+// buildRepoPath returns the local clone path for a given repo name.
+func buildRepoPath(repoName string) string {
+	return repoBasePath + "/" + strings.ReplaceAll(repoName, "/", "_")
+}
+
+// buildAuthURL injects the token into the git URL for authentication.
+// e.g. https://gitea.example.com/org/repo.git -> https://oauth2:TOKEN@gitea.example.com/org/repo.git
+func buildAuthURL(gitURL, token string) string {
+	if token == "" {
+		return gitURL
+	}
+	// Handle https:// URL
+	if strings.HasPrefix(gitURL, "https://") {
+		return "https://oauth2:" + token + "@" + gitURL[len("https://"):]
+	}
+	// Handle http:// URL
+	if strings.HasPrefix(gitURL, "http://") {
+		return "http://oauth2:" + token + "@" + gitURL[len("http://"):]
+	}
+	return gitURL
+}
+
+// GitCloneOrFetch clones the repo if not present, or fetches if already cloned.
+func (s *WebhookService) GitCloneOrFetch(gitURL, gitToken, repoPath string) error {
+	authURL := buildAuthURL(gitURL, gitToken)
+
+	if _, err := os.Stat(repoPath + "/.git"); os.IsNotExist(err) {
+		// Directory doesn't have a git repo, clone it
+		log.Printf("[Webhook] cloning repo %s into %s", gitURL, repoPath)
+		if err := os.MkdirAll(repoBasePath, 0755); err != nil {
+			return fmt.Errorf("create repos dir failed: %w", err)
+		}
+		cmd := exec.Command("git", "clone", authURL, repoPath)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("git clone failed: %w, output: %s", err, string(output))
+		}
+		log.Printf("[Webhook] clone success")
+		return nil
+	}
+
+	// Repo exists, fetch all
+	log.Printf("[Webhook] fetching existing repo at %s", repoPath)
+	cmd := exec.Command("git", "fetch", "--all")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("get current commit failed: %w", err)
+		return fmt.Errorf("git fetch failed: %w, output: %s", err, string(output))
 	}
-	result.OldCommit = strings.TrimSpace(oldCommit)
+	log.Printf("[Webhook] fetch success")
+	return nil
+}
 
-	_, err = runGitCmd(repoPath, "pull", "-p")
+// GetDiff retrieves diff and commit info between two commits.
+func (s *WebhookService) GetDiff(repoPath, before, after string) (*GitDiffResult, error) {
+	result := &GitDiffResult{
+		OldCommit: before,
+		NewCommit: after,
+		Success:   true,
+	}
+
+	// Get commit message
+	commitMsg, err := runGitCmd(repoPath, "log", "-1", "--pretty=format:%s", after)
 	if err != nil {
-		return nil, fmt.Errorf("git pull failed: %w", err)
+		return nil, fmt.Errorf("get commit message failed: %w", err)
 	}
-
-	newCommit, err := runGitCmd(repoPath, "rev-parse", "HEAD")
-	if err != nil {
-		return nil, fmt.Errorf("get new commit failed: %w", err)
-	}
-	result.NewCommit = strings.TrimSpace(newCommit)
-
-	if result.OldCommit == result.NewCommit {
-		result.Success = true
-		result.CommitMsg = "No updates"
-		return result, nil
-	}
-
-	result.Success = true
-
-	commitMsg, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%s")
 	result.CommitMsg = strings.TrimSpace(commitMsg)
 
-	author, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%an")
+	// Get author
+	author, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%an", after)
 	result.Author = strings.TrimSpace(author)
 
-	changedFiles, _ := runGitCmd(repoPath, "diff", "--name-only", result.OldCommit, result.NewCommit)
+	// Get changed files
+	changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", before, after)
+	if err != nil {
+		return nil, fmt.Errorf("get changed files failed: %w", err)
+	}
 	result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
 
-	diff, _ := runGitCmd(repoPath, "diff", result.OldCommit, result.NewCommit)
+	// Get full diff
+	diff, err := runGitCmd(repoPath, "diff", before, after)
+	if err != nil {
+		return nil, fmt.Errorf("get diff failed: %w", err)
+	}
 	result.Diff = diff
 
 	return result, nil
@@ -153,7 +201,7 @@ type deepSeekResponse struct {
 }
 
 // GenerateCodeReview calls DeepSeek API to review the changes.
-func (s *WebhookService) GenerateCodeReview(result *GitPullResult) (string, error) {
+func (s *WebhookService) GenerateCodeReview(result *GitDiffResult) (string, error) {
 	if !result.Success || result.OldCommit == result.NewCommit {
 		return "No changes to review", nil
 	}
@@ -339,26 +387,36 @@ func (s *WebhookService) SendFeishuMessage(webhookURL, keyword, title, content s
 
 // ==================== Full Pipeline ====================
 
-// ProcessWebhook runs the full pipeline for a given project: git pull → deploy → review → notify.
-func (s *WebhookService) ProcessWebhook(project *model.WebhookProject) error {
-	log.Printf("[Webhook] processing project=%s repo=%s", project.Name, project.RepoPath)
+// ProcessWebhook runs the full pipeline: clone/fetch → diff → review → notify.
+func (s *WebhookService) ProcessWebhook(project *model.WebhookProject, before, after string) error {
+	repoPath := buildRepoPath(project.RepoName)
+	log.Printf("[Webhook] processing project=%s repo=%s path=%s", project.Name, project.RepoName, repoPath)
 
-	// 1. Git pull
-	result, err := s.GitPull(project.RepoPath)
+	// 1. Clone or fetch the repo
+	if err := s.GitCloneOrFetch(project.GitURL, project.GitToken, repoPath); err != nil {
+		log.Printf("[Webhook] git clone/fetch failed: %v", err)
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git 操作失败", err.Error())
+	}
+
+	// Handle case where before is empty (first push or new branch)
+	if before == "" || strings.HasPrefix(before, "0000000") {
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword,
+			"Git Push 收到",
+			fmt.Sprintf("项目: %s\n首次推送或新分支，跳过 Code Review", project.Name))
+	}
+
+	// 2. Get diff between before and after commits
+	result, err := s.GetDiff(repoPath, before, after)
 	if err != nil {
-		log.Printf("[Webhook] git pull failed: %v", err)
-		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git Pull 失败", err.Error())
+		log.Printf("[Webhook] get diff failed: %v", err)
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "获取代码差异失败", err.Error())
 	}
 
-	if result.OldCommit == result.NewCommit {
-		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git Pull 完成", "没有新的更新")
-	}
-
-	// 2. Run deploy script
+	// 3. Run deploy script (optional)
 	var deploySection string
 	if project.DeployScript != "" {
 		log.Printf("[Webhook] running deploy script for %s", project.Name)
-		output, err := s.RunDeployScript(project.RepoPath, project.DeployScript)
+		output, err := s.RunDeployScript(repoPath, project.DeployScript)
 		if err != nil {
 			deploySection = fmt.Sprintf("\n\n**Deploy 结果:** 失败\n```\n%s\n```", truncate(output, 2000))
 		} else {
@@ -366,15 +424,15 @@ func (s *WebhookService) ProcessWebhook(project *model.WebhookProject) error {
 		}
 	}
 
-	// 3. Code review
+	// 4. Code review
 	review, err := s.GenerateCodeReview(result)
 	if err != nil {
 		log.Printf("[Webhook] code review failed: %v", err)
 		review = fmt.Sprintf("Code Review 生成失败: %v", err)
 	}
 
-	// 4. Build Feishu card content
-	commitShort := result.NewCommit
+	// 5. Build Feishu card content
+	commitShort := after
 	if len(commitShort) > 7 {
 		commitShort = commitShort[:7]
 	}

@@ -733,18 +733,7 @@ func (h *Handler) CheckAchievements(c *gin.Context) {
 // ==================== Gitea Webhook ====================
 
 func (h *Handler) GiteaWebhook(c *gin.Context) {
-	//eventType := c.GetHeader("X-Gitea-Event")
-	//
-	//log.Printf("[GiteaWebhook] received event=%s", eventType)
-	//
-	//// Only process push events
-	//if eventType != "push" {
-	//	log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
-	//	c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
-	//	return
-	//}
-
-	// Read and parse Gitea event body
+	// Read and parse Gitea push event body
 	body, err := c.GetRawData()
 	if err != nil {
 		log.Printf("[GiteaWebhook] read body failed: %v", err)
@@ -753,6 +742,8 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 	}
 
 	var giteaEvent struct {
+		Before     string `json:"before"`
+		After      string `json:"after"`
 		Repository struct {
 			FullName string `json:"full_name"`
 		} `json:"repository"`
@@ -778,11 +769,11 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[GiteaWebhook] matched project=%s repo=%s", project.Name, project.RepoPath)
+	log.Printf("[GiteaWebhook] matched project=%s before=%s after=%s", project.Name, giteaEvent.Before, giteaEvent.After)
 
 	// Process webhook asynchronously
 	go func() {
-		if err := h.WebhookSvc.ProcessWebhook(project); err != nil {
+		if err := h.WebhookSvc.ProcessWebhook(project, giteaEvent.Before, giteaEvent.After); err != nil {
 			log.Printf("[Webhook] process failed for project=%s: %v", project.Name, err)
 		}
 	}()
