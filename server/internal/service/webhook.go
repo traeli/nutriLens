@@ -6,26 +6,36 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
+
+	"nutrilens/internal/model"
+
+	"gorm.io/gorm"
 )
 
 type WebhookService struct {
-	feishuWebhookURL string
-	deepseekAPIKey   string
-	deepseekBaseURL  string
-	repoPath         string
-	keyword          string
+	deepseekAPIKey  string
+	deepseekBaseURL string
+	db              *gorm.DB
 }
 
-func NewWebhookService(feishuWebhookURL, deepseekAPIKey, deepseekBaseURL, repoPath, keyword string) *WebhookService {
+func NewWebhookService(deepseekAPIKey, deepseekBaseURL string, db *gorm.DB) *WebhookService {
 	return &WebhookService{
-		feishuWebhookURL: feishuWebhookURL,
-		deepseekAPIKey:   deepseekAPIKey,
-		deepseekBaseURL:  deepseekBaseURL,
-		repoPath:         repoPath,
-		keyword:          keyword,
+		deepseekAPIKey:  deepseekAPIKey,
+		deepseekBaseURL: deepseekBaseURL,
+		db:              db,
 	}
+}
+
+// FindProjectByRepoName looks up an enabled webhook project by Gitea repository full name.
+func (s *WebhookService) FindProjectByRepoName(repoName string) (*model.WebhookProject, error) {
+	var project model.WebhookProject
+	if err := s.db.Where("repo_name = ? AND enabled = ?", repoName, true).First(&project).Error; err != nil {
+		return nil, err
+	}
+	return &project, nil
 }
 
 type GitPullResult struct {
@@ -38,31 +48,27 @@ type GitPullResult struct {
 	Diff         string
 }
 
-// GitPull executes git pull and returns the result
-func (s *WebhookService) GitPull() (*GitPullResult, error) {
+// GitPull executes git pull in the given repo path.
+func (s *WebhookService) GitPull(repoPath string) (*GitPullResult, error) {
 	result := &GitPullResult{}
 
-	// Get current commit
-	oldCommit, err := s.runGitCommand("rev-parse", "HEAD")
+	oldCommit, err := runGitCmd(repoPath, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("get current commit failed: %w", err)
 	}
 	result.OldCommit = strings.TrimSpace(oldCommit)
 
-	// Git pull
-	_, err = s.runGitCommand("pull", "-p")
+	_, err = runGitCmd(repoPath, "pull", "-p")
 	if err != nil {
 		return nil, fmt.Errorf("git pull failed: %w", err)
 	}
 
-	// Get new commit
-	newCommit, err := s.runGitCommand("rev-parse", "HEAD")
+	newCommit, err := runGitCmd(repoPath, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("get new commit failed: %w", err)
 	}
 	result.NewCommit = strings.TrimSpace(newCommit)
 
-	// Check if there are updates
 	if result.OldCommit == result.NewCommit {
 		result.Success = true
 		result.CommitMsg = "No updates"
@@ -71,32 +77,57 @@ func (s *WebhookService) GitPull() (*GitPullResult, error) {
 
 	result.Success = true
 
-	// Get commit message
-	commitMsg, _ := s.runGitCommand("log", "-1", "--pretty=format:%s")
+	commitMsg, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%s")
 	result.CommitMsg = strings.TrimSpace(commitMsg)
 
-	// Get author
-	author, _ := s.runGitCommand("log", "-1", "--pretty=format:%an")
+	author, _ := runGitCmd(repoPath, "log", "-1", "--pretty=format:%an")
 	result.Author = strings.TrimSpace(author)
 
-	// Get changed files
-	changedFiles, _ := s.runGitCommand("diff", "--name-only", result.OldCommit, result.NewCommit)
+	changedFiles, _ := runGitCmd(repoPath, "diff", "--name-only", result.OldCommit, result.NewCommit)
 	result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
 
-	// Get diff
-	diff, _ := s.runGitCommand("diff", result.OldCommit, result.NewCommit)
+	diff, _ := runGitCmd(repoPath, "diff", result.OldCommit, result.NewCommit)
 	result.Diff = diff
 
 	return result, nil
 }
 
-func (s *WebhookService) runGitCommand(args ...string) (string, error) {
+func runGitCmd(repoPath string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	cmd.Dir = s.repoPath
+	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("%s: %w, output: %s", strings.Join(args, " "), err, string(output))
+		return "", fmt.Errorf("git %s: %w, output: %s", strings.Join(args, " "), err, string(output))
 	}
+	return string(output), nil
+}
+
+// RunDeployScript writes the script to a temp file and executes it with bash.
+func (s *WebhookService) RunDeployScript(repoPath, script string) (string, error) {
+	tmpFile, err := os.CreateTemp("", "deploy-*.sh")
+	if err != nil {
+		return "", fmt.Errorf("create temp file failed: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(script); err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("write script failed: %w", err)
+	}
+	tmpFile.Close()
+
+	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+		return "", fmt.Errorf("chmod script failed: %w", err)
+	}
+
+	cmd := exec.Command("bash", tmpFile.Name())
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(output), fmt.Errorf("script failed: %w, output: %s", err, string(output))
+	}
+
+	log.Printf("[Webhook] deploy script success, output: %s", string(output))
 	return string(output), nil
 }
 
@@ -121,7 +152,7 @@ type deepSeekResponse struct {
 	} `json:"choices"`
 }
 
-// GenerateCodeReview calls DeepSeek API to review the changes
+// GenerateCodeReview calls DeepSeek API to review the changes.
 func (s *WebhookService) GenerateCodeReview(result *GitPullResult) (string, error) {
 	if !result.Success || result.OldCommit == result.NewCommit {
 		return "No changes to review", nil
@@ -237,17 +268,20 @@ type feishuNote struct {
 	Elements []feishuPlainText `json:"elements"`
 }
 
-// SendFeishuMessage sends a nicely formatted interactive card to Feishu webhook
-func (s *WebhookService) SendFeishuMessage(title, content string) error {
-	// Truncate content if too long (Feishu card has size limits)
+// SendFeishuMessage sends an interactive card to the given Feishu webhook URL.
+func (s *WebhookService) SendFeishuMessage(webhookURL, keyword, title, content string) error {
+	if webhookURL == "" {
+		log.Printf("[Feishu] no webhook URL configured, skip sending")
+		return nil
+	}
+
 	if len(content) > 18000 {
 		content = content[:18000] + "\n\n... *(内容过长已截断)*"
 	}
 
-	// Embed Feishu bot keyword into the card (required by Feishu security settings)
 	noteText := "Powered by DeepSeek · NutriLens Auto Review"
-	if s.keyword != "" {
-		noteText = s.keyword + " | " + noteText
+	if keyword != "" {
+		noteText = keyword + " | " + noteText
 	}
 
 	card := feishuCardMessage{
@@ -287,7 +321,7 @@ func (s *WebhookService) SendFeishuMessage(title, content string) error {
 		return fmt.Errorf("marshal message failed: %w", err)
 	}
 
-	resp, err := http.Post(s.feishuWebhookURL, "application/json", bytes.NewReader(bodyBytes))
+	resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("send to Feishu failed: %w", err)
 	}
@@ -299,51 +333,78 @@ func (s *WebhookService) SendFeishuMessage(title, content string) error {
 		return fmt.Errorf("Feishu returned status %d: %s", resp.StatusCode, errBody.String())
 	}
 
-	log.Printf("[Feishu] interactive card sent successfully")
+	log.Printf("[Feishu] card sent successfully")
 	return nil
 }
 
-// ProcessWebhook handles the complete webhook flow
-func (s *WebhookService) ProcessWebhook() error {
+// ==================== Full Pipeline ====================
+
+// ProcessWebhook runs the full pipeline for a given project: git pull → deploy → review → notify.
+func (s *WebhookService) ProcessWebhook(project *model.WebhookProject) error {
+	log.Printf("[Webhook] processing project=%s repo=%s", project.Name, project.RepoPath)
+
 	// 1. Git pull
-	result, err := s.GitPull()
+	result, err := s.GitPull(project.RepoPath)
 	if err != nil {
 		log.Printf("[Webhook] git pull failed: %v", err)
-		return s.SendFeishuMessage("Git Pull 失败", err.Error())
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git Pull 失败", err.Error())
 	}
 
 	if result.OldCommit == result.NewCommit {
-		return s.SendFeishuMessage("Git Pull 完成", "没有新的更新")
+		return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, "Git Pull 完成", "没有新的更新")
 	}
 
-	// 2. Generate code review
+	// 2. Run deploy script
+	var deploySection string
+	if project.DeployScript != "" {
+		log.Printf("[Webhook] running deploy script for %s", project.Name)
+		output, err := s.RunDeployScript(project.RepoPath, project.DeployScript)
+		if err != nil {
+			deploySection = fmt.Sprintf("\n\n**Deploy 结果:** 失败\n```\n%s\n```", truncate(output, 2000))
+		} else {
+			deploySection = fmt.Sprintf("\n\n**Deploy 结果:** 成功\n```\n%s\n```", truncate(output, 2000))
+		}
+	}
+
+	// 3. Code review
 	review, err := s.GenerateCodeReview(result)
 	if err != nil {
 		log.Printf("[Webhook] code review failed: %v", err)
 		review = fmt.Sprintf("Code Review 生成失败: %v", err)
 	}
 
-	// 3. Send to Feishu
+	// 4. Build Feishu card content
 	commitShort := result.NewCommit
 	if len(commitShort) > 7 {
 		commitShort = commitShort[:7]
 	}
 
-	title := fmt.Sprintf("Git Pull & Code Review — %s", commitShort)
+	title := fmt.Sprintf("Code Review — %s", project.Name)
 
 	body := fmt.Sprintf(
-		"**提交信息:** %s\n"+
+		"**项目:** %s\n"+
+			"**提交信息:** %s\n"+
 			"**作者:** %s\n"+
 			"**Commit:** `%s`\n\n"+
 			"**变更文件:**\n%s\n\n"+
 			"---\n\n"+
+			"%s"+
 			"%s",
+		project.Name,
 		result.CommitMsg,
 		result.Author,
 		commitShort,
 		strings.Join(result.ChangedFiles, "\n"),
 		review,
+		deploySection,
 	)
 
-	return s.SendFeishuMessage(title, body)
+	return s.SendFeishuMessage(project.FeishuWebhookURL, project.FeishuKeyword, title, body)
+}
+
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max] + "\n... (截断)"
+	}
+	return s
 }

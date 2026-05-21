@@ -15,11 +15,11 @@ func Setup(r *gin.Engine, jwtSecret string, h *handler.Handler, limiter *cache.R
 	r.GET("/", h.WechatVerify)
 	r.GET("/wx/callback", h.WechatVerify)
 
-	// Gitea webhook (no auth)
-	r.POST("/webhook/gitea", h.GiteaWebhook)
-
 	api := r.Group("/api/v1")
 	{
+		// Gitea webhook (no auth)
+		api.POST("/webhook/gitea", h.GiteaWebhook)
+
 		// WeChat server verification (no auth, used by public nginx proxy)
 		api.GET("/wx/callback", h.WechatVerify)
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -732,27 +733,62 @@ func (h *Handler) CheckAchievements(c *gin.Context) {
 // ==================== Gitea Webhook ====================
 
 func (h *Handler) GiteaWebhook(c *gin.Context) {
-	//eventType := c.GetHeader("X-Gitea-Event")
-	//
-	//log.Printf("[GiteaWebhook] received event=%s", eventType)
-	//
-	//// Only process push events
-	//if eventType != "push" {
-	//	log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
-	//	c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
-	//	return
-	//}
+	eventType := c.GetHeader("X-Gitea-Event")
+
+	log.Printf("[GiteaWebhook] received event=%s", eventType)
+
+	// Only process push events
+	if eventType != "push" {
+		log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
+		c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
+		return
+	}
+
+	// Read and parse Gitea event body
+	body, err := c.GetRawData()
+	if err != nil {
+		log.Printf("[GiteaWebhook] read body failed: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
+		return
+	}
+
+	var giteaEvent struct {
+		Repository struct {
+			FullName string `json:"full_name"`
+		} `json:"repository"`
+	}
+	if err := json.Unmarshal(body, &giteaEvent); err != nil {
+		log.Printf("[GiteaWebhook] parse body failed: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		return
+	}
+
+	repoName := giteaEvent.Repository.FullName
+	if repoName == "" || h.WebhookSvc == nil {
+		log.Printf("[GiteaWebhook] missing repo name or webhook service unavailable")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing repository info"})
+		return
+	}
+
+	// Look up project by repo full name in database
+	project, err := h.WebhookSvc.FindProjectByRepoName(repoName)
+	if err != nil {
+		log.Printf("[GiteaWebhook] project not found for repo=%s, err=%v", repoName, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "project not configured for " + repoName})
+		return
+	}
+
+	log.Printf("[GiteaWebhook] matched project=%s repo=%s", project.Name, project.RepoPath)
 
 	// Process webhook asynchronously
-	if h.WebhookSvc != nil {
-		go func() {
-			if err := h.WebhookSvc.ProcessWebhook(); err != nil {
-				log.Printf("[Webhook] process failed: %v", err)
-			}
-		}()
-	}
+	go func() {
+		if err := h.WebhookSvc.ProcessWebhook(project); err != nil {
+			log.Printf("[Webhook] process failed for project=%s: %v", project.Name, err)
+		}
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "webhook received",
+		"project": project.Name,
 	})
 }
