@@ -124,14 +124,14 @@ func (s *WebhookService) GetDiff(repoPath, before, after string) (*GitDiffResult
 	result.Author = strings.TrimSpace(author)
 
 	// Get changed files
-	changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", before, after)
+	changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", before, after, "--")
 	if err != nil {
 		return nil, fmt.Errorf("get changed files failed: %w", err)
 	}
 	result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
 
 	// Get full diff
-	diff, err := runGitCmd(repoPath, "diff", before, after)
+	diff, err := runGitCmd(repoPath, "diff", before, after, "--")
 	if err != nil {
 		return nil, fmt.Errorf("get diff failed: %w", err)
 	}
@@ -493,6 +493,9 @@ func (s *WebhookService) GitPull(repoPath, branch string) error {
 
 // GetCommitDiff retrieves diff for a specific commit compared to its parent.
 func (s *WebhookService) GetCommitDiff(repoPath, commitHash string) (*GitDiffResult, error) {
+	// Clean the commit hash to avoid issues with trailing whitespace
+	commitHash = strings.TrimSpace(commitHash)
+
 	result := &GitDiffResult{
 		NewCommit: commitHash,
 		Success:   true,
@@ -511,28 +514,29 @@ func (s *WebhookService) GetCommitDiff(repoPath, commitHash string) (*GitDiffRes
 	if err != nil {
 		oldCommit = ""
 	}
-	result.OldCommit = strings.TrimSpace(oldCommit)
+	oldCommit = strings.TrimSpace(oldCommit)
+	result.OldCommit = oldCommit
 
 	if oldCommit != "" {
-		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", oldCommit, commitHash)
+		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", oldCommit, commitHash, "--")
 		if err != nil {
 			return nil, fmt.Errorf("get changed files failed: %w", err)
 		}
 		result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
 
-		diff, err := runGitCmd(repoPath, "diff", oldCommit, commitHash)
+		diff, err := runGitCmd(repoPath, "diff", oldCommit, commitHash, "--")
 		if err != nil {
 			return nil, fmt.Errorf("get diff failed: %w", err)
 		}
 		result.Diff = diff
 	} else {
-		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", "--root", commitHash)
+		changedFiles, err := runGitCmd(repoPath, "diff", "--name-only", "--root", commitHash, "--")
 		if err != nil {
 			return nil, fmt.Errorf("get changed files failed: %w", err)
 		}
 		result.ChangedFiles = strings.Split(strings.TrimSpace(changedFiles), "\n")
 
-		diff, err := runGitCmd(repoPath, "diff", "--root", commitHash)
+		diff, err := runGitCmd(repoPath, "diff", "--root", commitHash, "--")
 		if err != nil {
 			return nil, fmt.Errorf("get diff failed: %w", err)
 		}
