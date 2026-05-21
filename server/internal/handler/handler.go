@@ -741,6 +741,10 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 		return
 	}
 
+	// Debug: log raw request
+	eventType := c.GetHeader("X-Gitea-Event")
+	log.Printf("[GiteaWebhook] event=%s body=%s", eventType, string(body))
+
 	var giteaEvent struct {
 		Before     string `json:"before"`
 		After      string `json:"after"`
@@ -753,6 +757,8 @@ func (h *Handler) GiteaWebhook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
 		return
 	}
+
+	log.Printf("[GiteaWebhook] parsed: repo=%s before=%s after=%s", giteaEvent.Repository.FullName, giteaEvent.Before, giteaEvent.After)
 
 	repoName := giteaEvent.Repository.FullName
 	if repoName == "" || h.WebhookSvc == nil {
