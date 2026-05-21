@@ -733,16 +733,16 @@ func (h *Handler) CheckAchievements(c *gin.Context) {
 // ==================== Gitea Webhook ====================
 
 func (h *Handler) GiteaWebhook(c *gin.Context) {
-	eventType := c.GetHeader("X-Gitea-Event")
-
-	log.Printf("[GiteaWebhook] received event=%s", eventType)
-
-	// Only process push events
-	if eventType != "push" {
-		log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
-		c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
-		return
-	}
+	//eventType := c.GetHeader("X-Gitea-Event")
+	//
+	//log.Printf("[GiteaWebhook] received event=%s", eventType)
+	//
+	//// Only process push events
+	//if eventType != "push" {
+	//	log.Printf("[GiteaWebhook] ignoring non-push event: %s", eventType)
+	//	c.JSON(http.StatusOK, gin.H{"message": "event ignored"})
+	//	return
+	//}
 
 	// Read and parse Gitea event body
 	body, err := c.GetRawData()
