@@ -156,6 +156,7 @@ func initDB(db *gorm.DB, cfg *config.Config) {
 		&model.InviteRelation{},
 		&model.Share{},
 		&model.WebhookProject{},
+		&model.CodeReviewReport{},
 	); err != nil {
 		log.Fatalf("Database migration failed: %v", err)
 	}
