@@ -209,7 +209,7 @@ func (s *WebhookService) GenerateCodeReview(result *GitDiffResult) (string, erro
 		return "No changes to review", nil
 	}
 
-	prompt := fmt.Sprintf(`你是一位资深上线风险评估专家。请对以下 Git 提交进行全面的上线风险审查，重点关注可能导致的线上故障、服务中断和部署风险。
+	prompt := fmt.Sprintf(`你是一位资深代码审查专家。请对以下 Git 提交进行精简的代码审查，重点关注是否存在 bug 以及对系统稳定性的影响。
 
 提交信息: %s
 作者: %s
@@ -219,101 +219,34 @@ func (s *WebhookService) GenerateCodeReview(result *GitDiffResult) (string, erro
 代码差异:
 %s
 
-请以 Markdown 格式输出结构化的风险评估报告，严格按照以下维度逐项检查:
+请以 Markdown 格式输出精简的检测报告，严格按以下结构:
 
-## 1. 变更概述
-简述本次改动内容、影响范围、涉及的核心模块。
+## 信号灯
+**首先用一行给出本次代码的整体评价信号:**
 
-## 2. 数据库风险
-- 是否新增/删除/修改了数据库字段（ALTER TABLE、migration 文件、GORM tag 变更等）
-- 字段变更是否兼容已有数据（NOT NULL 约束、类型变更、字段删除、字段重命名）
-- 是否需要数据迁移或数据回填，回填策略是否会导致慢查询
-- 索引变更是否会导致锁表或长时间写入阻塞
-- 是否涉及大表变更（>10万行），大表 DDL 是否有分批策略
-- SQL 查询是否可能因缺少索引导致慢查询或超时
-- 是否涉及事务操作，事务范围是否过大
+- 🔴 **红灯**: 发现明确的 bug，或存在会导致服务崩溃/数据损坏/安全漏洞的严重问题，必须修复后才能上线
+- 🟡 **黄灯**: 未发现明确 bug，但存在潜在风险或代码质量问题，建议评估后决定是否上线
+- 🟢 **绿灯**: 代码安全，未发现 bug 或稳定性风险，可以通过
 
-## 3. 环境变量与配置风险
-- 是否引用了新的环境变量，目标环境是否已配置
-- 是否修改了配置文件（config.yaml、.env、application.properties 等）
-- 是否引入了新的外部依赖服务（Redis、MQ、第三方 API），依赖服务是否已就绪
-- 配置变更是否需要重启服务才能生效
-- 默认值或硬编码的配置项是否适用于生产环境
+## Bug 检测
+逐个检查是否存在以下类型的 bug（只列出有问题或风险的项，无问题则写"未发现 bug"）:
+- 空指针/nil 解引用
+- 数组/切片越界
+- 未处理的 error 返回值
+- SQL 注入、命令注入、XSS 等安全漏洞
+- 并发竞态条件
+- 内存泄漏或资源未释放
+- 数据库字段变更不兼容
 
-## 4. 接口兼容性与破坏性变更
-- API 入参/出参是否发生不兼容变更（字段删除、类型变更、必填字段新增）
-- 是否删除或重命名了已有的 API 接口/路由
-- 请求/响应的序列化格式是否变更（如 JSON 字段名改变）
-- 是否存在需要前后端同步发布的变更
-- 消息队列的消息格式是否变更，消费者是否兼容
+## 稳定性影响
+- 是否可能引发 panic 或服务崩溃
+- 是否可能影响现有接口的兼容性
+- 是否可能导致性能退化（如慢查询、OOM）
 
-## 5. 运行时异常风险
-- 是否存在空指针/nil 解引用风险
-- 数组/切片越界访问风险
-- 类型断言未做 ok 检查
-- 除零错误
-- 未处理的 error 返回值（特别是静默忽略 error）
-- JSON/XML 反序列化失败是否已处理
-- 第三方 API 调用超时/异常是否已处理（是否设置了合理超时时间）
-- 文件/目录操作是否已处理 not found 场景
+## 总结
+一句话总结本次代码是否可以安全上线。
 
-## 6. 并发与线程安全
-- 是否涉及共享变量的并发读写，是否加锁或使用并发安全的数据结构
-- 是否存在死锁风险（如多锁场景下的锁顺序不一致）
-- 是否存在竞态条件（race condition）
-- goroutine/线程泄漏风险（goroutine 启动后是否能正常退出）
-- channel 操作是否可能导致 goroutine 阻塞
-- sync.Map、sync.Pool、sync.WaitGroup 使用是否正确
-- 数据库连接池/HTTP 连接池是否配置合理，是否会耗尽
-
-## 7. 内存与资源风险
-- 是否存在内存泄漏风险（如不断增长的 map、slice 未释放）
-- 大数据量场景下是否可能导致 OOM（如全量加载数据到内存、大文件读取）
-- 是否有资源泄漏风险（数据库连接、HTTP 连接、文件句柄、Redis 连接未关闭）
-- defer 在循环中使用是否会导致资源延迟释放
-- 是否存在无限递归或深度递归导致栈溢出的风险
-
-## 8. 缓存风险
-- 缓存逻辑是否变更，是否会导致缓存击穿/雪崩/穿透
-- 缓存 key 是否变更，是否会导致新旧缓存不兼容
-- 缓存过期策略是否合理
-- 缓存与数据库的一致性是否保证
-
-## 9. 性能风险
-- 是否引入了 N+1 查询问题
-- 是否存在大事务（事务中包含 RPC 调用、文件操作等）
-- 是否有可能导致 CPU 飙升的计算（如复杂正则、大量字符串拼接、全量遍历）
-- 是否有可能导致网络带宽问题的操作（如大批量数据传输、大文件上传）
-- 新增的定时任务或后台任务是否会影响主流程性能
-
-## 10. 安全风险
-- SQL 注入风险（字符串拼接 SQL）
-- XSS 风险（未转义的用户输入直接输出）
-- 命令注入风险（用户输入拼接到 shell 命令）
-- 敏感信息是否可能泄露到日志、响应或错误信息中（如密码、token、密钥）
-- 权限校验是否完整（是否有越权访问风险）
-- 是否涉及文件上传，文件类型/大小是否校验
-
-## 11. 日志与可观测性
-- 是否新增了关键业务逻辑但缺少日志记录
-- 日志级别是否合理（不应在生产环境大量输出 DEBUG 日志）
-- 是否有足够的错误日志用于线上问题排查
-- 是否添加了关键指标的监控埋点
-
-## 12. 部署 Checklist
-列出上线前必须确认的事项清单，包括但不限于:
-- 需要提前执行的 SQL/数据迁移
-- 需要配置的环境变量
-- 需要确认的外部依赖
-- 需要通知的相关团队
-- 回滚方案
-
----
-**输出要求:**
-- 对每项检查结果标注风险等级: 🟢 低风险 / 🟡 中风险 / 🔴 高风险
-- 如果没有发现某方面的风险，简要说明"未发现相关风险"
-- 🔴 高风险项必须在报告最开头单独汇总，形成"高风险摘要"
-- 最后给出一个**总体风险评级**（低/中/高）和一句话总结`, result.CommitMsg, result.Author, strings.Join(result.ChangedFiles, "\n"), result.Diff)
+**注意: 保持精简，不要展开无关内容。总字数控制在 300 字以内。**`, result.CommitMsg, result.Author, strings.Join(result.ChangedFiles, "\n"), result.Diff)
 
 	reqBody := deepSeekRequest{
 		Model: "deepseek-chat",
@@ -368,25 +301,47 @@ const reportsDir = "./reports"
 
 // riskLevelFromReport parses the overall risk level from the AI-generated report.
 func riskLevelFromReport(report string) string {
-	lower := strings.ToLower(report)
-	if strings.Contains(lower, "🔴 高风险") || strings.Contains(lower, "总体风险评级") && strings.Contains(lower, "高") {
+	// Check for the new signal format first (红灯/黄灯/绿灯)
+	if strings.Contains(report, "🔴") || strings.Contains(report, "红灯") {
 		return "high"
 	}
-	if strings.Contains(lower, "🟡 中风险") || strings.Contains(lower, "总体风险评级") && strings.Contains(lower, "中") {
+	if strings.Contains(report, "🟡") || strings.Contains(report, "黄灯") {
+		return "medium"
+	}
+	if strings.Contains(report, "🟢") || strings.Contains(report, "绿灯") {
+		return "low"
+	}
+	// Fallback: check legacy format
+	lower := strings.ToLower(report)
+	if strings.Contains(lower, "高风险") || (strings.Contains(lower, "总体风险评级") && strings.Contains(lower, "高")) {
+		return "high"
+	}
+	if strings.Contains(lower, "中风险") || (strings.Contains(lower, "总体风险评级") && strings.Contains(lower, "中")) {
 		return "medium"
 	}
 	return "low"
 }
 
-// riskSummaryFromReport extracts a short summary (first high-risk section or overall line).
+// riskSummaryFromReport extracts a short summary from the AI-generated report.
 func riskSummaryFromReport(report string) string {
-	// Try to find the "高风险摘要" section
-	re := regexp.MustCompile(`(?i)高风险摘要([\s\S]*?)(?=\n##|\n---|\Z)`)
+	// Try to find the 信号灯 section (new format)
+	re := regexp.MustCompile(`(?i)信号灯[\s\S]*?([🔴🟡🟢].*?)(?:\n|$)`)
+	if matches := re.FindStringSubmatch(report); len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	// Try to find the 总结 section
+	re = regexp.MustCompile(`(?i)总结[\s]*\n([\s\S]*?)(?=\n\n|\Z)`)
+	if matches := re.FindStringSubmatch(report); len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	// Fallback: find the "高风险摘要" section (legacy format)
+	re = regexp.MustCompile(`(?i)高风险摘要([\s\S]*?)(?=\n##|\n---|\Z)`)
 	if matches := re.FindStringSubmatch(report); len(matches) > 1 {
 		summary := strings.TrimSpace(matches[1])
 		summary = strings.TrimPrefix(summary, "\n")
 		lines := strings.Split(summary, "\n")
-		// Take up to 3 non-empty lines
 		var result []string
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -402,14 +357,14 @@ func riskSummaryFromReport(report string) string {
 		}
 	}
 
-	// Fallback: find the "总体风险评级" line
+	// Last fallback
 	for _, line := range strings.Split(report, "\n") {
-		if strings.Contains(line, "总体风险评级") {
+		if strings.Contains(line, "总体风险评级") || strings.Contains(line, "总结") {
 			return strings.TrimSpace(line)
 		}
 	}
 
-	return "未检测到高风险项"
+	return "未检测到风险项"
 }
 
 // SaveReviewReport persists the code review report to database and local markdown file.
@@ -680,7 +635,7 @@ func (s *WebhookService) ProcessWebhook(project *model.WebhookProject, before, a
 		commitShort = commitShort[:7]
 	}
 
-	title := fmt.Sprintf("Code Review — %s", project.Name)
+	title := fmt.Sprintf("代码检测--%s", project.Name)
 
 	body := fmt.Sprintf(
 		"**项目:** %s\n"+
@@ -844,7 +799,7 @@ func (s *WebhookService) ProcessWebhookPull(project *model.WebhookProject, branc
 		commitShort = commitShort[:7]
 	}
 
-	title := fmt.Sprintf("Code Review — %s", project.Name)
+	title := fmt.Sprintf("代码检测--%s", project.Name)
 
 	body := fmt.Sprintf(
 		"**项目:** %s\n"+
