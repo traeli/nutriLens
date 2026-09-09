@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"nutrilens/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -74,7 +76,12 @@ func (h *Handler) WxLogin(c *gin.Context) {
 	db := h.Svc.Food.DB()
 	var user model.User
 	result := db.Where("open_id = ?", openID).First(&user)
-	isNewUser := result.Error != nil
+	isNewUser := errors.Is(result.Error, gorm.ErrRecordNotFound)
+	if result.Error != nil && !isNewUser {
+		log.Printf("[WxLogin] query user failed: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query user failed"})
+		return
+	}
 
 	if isNewUser {
 		user = model.User{OpenID: openID}

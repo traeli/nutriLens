@@ -56,6 +56,12 @@ type User struct {
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+// UserTableName keeps NutriLens accounts isolated from the shared `users`
+// table, whose UUID-based schema is owned by other services.
+const UserTableName = "nutrilens_users"
+
+func (User) TableName() string { return UserTableName }
+
 type FoodRecord struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
 	UserID       uint           `gorm:"index;not null" json:"user_id"`

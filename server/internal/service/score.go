@@ -13,6 +13,11 @@ type ScoreService struct {
 	db *gorm.DB
 }
 
+const (
+	userScoreJoin       = "JOIN " + model.UserTableName + " ON " + model.UserTableName + ".id = user_scores.user_id"
+	rankVisibleUserCond = model.UserTableName + ".show_on_rank = true"
+)
+
 func NewScoreService(db *gorm.DB) *ScoreService {
 	return &ScoreService{db: db}
 }
@@ -192,15 +197,15 @@ func (s *ScoreService) GetMyScore(userID uint) map[string]interface{} {
 	// Calculate global total rank
 	var totalRank int64
 	s.db.Model(&model.UserScore{}).
-		Joins("JOIN users ON users.id = user_scores.user_id").
-		Where("users.show_on_rank = true AND total_score > ?", score.TotalScore).
+		Joins(userScoreJoin).
+		Where(rankVisibleUserCond+" AND total_score > ?", score.TotalScore).
 		Count(&totalRank)
 
 	// Calculate global week rank
 	var weekRank int64
 	s.db.Model(&model.UserScore{}).
-		Joins("JOIN users ON users.id = user_scores.user_id").
-		Where("users.show_on_rank = true AND week_score > ?", score.WeekScore).
+		Joins(userScoreJoin).
+		Where(rankVisibleUserCond+" AND week_score > ?", score.WeekScore).
 		Count(&weekRank)
 
 	// Get show_on_rank status
@@ -225,8 +230,8 @@ func (s *ScoreService) GetRank(scope string, offset, limit int) []map[string]int
 	}
 
 	var scores []model.UserScore
-	s.db.Joins("JOIN users ON users.id = user_scores.user_id").
-		Where("users.show_on_rank = true").
+	s.db.Joins(userScoreJoin).
+		Where(rankVisibleUserCond).
 		Order(orderCol + " DESC").Offset(offset).Limit(limit).Find(&scores)
 
 	var result []map[string]interface{}
@@ -270,8 +275,8 @@ func (s *ScoreService) GetFriendRank(userID uint, offset, limit int) []map[strin
 
 	var scores []model.UserScore
 	s.db.Where("user_id IN ?", friendIDs).
-		Joins("JOIN users ON users.id = user_scores.user_id").
-		Where("users.show_on_rank = true").
+		Joins(userScoreJoin).
+		Where(rankVisibleUserCond).
 		Order("week_score DESC").
 		Offset(offset).Limit(limit).
 		Find(&scores)
