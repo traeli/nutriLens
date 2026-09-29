@@ -1,58 +1,41 @@
 <template>
-  <view class="container">
-    <view class="card">
-      <text class="section-title">完善个人资料</text>
-      <text class="section-desc">用于提供更精准的营养建议</text>
-
-      <view class="form">
-        <!-- Avatar -->
-        <view class="form-item avatar-item">
-          <text class="label">头像</text>
-          <button class="avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
-            <image v-if="form.avatar_url" class="avatar-img" :src="form.avatar_url" mode="aspectFill" />
-            <view v-else class="avatar-placeholder">
-              <text class="avatar-placeholder-text">+</text>
-            </view>
-          </button>
+  <view class="profile-page">
+    <image class="profile-art" src="/static/dining/visit-rating-art-v2.jpg" mode="aspectFill" />
+    <view class="profile-form">
+      <button class="avatar-button" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
+        <image v-if="form.avatar_url" class="avatar-image" :src="form.avatar_url" mode="aspectFill" />
+        <view v-else class="avatar-placeholder">
+          <text>{{ avatarInitial }}</text>
         </view>
+        <view class="avatar-edit">＋</view>
+      </button>
 
-        <!-- Nickname (WeChat nickname capability) -->
+      <view class="form-card">
         <view class="form-item">
-          <text class="label">昵称</text>
-          <input class="input nickname-input" type="nickname" v-model="form.nickname"
-            placeholder="点击获取微信昵称" @blur="onNicknameBlur" />
+          <text class="field-label">昵称</text>
+          <input
+            class="nickname-input"
+            type="nickname"
+            v-model="form.nickname"
+            maxlength="64"
+            placeholder="请输入昵称"
+            placeholder-class="input-placeholder"
+            confirm-type="done"
+            :disabled="loadingProfile || submitting"
+            @blur="onNicknameBlur"
+          />
         </view>
 
-        <view class="form-item">
-          <text class="label">性别</text>
-          <view class="gender-picker">
-            <view class="gender-option" :class="{ active: form.gender === 1 }" @tap="form.gender = 1">
-              <text>♂ 男</text>
-            </view>
-            <view class="gender-option" :class="{ active: form.gender === 2 }" @tap="form.gender = 2">
-              <text>♀ 女</text>
-            </view>
-          </view>
-        </view>
-
-        <view class="form-item">
-          <text class="label">身高 (cm)</text>
-          <input class="input" v-model="form.height" type="digit" placeholder="如: 170" />
-        </view>
-
-        <view class="form-item">
-          <text class="label">体重 (kg)</text>
-          <input class="input" v-model="form.weight" type="digit" placeholder="如: 65" />
-        </view>
-
-        <view class="form-item">
-          <text class="label">年龄</text>
-          <input class="input" v-model="form.age" type="number" placeholder="如: 25" />
-        </view>
+        <button
+          class="save-button"
+          :disabled="!nicknameReady || loadingProfile || submitting"
+          :loading="submitting"
+          @tap="submit"
+        >
+          保存
+        </button>
       </view>
     </view>
-
-    <button class="btn-primary" @tap="submit">保存</button>
   </view>
 </template>
 
@@ -65,84 +48,67 @@ export default {
       form: {
         nickname: '',
         avatar_url: '',
-        gender: 1,
-        height: '',
-        weight: '',
-        age: '',
       },
       avatarTempPath: '',
+      loadingProfile: true,
+      submitting: false,
     }
+  },
+  computed: {
+    nicknameReady() {
+      return Boolean(this.form.nickname.trim())
+    },
+    avatarInitial() {
+      return this.form.nickname.trim().slice(0, 1) || '我'
+    },
   },
   onLoad() {
     this.loadProfile()
   },
   methods: {
     async loadProfile() {
+      this.loadingProfile = true
       try {
         const res = await api.getProfile()
-        if (res.height > 0) {
-          this.form.nickname = res.nickname || ''
-          this.form.avatar_url = res.avatar_url || ''
-          this.form.gender = res.gender || 1
-          this.form.height = String(res.height)
-          this.form.weight = String(res.weight)
-          this.form.age = String(res.age)
-        }
+        this.form.nickname = res.nickname || ''
+        this.form.avatar_url = res.avatar_url || ''
       } catch (e) {
-        // New user, form stays empty
+        // 新用户保持空表单即可继续填写。
+      } finally {
+        this.loadingProfile = false
       }
     },
-    async onChooseAvatar(e) {
+    onChooseAvatar(e) {
       const tempPath = e.detail.avatarUrl
+      if (!tempPath) return
       this.avatarTempPath = tempPath
       this.form.avatar_url = tempPath
     },
     onNicknameBlur(e) {
-      // type="nickname" input fills the value from WeChat on blur
       if (e.detail.value) {
         this.form.nickname = e.detail.value
       }
     },
     async submit() {
-      if (!this.form.height || !this.form.weight || !this.form.age) {
-        uni.showToast({ title: '请填写完整信息', icon: 'none' })
-        return
-      }
+      if (!this.nicknameReady || this.submitting) return
 
-      let avatarUrl = this.form.avatar_url
-
-      // Upload avatar to COS if it's a local temp file
-      if (this.avatarTempPath && this.avatarTempPath === avatarUrl) {
-        try {
-          uni.showLoading({ title: '上传头像...' })
-          const res = await api.uploadToCOS(this.avatarTempPath, 'avatar')
-          avatarUrl = res.object_url
-          this.form.avatar_url = avatarUrl
-        } catch (e) {
-          console.error('avatar upload failed:', e)
-          // Continue without avatar upload
-        } finally {
-          uni.hideLoading()
-        }
-      }
-
+      this.submitting = true
+      const nickname = this.form.nickname.trim()
       try {
         await api.updateProfile({
-          nickname: this.form.nickname,
-          avatar_url: avatarUrl,
-          gender: this.form.gender,
-          height: parseFloat(this.form.height),
-          weight: parseFloat(this.form.weight),
-          age: parseInt(this.form.age),
+          nickname,
+          avatar_url: this.avatarTempPath ? '' : this.form.avatar_url,
         })
         uni.setStorageSync('has_profile', true)
-        uni.setStorageSync('nickname', this.form.nickname)
+        uni.setStorageSync('nickname', nickname)
         uni.showToast({ title: '保存成功', icon: 'success' })
         setTimeout(() => {
           uni.switchTab({ url: '/pages/home/home' })
-        }, 1000)
+        }, 800)
       } catch (err) {
-        uni.showToast({ title: '保存失败: ' + err.message, icon: 'none' })
+        uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' })
+      } finally {
+        this.submitting = false
       }
     },
   },
@@ -150,113 +116,130 @@ export default {
 </script>
 
 <style scoped>
-.section-title {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.section-desc {
-  font-size: 26rpx;
-  color: #999;
-  display: block;
-  margin-bottom: 40rpx;
-}
-
-.form {
-  margin-top: 20rpx;
-}
-
-.form-item {
-  margin-bottom: 36rpx;
-}
-
-.avatar-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.avatar-btn {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 50%;
-  padding: 0;
-  margin: 0;
-  background: #f5f5f5;
-  border: none;
+.profile-page {
+  position: relative;
+  min-height: 100vh;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #F3F3EF;
+}
+
+.profile-art {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 68%;
+  opacity: .13;
+}
+
+.profile-form {
+  position: relative;
+  z-index: 1;
+  padding: 160rpx 42rpx 70rpx;
+}
+
+.avatar-button {
+  position: relative;
+  z-index: 2;
+  width: 142rpx;
+  height: 142rpx;
+  margin: 0 auto -70rpx;
+  padding: 7rpx;
+  overflow: visible;
+  border-radius: 50%;
+  background: #F8F8F4;
+  box-shadow: 0 10rpx 28rpx rgba(25, 24, 21, .1);
   line-height: normal;
 }
 
-.avatar-btn::after {
-  border: none;
+.avatar-button::after {
+  border: 0;
 }
 
-.avatar-img {
-  width: 120rpx;
-  height: 120rpx;
+.avatar-image,
+.avatar-placeholder {
+  width: 128rpx;
+  height: 128rpx;
   border-radius: 50%;
 }
 
 .avatar-placeholder {
-  width: 120rpx;
-  height: 120rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #DFDDD8;
+  color: #57534E;
 }
 
-.avatar-placeholder-text {
-  font-size: 48rpx;
-  color: #ccc;
+.avatar-placeholder text {
+  font-size: 44rpx;
+  font-weight: 650;
 }
 
-.label {
-  font-size: 28rpx;
-  color: #666;
+.avatar-edit {
+  position: absolute;
+  right: -1rpx;
+  bottom: 4rpx;
+  width: 42rpx;
+  height: 42rpx;
+  border: 5rpx solid #F8F8F4;
+  border-radius: 50%;
+  background: #D64B32;
+  color: #FFFFFF;
+  font-size: 25rpx;
+  line-height: 32rpx;
+  text-align: center;
+}
+
+.form-card {
+  padding: 106rpx 32rpx 32rpx;
+  border: 1rpx solid #D7D5CF;
+  border-radius: 24rpx;
+  background: #F8F8F4;
+  box-shadow: 0 12rpx 31rpx rgba(25, 24, 21, .07);
+}
+
+.form-item {
+  padding: 0 3rpx;
+}
+
+.field-label {
   display: block;
-  margin-bottom: 16rpx;
-}
-
-.input {
-  background: #f5f5f5;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  font-size: 30rpx;
+  margin-bottom: 14rpx;
+  color: #1B1B19;
+  font-size: 25rpx;
+  font-weight: 650;
 }
 
 .nickname-input {
-  background: #FFF8E1;
+  height: 94rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid #D7D5CF;
+  border-radius: 18rpx;
+  background: #FFFFFF;
+  color: #1B1B19;
+  font-size: 29rpx;
 }
 
-.gender-picker {
-  display: flex;
-  gap: 20rpx;
+.input-placeholder {
+  color: #88827A;
 }
 
-.gender-option {
-  flex: 1;
-  text-align: center;
-  padding: 20rpx;
-  border-radius: 16rpx;
-  background: #f5f5f5;
-  font-size: 30rpx;
-  color: #999;
+.save-button {
+  height: 94rpx;
+  margin: 32rpx 0 0;
+  border-radius: 18rpx;
+  background: #D64B32;
+  color: #FFFFFF;
+  font-size: 29rpx;
+  font-weight: 650;
+  line-height: 94rpx;
 }
 
-.gender-option.active {
-  background: #e8f5e9;
-  color: #4CAF50;
-  font-weight: bold;
-}
-
-.btn-primary {
-  margin-top: 40rpx;
+.save-button[disabled] {
+  background: #D9D7D1;
+  color: #88827A;
+  opacity: 1;
 }
 </style>

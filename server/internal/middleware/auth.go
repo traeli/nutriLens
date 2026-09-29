@@ -3,80 +3,34 @@ package middleware
 import (
 	"net/http"
 	"strings"
-	"time"
+
+	platformauth "shijibu/internal/platform/auth"
+	"shijibu/internal/platform/httpx"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-type Claims struct {
-	UserID uint   `json:"user_id"`
-	OpenID string `json:"openid"`
-	jwt.RegisteredClaims
-}
+const UserIDKey = "user_id"
 
-func GenerateToken(userID uint, openID string, secret string, expireHours int) (string, error) {
-	claims := Claims{
-		UserID: userID,
-		OpenID: openID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireHours) * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
-}
-
-func JWTAuth(secret string) gin.HandlerFunc {
+func Authenticate(tokens *platformauth.TokenManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			c.Abort()
+		value := strings.TrimSpace(c.GetHeader("Authorization"))
+		if !strings.HasPrefix(value, "Bearer ") {
+			httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "请先登录")
 			return
 		}
-
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
-			c.Abort()
+		userID, err := tokens.Parse(strings.TrimSpace(strings.TrimPrefix(value, "Bearer ")))
+		if err != nil {
+			httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "登录状态已失效")
 			return
 		}
-
-		token, err := jwt.ParseWithClaims(parts[1], &Claims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
-		})
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-			c.Abort()
-			return
-		}
-
-		claims, ok := token.Claims.(*Claims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
-			c.Abort()
-			return
-		}
-
-		c.Set("user_id", claims.UserID)
-		c.Set("openid", claims.OpenID)
+		c.Set(UserIDKey, userID)
 		c.Next()
 	}
 }
 
-func CORS() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-		c.Header("Access-Control-Max-Age", "86400")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
-	}
+func UserID(c *gin.Context) uint {
+	value, _ := c.Get(UserIDKey)
+	userID, _ := value.(uint)
+	return userID
 }

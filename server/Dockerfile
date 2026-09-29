@@ -1,28 +1,14 @@
-# Build stage
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
-
-ENV GOPROXY=https://goproxy.cn,direct
-
+WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/nutrilens-api ./cmd/api
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
-
-# Runtime stage
-FROM alpine:3.20
-
-RUN apk add --no-cache tzdata git bash
-WORKDIR /app
-
-COPY --from=builder /app/server .
-COPY config/config.yaml config/config.yaml
-
-RUN mkdir -p uploads
-
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates && addgroup -S app && adduser -S app -G app
+USER app
+COPY --from=builder /out/nutrilens-api /usr/local/bin/nutrilens-api
 EXPOSE 8080
-
-CMD ["./server"]
+ENTRYPOINT ["/usr/local/bin/nutrilens-api"]

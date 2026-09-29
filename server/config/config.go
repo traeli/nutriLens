@@ -1,116 +1,142 @@
 package config
 
 import (
+	"fmt"
 	"os"
-	"regexp"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Database  DatabaseConfig  `yaml:"database"`
-	Redis     RedisConfig     `yaml:"redis"`
-	WeChat    WeChatConfig    `yaml:"wechat"`
-	DeepSeek  DeepSeekConfig  `yaml:"deepseek"`
-	JWT       JWTConfig       `yaml:"jwt"`
-	Upload    UploadConfig    `yaml:"upload"`
-	RateLimit RateLimitConfig `yaml:"rate_limit"`
-	COS       COSConfig       `yaml:"cos"`
-	Notify    NotifyConfig    `yaml:"notify"`
+	ServerAddr        string
+	DatabaseDSN       string
+	JWTSecret         string
+	JWTExpire         time.Duration
+	WeChatAppID       string
+	WeChatAppSecret   string
+	BailianAPIKey     string
+	BailianBaseURL    string
+	BailianASRModel   string
+	CORSAllowOrigins  []string
+	UploadDir         string
+	PublicBaseURL     string
+	DataEncryptionKey string
+	AllowMockLogin    bool
 }
 
-type ServerConfig struct {
-	Port string `yaml:"port"`
-	Mode string `yaml:"mode"` // debug / release
+type fileConfig struct {
+	Server struct {
+		Addr string `yaml:"addr"`
+	} `yaml:"server"`
+	Database struct {
+		DSN string `yaml:"dsn"`
+	} `yaml:"database"`
+	JWT struct {
+		Secret      string `yaml:"secret"`
+		ExpireHours int    `yaml:"expire_hours"`
+	} `yaml:"jwt"`
+	WeChat struct {
+		AppID     string `yaml:"app_id"`
+		AppSecret string `yaml:"app_secret"`
+	} `yaml:"wechat"`
+	Bailian struct {
+		APIKey   string `yaml:"api_key"`
+		BaseURL  string `yaml:"base_url"`
+		ASRModel string `yaml:"asr_model"`
+	} `yaml:"bailian"`
+	CORS struct {
+		AllowOrigins []string `yaml:"allow_origins"`
+	} `yaml:"cors"`
+	Storage struct {
+		UploadDir     string `yaml:"upload_dir"`
+		PublicBaseURL string `yaml:"public_base_url"`
+	} `yaml:"storage"`
+	Security struct {
+		DataEncryptionKey string `yaml:"data_encryption_key"`
+		AllowMockLogin    bool   `yaml:"allow_mock_login"`
+	} `yaml:"security"`
 }
 
-type DatabaseConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	DBName   string `yaml:"dbname"`
-	SSLMode  string `yaml:"sslmode"`
+func Load() (Config, error) {
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return Config{}, fmt.Errorf("resolve config file path")
+	}
+	path := strings.TrimSpace(os.Getenv("CONFIG_PATH"))
+	if path == "" {
+		path = filepath.Join(filepath.Dir(sourceFile), "config.yaml")
+	}
+	return loadFile(path)
 }
 
-func (d DatabaseConfig) DSN() string {
-	return "host=" + d.Host + " port=" + d.Port + " user=" + d.User +
-		" password=" + d.Password + " dbname=" + d.DBName + " sslmode=" + d.SSLMode
-}
-
-type RedisConfig struct {
-	Addr     string `yaml:"addr"`
-	Password string `yaml:"password"`
-	DB       int    `yaml:"db"`
-}
-
-type WeChatConfig struct {
-	AppID          string `yaml:"app_id"`
-	AppSecret      string `yaml:"app_secret"`
-	Token          string `yaml:"token"`
-	EncodingAESKey string `yaml:"encoding_aes_key"`
-}
-
-type DeepSeekConfig struct {
-	APIKey  string `yaml:"api_key"`
-	BaseURL string `yaml:"base_url"`
-}
-
-type JWTConfig struct {
-	Secret string `yaml:"secret"`
-	Expire int    `yaml:"expire"` // hours
-}
-
-type UploadConfig struct {
-	Dir string `yaml:"dir"` // local upload directory
-}
-
-type RateLimitConfig struct {
-	Daily int64 `yaml:"daily"` // 每日AI调用上限
-}
-
-type COSConfig struct {
-	SecretID  string `yaml:"secret_id"`
-	SecretKey string `yaml:"secret_key"`
-	Bucket    string `yaml:"bucket"`
-	Region    string `yaml:"region"`
-}
-
-type NotifyConfig struct {
-	TemplateID    string `yaml:"template_id"`
-	BreakfastTime string `yaml:"breakfast_time"`
-	LunchTime     string `yaml:"lunch_time"`
-	DinnerTime    string `yaml:"dinner_time"`
-	CheckInterval string `yaml:"check_interval"`
-}
-
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+func loadFile(path string) (Config, error) {
+	contents, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) || strings.TrimSpace(os.Getenv("DATABASE_DSN")) == "" {
+			return Config{}, fmt.Errorf("read config file %q: %w", path, err)
+		}
+		contents = []byte("{}")
 	}
-
-	// Replace ${ENV_VAR} with environment variable values
-	expanded := expandEnv(string(data))
-
-	var cfg Config
-	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
-		return nil, err
+	var fileValues fileConfig
+	if err := yaml.Unmarshal(contents, &fileValues); err != nil {
+		return Config{}, fmt.Errorf("parse config file %q: %w", path, err)
 	}
-	return &cfg, nil
+	expireHours := fileValues.JWT.ExpireHours
+	if expireHours == 0 {
+		expireHours = 168
+	}
+	if expireHours < 0 {
+		return Config{}, fmt.Errorf("jwt.expire_hours must be a positive integer")
+	}
+	cfg := Config{
+		ServerAddr:        envOr("SERVER_ADDR", valueOr(fileValues.Server.Addr, ":8080")),
+		DatabaseDSN:       envOr("DATABASE_DSN", strings.TrimSpace(fileValues.Database.DSN)),
+		JWTSecret:         envOr("JWT_SECRET", strings.TrimSpace(fileValues.JWT.Secret)),
+		JWTExpire:         time.Duration(expireHours) * time.Hour,
+		WeChatAppID:       envOr("WECHAT_APP_ID", strings.TrimSpace(fileValues.WeChat.AppID)),
+		WeChatAppSecret:   envOr("WECHAT_APP_SECRET", strings.TrimSpace(fileValues.WeChat.AppSecret)),
+		BailianAPIKey:     envOr("BAILIAN_API_KEY", strings.TrimSpace(fileValues.Bailian.APIKey)),
+		BailianBaseURL:    valueOr(fileValues.Bailian.BaseURL, "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+		BailianASRModel:   valueOr(fileValues.Bailian.ASRModel, "qwen3-asr-flash"),
+		CORSAllowOrigins:  cleanValues(fileValues.CORS.AllowOrigins),
+		UploadDir:         envOr("UPLOAD_DIR", valueOr(fileValues.Storage.UploadDir, "./uploads")),
+		PublicBaseURL:     envOr("PUBLIC_BASE_URL", valueOr(fileValues.Storage.PublicBaseURL, "/uploads")),
+		DataEncryptionKey: envOr("DATA_ENCRYPTION_KEY", strings.TrimSpace(fileValues.Security.DataEncryptionKey)),
+		AllowMockLogin:    fileValues.Security.AllowMockLogin && strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) != "production",
+	}
+	if cfg.DatabaseDSN == "" {
+		return Config{}, fmt.Errorf("database.dsn is required")
+	}
+	if len(cfg.JWTSecret) < 32 {
+		return Config{}, fmt.Errorf("jwt.secret must contain at least 32 characters")
+	}
+	return cfg, nil
 }
 
-// expandEnv replaces ${VAR} or ${VAR:-default} patterns with environment variable values.
-func expandEnv(s string) string {
-	re := regexp.MustCompile(`\$\{([^}:]+)(?::-([^}]*))?\}`)
-	return re.ReplaceAllStringFunc(s, func(match string) string {
-		sub := re.FindStringSubmatch(match)
-		name := sub[1]
-		defaultVal := sub[2]
-		if v := os.Getenv(name); v != "" {
-			return v
+func envOr(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func valueOr(value, fallback string) string {
+	if value = strings.TrimSpace(value); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func cleanValues(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result = append(result, value)
 		}
-		return defaultVal
-	})
+	}
+	return result
 }

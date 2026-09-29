@@ -1,37 +1,39 @@
 {
   "pages": [
-    { "path": "pages/home/home", "style": { "navigationBarTitleText": "首页" } },
-    { "path": "pages/history/history", "style": { "navigationBarTitleText": "饮食记录" } },
-    { "path": "pages/wheel/wheel", "style": { "navigationBarTitleText": "今天吃什么" } },
-    { "path": "pages/mine/mine", "style": { "navigationBarTitleText": "我的" } },
-    { "path": "pages/login/login", "style": { "navigationBarTitleText": "登录" } },
-    { "path": "pages/profile/profile", "style": { "navigationBarTitleText": "完善资料" } },
-    { "path": "pages/analyze/analyze", "style": { "navigationBarTitleText": "AI分析" } },
-    { "path": "pages/food-log/food-log", "style": { "navigationBarTitleText": "饮食记录" } },
-    { "path": "pages/my-dishes/my-dishes", "style": { "navigationBarTitleText": "我的菜品" } },
+    { "path": "pages/home/home", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/record/record", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/nutrition/nutrition", "style": { "navigationBarTitleText": "私人营养记录", "navigationBarBackgroundColor": "#F5FAEC" } },
+    { "path": "pages/footprints/footprints", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/my-records/my-records", "style": { "navigationBarTitleText": "我的记录", "navigationBarBackgroundColor": "#F5FAEC", "enablePullDownRefresh": true } },
+    { "path": "pages/mine/mine", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/search/search", "style": { "navigationBarTitleText": "找一家店", "navigationBarBackgroundColor": "#F3F3EF" } },
+    { "path": "pages/place-detail/place-detail", "style": { "navigationBarTitleText": "店铺详情", "navigationBarBackgroundColor": "#F3F3EF" } },
+    { "path": "pages/experience-list/experience-list", "style": { "navigationBarTitleText": "真实记录", "navigationBarBackgroundColor": "#F3F3EF", "enablePullDownRefresh": true, "onReachBottomDistance": 120 } },
+    { "path": "pages/route-detail/route-detail", "style": { "navigationBarTitleText": "吃喝攻略", "navigationBarBackgroundColor": "#F5FAEC" } },
+    { "path": "pages/experience-detail/experience-detail", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/review-status/review-status", "style": { "navigationBarTitleText": "审核进度", "navigationBarBackgroundColor": "#F3F3EF" } },
+    { "path": "pages/cases/cases", "style": { "navigationBarTitleText": "举报与申诉", "navigationBarBackgroundColor": "#F5FAEC" } },
+    { "path": "pages/login/login", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/profile/profile", "style": { "navigationBarTitleText": "个人资料" } },
     { "path": "pages/privacy/privacy", "style": { "navigationBarTitleText": "隐私保护政策" } },
-    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } },
-    { "path": "pages/feedback/feedback", "style": { "navigationBarTitleText": "意见反馈" } },
-    { "path": "pages/rank/rank", "style": { "navigationBarTitleText": "排行榜" } },
-    { "path": "pages/achievement/achievement", "style": { "navigationBarTitleText": "成就" } },
-    { "path": "pages/notify-settings/notify-settings", "style": { "navigationBarTitleText": "消息推送设置" } },
-    { "path": "pages/share-poster/share-poster", "style": { "navigationBarTitleText": "分享海报" } }
+    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "NutriLens",
-    "navigationBarBackgroundColor": "#ffffff",
-    "backgroundColor": "#f5f5f5"
+    "navigationBarTitleText": "饭友记",
+    "navigationBarBackgroundColor": "#F5FAEC",
+    "backgroundColor": "#F5FAEC"
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#4CAF50",
-    "borderStyle": "black",
-    "backgroundColor": "#ffffff",
+    "custom": true,
+    "color": "#78746E",
+    "selectedColor": "#C7FF35",
+    "borderStyle": "white",
+    "backgroundColor": "#10110F",
     "list": [
-      { "pagePath": "pages/home/home", "text": "首页", "iconPath": "static/tab-home.png", "selectedIconPath": "static/tab-home-active.png" },
-      { "pagePath": "pages/history/history", "text": "记录", "iconPath": "static/tab-record.png", "selectedIconPath": "static/tab-record-active.png" },
-      { "pagePath": "pages/wheel/wheel", "text": "转盘", "iconPath": "static/tab-wheel.png", "selectedIconPath": "static/tab-wheel-active.png" },
+      { "pagePath": "pages/home/home", "text": "发现", "iconPath": "static/tab-home.png", "selectedIconPath": "static/tab-home-active.png" },
+      { "pagePath": "pages/record/record", "text": "记录", "iconPath": "static/tab-record.png", "selectedIconPath": "static/tab-record-active.png" },
+      { "pagePath": "pages/footprints/footprints", "text": "足迹", "iconPath": "static/tab-wheel.png", "selectedIconPath": "static/tab-wheel-active.png" },
       { "pagePath": "pages/mine/mine", "text": "我的", "iconPath": "static/tab-mine.png", "selectedIconPath": "static/tab-mine-active.png" }
     ]
   }

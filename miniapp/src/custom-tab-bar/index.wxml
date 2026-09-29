@@ -1,0 +1,13 @@
+<view class="tab-shell">
+  <view class="tab-bar">
+    <view wx:for="{{tabs}}" wx:key="pagePath" class="tab-item {{selected == index ? 'active' : ''}} {{index == 1 ? 'record' : ''}}" data-index="{{index}}" bindtap="switchTab">
+      <view class="icon-slot">
+        <view wx:if="{{index == 1}}" class="record-icon">＋</view>
+        <view wx:elif="{{index == 0}}" class="nav-icon home-icon"><view></view></view>
+        <view wx:elif="{{index == 2}}" class="nav-icon pin-icon"><view></view></view>
+        <view wx:else class="nav-icon mine-icon"><view class="mine-head"></view><view class="mine-body"></view></view>
+      </view>
+      <text>{{item.text}}</text>
+    </view>
+  </view>
+</view>

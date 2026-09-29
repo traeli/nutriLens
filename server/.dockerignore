@@ -1,6 +1,5 @@
-server
-uploads
-*.exe
-*.test
 .git
-.idea
+.env
+*.local
+coverage.out
+tmp/
