@@ -1,30 +1,18 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: nutrilens-pg
     environment:
-      POSTGRES_USER: nutrilens
-      POSTGRES_PASSWORD: nutrilens123
-      POSTGRES_DB: nutrilens
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-nutrilens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-nutrilens}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nutrilens"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: nutrilens-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
 
   server:
     build:
@@ -32,34 +20,46 @@ services:
       dockerfile: Dockerfile
     container_name: nutrilens-server
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
-      DB_HOST: "postgres"
-      REDIS_ADDR: "redis:6379"
+      APP_ENV: production
+      SERVER_ADDR: ":8080"
+      DATABASE_DSN: ${DATABASE_DSN:?set DATABASE_DSN in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-168}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:?set WECHAT_APP_ID in .env}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:?set WECHAT_APP_SECRET in .env}
+      BAILIAN_API_KEY: ${BAILIAN_API_KEY:-}
+      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      BAILIAN_ASR_MODEL: ${BAILIAN_ASR_MODEL:-qwen3-asr-flash}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set DATA_ENCRYPTION_KEY in .env}
+      UPLOAD_DIR: /app/uploads
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
     volumes:
       - server_uploads:/app/uploads
+    restart: unless-stopped
 
   directus:
     image: directus/directus:latest
+    profiles: ["admin"]
     container_name: nutrilens-directus
     ports:
-      - "8055:8055"
+      - "127.0.0.1:8055:8055"
     environment:
-      KEY: 'nutrilens-directus-key'
-      SECRET: 'nutrilens-directus-secret'
-      ADMIN_EMAIL: 'trae.li@outlook.com'
-      ADMIN_PASSWORD: 'lx199876@'
+      KEY: ${DIRECTUS_KEY:-change-before-enabling-admin-profile}
+      SECRET: ${DIRECTUS_SECRET:-change-before-enabling-admin-profile}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-admin@example.invalid}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:-change-before-enabling-admin-profile}
       DB_CLIENT: 'pg'
       DB_HOST: 'postgres'
       DB_PORT: '5432'
-      DB_USER: 'nutrilens'
-      DB_PASSWORD: 'nutrilens123'
-      DB_DATABASE: 'nutrilens'
+      DB_USER: ${POSTGRES_USER:-nutrilens}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      DB_DATABASE: ${POSTGRES_DB:-nutrilens}
       WEBSOCKETS_ENABLED: 'true'
     depends_on:
       postgres:
@@ -70,7 +70,6 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
   server_uploads:
   directus_data:
   directus_extensions:

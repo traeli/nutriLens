@@ -9,6 +9,7 @@
 | 登录 | `POST /api/v1/auth/wx-login` | 已统一 `token`、`user_id`、`has_profile` 和 `profile` |
 | 登录 | `POST /api/v1/agreements/accept` | 已接通隐私协议确认 |
 | 个人资料 | `GET/PUT /api/v1/user/profile` | 已改为昵称和头像 URL，不再提交健康字段 |
+| 账号注销 | `DELETE /api/v1/user/account` | 已支持永久清理账号、关联业务数据和上传文件；旧 Token 随即失效 |
 | 首页 | `GET /api/v1/experiences` | 已读取当前城市公开体验，不再展示虚构评分 |
 | 搜索 | `GET /api/v1/places/search` | 已支持城市、关键词、加载、空数据、错误重试和体验数量 |
 | 搜索 | `GET /api/v1/places/:id/experiences` | 已支持从店铺进入第一条公开体验 |
@@ -36,6 +37,7 @@
 - 收藏、有帮助、信息过时、举报与申诉：小程序页面和用户侧接口已接通。
 - 路线收藏、开始路线、站点完成进度：已接通。
 - 私人营养记录：通过独立 `/nutrition/*` 接口保存、汇总、筛选和删除，不进入餐厅评价。
+- 隐私政策、用户服务协议和社区内容规范共用版本 `2.0`，登录前均可查看并在登录后记录同意。
 - 足迹海报：使用城市主题和本人足迹在本地 Canvas 生成，不上传用户足迹。
 
 ## 仍需外部配置

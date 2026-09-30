@@ -99,6 +99,7 @@ func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 		{http.MethodPost, "/api/v1/publisher-verification/phone"},
 		{http.MethodPost, "/api/v1/nutrition/records"},
 		{http.MethodPost, "/api/v1/routes/1/start"},
+		{http.MethodDelete, "/api/v1/user/account"},
 	}
 	for _, item := range cases {
 		response := httptest.NewRecorder()

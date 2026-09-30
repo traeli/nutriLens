@@ -8,8 +8,7 @@
 go run ./cmd/api
 ```
 
-固定读取 `config/config.yaml`，不会读取环境变量覆盖配置。请在该文件中配置
-数据库、JWT、微信小程序、百炼和 CORS 参数；不要提交生产环境使用的真实密钥。语音识别需要配置 `bailian.api_key`，生产环境建议同时把 `bailian.base_url` 替换为对应业务空间的专属地址。
+默认读取 `config/config.yaml`，也可以通过 `CONFIG_PATH` 指定其他文件。数据库、JWT、微信小程序、百炼、CORS 和存储配置均支持使用环境变量覆盖；生产密钥不得写入仓库。可复制仓库根目录的 `.env.example` 为 `.env` 后使用 Docker Compose 启动。语音识别需要配置 `BAILIAN_API_KEY`，生产环境建议同时把 `BAILIAN_BASE_URL` 替换为对应业务空间的专属地址。
 
 开发环境可以向 `/api/v1/auth/wx-login` 提交 `code=the code is a mock one` 创建本地测试账号。
 
@@ -46,6 +45,20 @@ psql "$DATABASE_DSN" -f migrations/000009_governance_and_engagement.sql
 审核管理界面不由本服务提供；小程序侧只创建和查询审核、举报及申诉数据。快速记录支持用店名创建待确认地点；待确认地点不会直接进入公开推荐。旧 `/food`、`/wheel`、旧积分、成就、通知和 Webhook 路由不再注册，私人营养数据使用独立的 `/nutrition/*` 接口。
 
 生产环境必须配置 `DATABASE_DSN`、`JWT_SECRET`、`WECHAT_APP_ID`、`WECHAT_APP_SECRET`、`DATA_ENCRYPTION_KEY`（32 字节密钥的 Base64）、`UPLOAD_DIR` 和 `PUBLIC_BASE_URL`。公开内容提交前会调用微信文本内容安全接口；调用失败时保持草稿，不会绕过检查。
+
+账号注销使用 `DELETE /api/v1/user/account`。注销会永久清除用户账号、到店记录、营养记录、上传图片和消费凭证等关联数据，并使注销前签发的 JWT 失效。
+
+## Docker Compose
+
+```bash
+cp ../.env.example ../.env
+# 填写真实生产值并确认 DATABASE_DSN 中的密码已进行 URL 编码
+cd ..
+docker compose up -d postgres server
+curl --fail http://127.0.0.1:8080/health
+```
+
+服务仅绑定宿主机回环地址 `127.0.0.1:8080`，应由 HTTPS 反向代理对外提供服务。上传目录固定为容器内 `/app/uploads` 并挂载持久化卷。可选管理服务不会默认启动；确有需要时填写 Directus 独立密钥后使用 `--profile admin` 启动。
 
 ## 验证
 

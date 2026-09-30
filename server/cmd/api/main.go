@@ -30,7 +30,7 @@ func main() {
 	}
 	tokens := platformauth.NewTokenManager(cfg.JWTSecret, cfg.JWTExpire)
 	wechatClient := wechat.NewClient(cfg.WeChatAppID, cfg.WeChatAppSecret, cfg.AllowMockLogin)
-	accounts := service.NewAccountService(db, wechatClient, tokens)
+	accounts := service.NewAccountService(db, wechatClient, tokens, cfg.UploadDir)
 	speech := service.NewSpeechService(bailian.NewClient(cfg.BailianAPIKey, cfg.BailianBaseURL, cfg.BailianASRModel))
 	h := handler.New(accounts, service.NewDiscoveryService(db), service.NewRecordService(db, wechatClient), service.NewContributionService(db), speech,
 		service.NewEngagementService(db), service.NewNutritionService(db), service.NewMediaService(db, cfg.UploadDir, cfg.PublicBaseURL),

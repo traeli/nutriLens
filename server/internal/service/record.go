@@ -245,10 +245,11 @@ func (s *RecordService) SubmitPublic(ctx context.Context, userID, recordID uint)
 		return nil, ErrForbidden
 	}
 	var agreementCount int64
-	if err := s.db.Model(&model.PrivacyAgreement{}).Where("user_id = ? AND version = ? AND agreement_type IN ?", userID, "2.0", []string{"privacy", "user_service", "community"}).Count(&agreementCount).Error; err != nil {
+	requiredAgreements := RequiredAgreementTypes()
+	if err := s.db.Model(&model.PrivacyAgreement{}).Where("user_id = ? AND version = ? AND agreement_type IN ?", userID, CurrentAgreementVersion, requiredAgreements).Count(&agreementCount).Error; err != nil {
 		return nil, err
 	}
-	if agreementCount != 3 {
+	if agreementCount != int64(len(requiredAgreements)) {
 		return nil, ErrForbidden
 	}
 	var user model.User

@@ -17,7 +17,7 @@
 import { AGREEMENTS, AGREEMENT_UPDATED_AT } from '@/content/agreements.js'
 
 export default {
-  data() { return { document: AGREEMENTS.privacy, updatedAt: AGREEMENT_UPDATED_AT } },
+  data() { return { document: AGREEMENTS.community, updatedAt: AGREEMENT_UPDATED_AT } },
 }
 </script>
 

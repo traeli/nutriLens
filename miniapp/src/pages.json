@@ -16,7 +16,8 @@
     { "path": "pages/login/login", "style": { "navigationStyle": "custom" } },
     { "path": "pages/profile/profile", "style": { "navigationBarTitleText": "个人资料" } },
     { "path": "pages/privacy/privacy", "style": { "navigationBarTitleText": "隐私保护政策" } },
-    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } }
+    { "path": "pages/agreement/agreement", "style": { "navigationBarTitleText": "用户服务协议" } },
+    { "path": "pages/community/community", "style": { "navigationBarTitleText": "社区内容规范" } }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",

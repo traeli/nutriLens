@@ -37,9 +37,14 @@ func New(h *handler.Handler, tokens *platformauth.TokenManager, allowedOrigins [
 	v1.GET("/agreements/current", h.CurrentAgreements)
 
 	authorized := v1.Group("")
-	authorized.Use(middleware.Authenticate(tokens))
+	if h.Accounts != nil {
+		authorized.Use(middleware.Authenticate(tokens, h.Accounts))
+	} else {
+		authorized.Use(middleware.Authenticate(tokens))
+	}
 	authorized.GET("/user/profile", h.GetProfile)
 	authorized.PUT("/user/profile", h.UpdateProfile)
+	authorized.DELETE("/user/account", h.DeleteAccount)
 	authorized.POST("/agreements/accept", h.AcceptAgreement)
 	authorized.POST("/records", h.CreateRecord)
 	authorized.POST("/places", h.SubmitPlace)
@@ -78,6 +83,5 @@ func New(h *handler.Handler, tokens *platformauth.TokenManager, allowedOrigins [
 	authorized.GET("/nutrition/records", h.NutritionRecords)
 	authorized.DELETE("/nutrition/records/:id", h.DeleteNutritionRecord)
 	authorized.GET("/nutrition/summary", h.NutritionSummary)
-
 	return r
 }

@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,6 +94,17 @@ func loadFile(path string) (Config, error) {
 	if expireHours < 0 {
 		return Config{}, fmt.Errorf("jwt.expire_hours must be a positive integer")
 	}
+	if value := strings.TrimSpace(os.Getenv("JWT_EXPIRE_HOURS")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			return Config{}, fmt.Errorf("JWT_EXPIRE_HOURS must be a positive integer")
+		}
+		expireHours = parsed
+	}
+	allowedOrigins := cleanValues(fileValues.CORS.AllowOrigins)
+	if value := strings.TrimSpace(os.Getenv("CORS_ALLOW_ORIGINS")); value != "" {
+		allowedOrigins = cleanValues(strings.Split(value, ","))
+	}
 	cfg := Config{
 		ServerAddr:        envOr("SERVER_ADDR", valueOr(fileValues.Server.Addr, ":8080")),
 		DatabaseDSN:       envOr("DATABASE_DSN", strings.TrimSpace(fileValues.Database.DSN)),
@@ -100,9 +113,9 @@ func loadFile(path string) (Config, error) {
 		WeChatAppID:       envOr("WECHAT_APP_ID", strings.TrimSpace(fileValues.WeChat.AppID)),
 		WeChatAppSecret:   envOr("WECHAT_APP_SECRET", strings.TrimSpace(fileValues.WeChat.AppSecret)),
 		BailianAPIKey:     envOr("BAILIAN_API_KEY", strings.TrimSpace(fileValues.Bailian.APIKey)),
-		BailianBaseURL:    valueOr(fileValues.Bailian.BaseURL, "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-		BailianASRModel:   valueOr(fileValues.Bailian.ASRModel, "qwen3-asr-flash"),
-		CORSAllowOrigins:  cleanValues(fileValues.CORS.AllowOrigins),
+		BailianBaseURL:    envOr("BAILIAN_BASE_URL", valueOr(fileValues.Bailian.BaseURL, "https://dashscope.aliyuncs.com/compatible-mode/v1")),
+		BailianASRModel:   envOr("BAILIAN_ASR_MODEL", valueOr(fileValues.Bailian.ASRModel, "qwen3-asr-flash")),
+		CORSAllowOrigins:  allowedOrigins,
 		UploadDir:         envOr("UPLOAD_DIR", valueOr(fileValues.Storage.UploadDir, "./uploads")),
 		PublicBaseURL:     envOr("PUBLIC_BASE_URL", valueOr(fileValues.Storage.PublicBaseURL, "/uploads")),
 		DataEncryptionKey: envOr("DATA_ENCRYPTION_KEY", strings.TrimSpace(fileValues.Security.DataEncryptionKey)),
@@ -113,6 +126,18 @@ func loadFile(path string) (Config, error) {
 	}
 	if len(cfg.JWTSecret) < 32 {
 		return Config{}, fmt.Errorf("jwt.secret must contain at least 32 characters")
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+		if cfg.WeChatAppID == "" || cfg.WeChatAppSecret == "" {
+			return Config{}, fmt.Errorf("wechat credentials are required in production")
+		}
+		key, err := base64.StdEncoding.DecodeString(cfg.DataEncryptionKey)
+		if err != nil || len(key) != 32 {
+			return Config{}, fmt.Errorf("DATA_ENCRYPTION_KEY must be Base64 for exactly 32 bytes in production")
+		}
+		if !strings.HasPrefix(strings.ToLower(cfg.PublicBaseURL), "https://") {
+			return Config{}, fmt.Errorf("PUBLIC_BASE_URL must use HTTPS in production")
+		}
 	}
 	return cfg, nil
 }

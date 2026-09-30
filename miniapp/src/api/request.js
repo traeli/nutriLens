@@ -89,6 +89,7 @@ export const api = {
   // User
   getProfile: () => request('/user/profile'),
   updateProfile: (data) => request('/user/profile', { method: 'PUT', data }),
+  deleteAccount: () => request('/user/account', { method: 'DELETE' }),
 
   // Speech
   transcribeVisitAudio: filePath => uploadFile('/speech/transcribe', filePath, {

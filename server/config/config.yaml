@@ -11,12 +11,12 @@ jwt:
   expire_hours: 168
 
 wechat:
-  app_id: "wx93f56eec335dada8"
-  app_secret: "2911bed7800186fab510b2e5ef03d04b"
+  app_id: ""
+  app_secret: ""
 
 bailian:
   # 仅在服务端填写，禁止放入小程序代码或提交真实 API Key。
-  api_key: "sk-ws-H.EXLDMXX.o5hW.MEUCIFCwHrfVwT4KlmXSHYfTcTBxAQzQh4MQin0MxrR1tKLUAiEAzKPTVeg4KR_VyhYCMA_MqqQZO08yF4oW8C0nQbXlTnk"
+  api_key: ""
   # 生产环境建议替换为百炼业务空间专属的 compatible-mode/v1 地址。
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   asr_model: "qwen3-asr-flash"

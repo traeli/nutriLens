@@ -44,7 +44,7 @@ cors:
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.ServerAddr != ":8081" || cfg.DatabaseDSN != "env-dsn" || cfg.JWTExpire != 72*time.Hour {
+	if cfg.ServerAddr != ":8081" || cfg.DatabaseDSN != "env-dsn" || cfg.JWTExpire != 168*time.Hour {
 		t.Fatalf("file values were not loaded: %+v", cfg)
 	}
 	if cfg.WeChatAppID != "env-app-id" || cfg.WeChatAppSecret != "env-app-secret" {
@@ -53,8 +53,26 @@ cors:
 	if cfg.BailianAPIKey != "file-bailian-key" || cfg.BailianBaseURL != "https://workspace.example.com/compatible-mode/v1" || cfg.BailianASRModel != "qwen3-asr-flash-test" {
 		t.Fatalf("bailian file values were not loaded")
 	}
-	if len(cfg.CORSAllowOrigins) != 1 || cfg.CORSAllowOrigins[0] != "http://localhost:5173" {
+	if len(cfg.CORSAllowOrigins) != 2 || cfg.CORSAllowOrigins[0] != "http://127.0.0.1:5173" || cfg.CORSAllowOrigins[1] != "https://example.test" {
 		t.Fatalf("CORS_ALLOW_ORIGINS = %#v", cfg.CORSAllowOrigins)
+	}
+}
+
+func TestProductionRequiresCompleteSecurityConfiguration(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.yaml")
+	if err := os.WriteFile(path, []byte(`
+database:
+  dsn: "postgres-dsn"
+jwt:
+  secret: "file-secret-with-at-least-32-characters"
+`), 0o600); err != nil {
+		t.Fatalf("write test config: %v", err)
+	}
+	t.Setenv("APP_ENV", "production")
+
+	if _, err := loadFile(path); err == nil {
+		t.Fatal("loadFile() error = nil, want incomplete production configuration error")
 	}
 }
 

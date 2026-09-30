@@ -5,6 +5,7 @@ import (
 
 	"shijibu/internal/middleware"
 	"shijibu/internal/platform/httpx"
+	"shijibu/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,6 +36,14 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	httpx.OK(c, http.StatusOK, profile)
 }
 
+func (h *Handler) DeleteAccount(c *gin.Context) {
+	if err := h.Accounts.DeleteAccount(c.Request.Context(), middleware.UserID(c)); err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) AcceptAgreement(c *gin.Context) {
 	var input struct {
 		AgreementType string `json:"agreement_type" binding:"required"`
@@ -54,9 +63,9 @@ func (h *Handler) AcceptAgreement(c *gin.Context) {
 }
 
 func (h *Handler) CurrentAgreements(c *gin.Context) {
-	httpx.OK(c, http.StatusOK, gin.H{"items": []gin.H{
-		{"agreement_type": "privacy", "version": "2.0"},
-		{"agreement_type": "user_service", "version": "2.0"},
-		{"agreement_type": "community", "version": "2.0"},
-	}})
+	items := make([]gin.H, 0, len(service.RequiredAgreementTypes()))
+	for _, agreementType := range service.RequiredAgreementTypes() {
+		items = append(items, gin.H{"agreement_type": agreementType, "version": service.CurrentAgreementVersion})
+	}
+	httpx.OK(c, http.StatusOK, gin.H{"items": items})
 }

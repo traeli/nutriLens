@@ -85,6 +85,7 @@ export default {
       accountActions: [
         { label: '隐私保护政策', desc: '了解信息如何被使用', icon: '隐', url: '/pages/privacy/privacy' },
         { label: '用户服务协议', desc: '平台规则与内容规范', icon: '约', url: '/pages/agreement/agreement' },
+        { label: '社区内容规范', desc: '公开内容与审核规则', icon: '规', url: '/pages/community/community' },
         { label: '账号与安全', desc: '登录设备、退出账号', icon: '安', action: 'settings' },
       ],
     }
@@ -133,11 +134,31 @@ export default {
       uni.showToast({ title: `${item.label}将在数据接入后开放`, icon: 'none' })
     },
     showSettings() {
-      uni.showActionSheet({ itemList: ['编辑个人资料', '清理本地缓存', '退出登录'], success: ({ tapIndex }) => {
+      uni.showActionSheet({ itemList: ['编辑个人资料', '清理本地缓存', '退出登录', '注销账号'], success: ({ tapIndex }) => {
         if (tapIndex === 0) this.goProfile()
         if (tapIndex === 1) uni.showToast({ title: '缓存已整理', icon: 'success' })
         if (tapIndex === 2) { uni.removeStorageSync('token'); uni.reLaunch({ url: '/pages/login/login' }) }
+        if (tapIndex === 3) this.confirmDeleteAccount()
       } })
+    },
+    confirmDeleteAccount() {
+      uni.showModal({
+        title: '永久注销账号？',
+        content: '账号、私人记录、公开记录、图片、消费凭证和其他关联数据将被永久删除，且无法恢复。',
+        confirmText: '永久注销',
+        confirmColor: '#C43D2D',
+        success: async ({ confirm }) => {
+          if (!confirm) return
+          try {
+            await api.deleteAccount()
+            uni.clearStorageSync()
+            uni.showToast({ title: '账号已注销', icon: 'success' })
+            setTimeout(() => uni.reLaunch({ url: '/pages/login/login' }), 500)
+          } catch (error) {
+            uni.showToast({ title: error.message || '注销失败，请稍后重试', icon: 'none' })
+          }
+        },
+      })
     },
   },
 }
