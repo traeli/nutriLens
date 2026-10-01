@@ -4,8 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -64,13 +62,9 @@ type fileConfig struct {
 }
 
 func Load() (Config, error) {
-	_, sourceFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return Config{}, fmt.Errorf("resolve config file path")
-	}
 	path := strings.TrimSpace(os.Getenv("CONFIG_PATH"))
 	if path == "" {
-		path = filepath.Join(filepath.Dir(sourceFile), "config.yaml")
+		path = "config/config.yaml"
 	}
 	return loadFile(path)
 }

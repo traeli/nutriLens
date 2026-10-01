@@ -8,7 +8,7 @@
 go run ./cmd/api
 ```
 
-默认读取 `config/config.yaml`，也可以通过 `CONFIG_PATH` 指定其他文件。数据库、JWT、微信小程序、百炼、CORS 和存储配置均支持使用环境变量覆盖；生产密钥不得写入仓库。可复制仓库根目录的 `.env.example` 为 `.env` 后使用 Docker Compose 启动。语音识别需要配置 `BAILIAN_API_KEY`，生产环境建议同时把 `BAILIAN_BASE_URL` 替换为对应业务空间的专属地址。
+默认从当前工作目录读取 `config/config.yaml`，也可以通过 `CONFIG_PATH` 指定其他文件。当前 Docker Compose 会将 `server/config/config.yaml` 只读挂载到容器内 `/app/config/config.yaml`，后端业务配置直接从该文件读取。部署前必须填写新的微信密钥、百炼 Key、JWT 密钥和数据加密密钥，且不得提交生产使用的真实密钥。
 
 开发环境可以向 `/api/v1/auth/wx-login` 提交 `code=the code is a mock one` 创建本地测试账号。
 
@@ -51,8 +51,7 @@ psql "$DATABASE_DSN" -f migrations/000009_governance_and_engagement.sql
 ## Docker Compose
 
 ```bash
-cp ../.env.example ../.env
-# 填写真实生产值并确认 DATABASE_DSN 中的密码已进行 URL 编码
+# 先填写 server/config/config.yaml，并确保 database.dsn 使用 host=postgres。
 cd ..
 docker compose up -d postgres server
 curl --fail http://127.0.0.1:8080/health

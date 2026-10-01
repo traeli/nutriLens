@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: nutrilens-pg
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nutrilens}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-nutrilens}
+      POSTGRES_USER: nutrilens
+      POSTGRES_PASSWORD: nutrilens123
+      POSTGRES_DB: nutrilens
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,25 +21,11 @@ services:
     container_name: nutrilens-server
     ports:
       - "127.0.0.1:8080:8080"
-    environment:
-      APP_ENV: production
-      SERVER_ADDR: ":8080"
-      DATABASE_DSN: ${DATABASE_DSN:?set DATABASE_DSN in .env}
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
-      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-168}
-      WECHAT_APP_ID: ${WECHAT_APP_ID:?set WECHAT_APP_ID in .env}
-      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:?set WECHAT_APP_SECRET in .env}
-      BAILIAN_API_KEY: ${BAILIAN_API_KEY:-}
-      BAILIAN_BASE_URL: ${BAILIAN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      BAILIAN_ASR_MODEL: ${BAILIAN_ASR_MODEL:-qwen3-asr-flash}
-      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
-      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set DATA_ENCRYPTION_KEY in .env}
-      UPLOAD_DIR: /app/uploads
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
+      - ./server/config/config.yaml:/app/config/config.yaml:ro
       - server_uploads:/app/uploads
     restart: unless-stopped
 
@@ -57,9 +43,9 @@ services:
       DB_CLIENT: 'pg'
       DB_HOST: 'postgres'
       DB_PORT: '5432'
-      DB_USER: ${POSTGRES_USER:-nutrilens}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      DB_DATABASE: ${POSTGRES_DB:-nutrilens}
+      DB_USER: nutrilens
+      DB_PASSWORD: nutrilens123
+      DB_DATABASE: nutrilens
       WEBSOCKETS_ENABLED: 'true'
     depends_on:
       postgres:
