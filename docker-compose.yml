@@ -18,6 +18,8 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      args:
+        GOPROXY: https://goproxy.cn,direct
     container_name: nutrilens-server
     ports:
       - "127.0.0.1:8080:8080"
