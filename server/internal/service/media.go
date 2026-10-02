@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

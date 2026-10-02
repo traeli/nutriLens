@@ -11,7 +11,7 @@ import (
 	"io"
 	"time"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 	"shijibu/internal/platform/wechat"
 
 	"gorm.io/gorm"

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	platformauth "shijibu/internal/platform/auth"
 	"shijibu/internal/platform/httpx"
 	"shijibu/internal/service"
 
@@ -28,6 +29,10 @@ func New(accounts *service.AccountService, discovery *service.DiscoveryService, 
 
 func writeServiceError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, platformauth.ErrUnauthorized):
+		httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "登录状态已失效")
+	case errors.Is(err, platformauth.ErrStoreUnavailable):
+		httpx.Error(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "鉴权服务暂时不可用")
 	case errors.Is(err, service.ErrInvalidInput):
 		httpx.Error(c, http.StatusBadRequest, "INVALID_ARGUMENT", "请求参数不正确")
 	case errors.Is(err, service.ErrNotFound):

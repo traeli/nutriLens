@@ -1,7 +1,7 @@
 <template>
   <view class="record-page">
     <view v-if="!recordMode" class="entry-page" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-      <image class="entry-art" src="/static/dining/visit-rating-art-v2.jpg" mode="aspectFill" />
+      <image class="entry-art" :src="entryArt" mode="aspectFill" />
 
       <view class="entry-content">
         <view class="entry-heading">
@@ -129,7 +129,7 @@
 
           <view class="story-entry" :class="{ expanded: detailsExpanded }">
             <view class="story-trigger" @tap="detailsExpanded = !detailsExpanded">
-              <view><text>再多记一点</text><text>感受、消费和照片都可以留下</text></view>
+              <view><text>再多记一点（选填）</text><text>简单记两句，或直接提交审核</text></view>
               <text>{{ detailsExpanded ? '−' : '＋' }}</text>
             </view>
 
@@ -137,7 +137,7 @@
               <textarea v-model="content" maxlength="500" :placeholder="experiencePlaceholder" />
 
               <view class="record-tags">
-                <text>选择体验标签（至少一项）</text>
+                <text>体验标签（选填）</text>
                 <view><text v-for="tag in availableTags" :key="tag.code" :class="{ active: selectedTags.includes(tag.code) }" @tap="toggleTag(tag.code)">{{ tag.name }}</text></view>
               </view>
 
@@ -163,10 +163,7 @@
           </view>
 
           <text v-if="!canRecord" class="submit-hint">{{ missingPrompt }}</text>
-          <view class="publisher-check">
-            <text>{{ publisherVerified ? '✓ 已完成公开发布身份核验' : '申请公开前需使用微信手机号完成身份核验' }}</text>
-            <button v-if="!publisherVerified" open-type="getPhoneNumber" @getphonenumber="verifyPhone">核验手机号</button>
-          </view>
+          <text class="review-hint">提交后进入后台审核，通过后才会公开</text>
           <button class="stamp-button" :class="{ ready: canRecord }" :disabled="submitting" :loading="submitting" @tap="finishRecord">
             <text>{{ submitting ? '正在提交' : '提交' }}</text><text>→</text>
           </button>
@@ -193,8 +190,9 @@
 
 <script>
 import { api } from '@/api/request.js'
+import { assetUrl } from '@/utils/assets.js'
 import { diningImages } from '@/mock/city-dining.js'
-import { getSelectedCity } from '@/store/city.js'
+import { getSelectedCity, refreshCityOptions } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
 
 function getNavLayout() {
@@ -213,6 +211,7 @@ export default {
     const selectedCity = getSelectedCity()
     return {
       navLayout: getNavLayout(),
+      entryArt: assetUrl('/static/dining/visit-rating-art-v2.jpg'),
       recordMode: '',
       entrySource: 'manual',
       images: diningImages,
@@ -247,7 +246,6 @@ export default {
       recommendedDish: '',
       availableTags: [{ code: 'taste', name: '口味' }, { code: 'price', name: '价格' }, { code: 'service', name: '服务' }, { code: 'queue', name: '排队' }, { code: 'hygiene_observation', name: '卫生观感' }],
       selectedTags: [],
-      publisherVerified: false,
       receiptImage: '',
       experiencePhotos: [],
       voicePanel: false,
@@ -304,7 +302,6 @@ export default {
     this.city = selectedCity.name
     this.cityCode = selectedCity.code
     this.loadRecentRecords()
-    this.loadVerification()
   },
   onUnload() {
     this.stopRecordingTimer()
@@ -315,8 +312,6 @@ export default {
     }
   },
   methods: {
-    async loadVerification() { if (!uni.getStorageSync('token')) return; try { const item = await api.getPublisherVerification(); this.publisherVerified = item.status === 'verified' } catch {} },
-    async verifyPhone(event) { const code = event && event.detail && event.detail.code; if (!code) return uni.showToast({ title: '未获得手机号授权', icon: 'none' }); try { await api.verifyPublisherPhone(code); this.publisherVerified = true; uni.showToast({ title: '核验完成', icon: 'success' }) } catch (error) { uni.showToast({ title: error.message || '核验失败', icon: 'none' }) } },
     setupRecorder() {
       // #ifdef MP-WEIXIN
       this.recorderManager = uni.getRecorderManager()
@@ -517,16 +512,26 @@ export default {
       this.feelingSheet = false
     },
     toggleTag(code) { this.selectedTags = this.selectedTags.includes(code) ? this.selectedTags.filter(item => item !== code) : [...this.selectedTags, code] },
+    async ensureRecordCity() {
+      let selectedCity = getSelectedCity()
+      if (!selectedCity.code) {
+        await refreshCityOptions()
+        selectedCity = getSelectedCity()
+      }
+      if (!String(selectedCity.code || '').trim()) throw new Error('暂无可用城市，请回首页选择城市后重试')
+      this.city = selectedCity.name
+      this.cityCode = String(selectedCity.code).trim()
+    },
     async finishRecord() {
       if (this.submitting || !this.validateRequiredFields()) return
       if (!uni.getStorageSync('token')) {
         uni.navigateTo({ url: '/pages/login/login' })
         return
       }
-      if (!this.publisherVerified) { uni.showToast({ title: '请先完成发布者身份核验', icon: 'none' }); return }
       this.submitting = true
       let created = null
       try {
+        await this.ensureRecordCity()
         let placeId = this.placeId
         if (!placeId) {
           const location = this.selectedPlaceLocation
@@ -540,7 +545,7 @@ export default {
         }
         const dishes = this.recommendedDish.trim() ? [{ name: this.recommendedDish.trim() }] : []
         created = await api.createVisitRecord({
-          place_id: placeId, visit_date: this.today(),
+          place_id: placeId, city_code: this.cityCode, visit_date: this.today(),
           consumer_type: 'self', conclusion: this.conclusion,
           average_cost: this.averageCost === '' ? null : Number(this.averageCost),
           wait_minutes: this.waitMinutes === '' ? null : Number(this.waitMinutes),
@@ -568,8 +573,6 @@ export default {
     validateRequiredFields() {
       this.placeError = !this.place.trim() ? '请先填写或选择餐厅' : (!this.placeId && !this.selectedPlaceLocation ? '请从微信地图确认餐厅位置' : '')
       this.conclusionError = this.conclusion ? '' : '请选择本次用餐感受'
-      if (!this.conclusionError && this.content.trim().length < 20) this.conclusionError = '亲历描述至少填写 20 个字'
-      if (!this.conclusionError && !this.selectedTags.length) this.conclusionError = '请至少选择一个体验标签'
       if (!this.placeError && !this.conclusionError) return true
       if (typeof uni.vibrateShort === 'function') uni.vibrateShort({ type: 'medium' })
       const target = this.placeError ? 'restaurantField' : 'feelingField'
@@ -637,7 +640,7 @@ export default {
 .record-tags > view > text.active { border-color: #365743; background: #365743; color: #fff; }
 .nutrition-entry { position: relative; display: flex; align-items: center; margin: 22rpx 0; padding: 24rpx; border: 1rpx solid #d4c6b1; border-radius: 22rpx; background: rgba(255,255,255,.7); }
 .nutrition-entry > view { display: flex; flex: 1; gap: 12rpx; font-weight: 700; }.nutrition-entry > text:nth-child(2) { color: #756d62; font-size: 19rpx; }.nutrition-entry > text:last-child { margin-left: 18rpx; font-weight: 700; }
-.publisher-check { margin: 24rpx 0; padding: 20rpx; border-radius: 18rpx; background: rgba(255,255,255,.65); color: #5f5a52; font-size: 20rpx; }.publisher-check button { margin-top: 14rpx; background: #11120f; color: #fff; font-size: 22rpx; }
+.review-hint { display: block; margin: 24rpx 0; color: #5f5a52; font-size: 22rpx; text-align: center; }
 .record-page {
   min-height: 100vh;
   padding-bottom: calc(108rpx + env(safe-area-inset-bottom));

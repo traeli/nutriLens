@@ -1,4 +1,5 @@
 import { api } from '@/api/request.js'
+import { assetUrl } from '@/utils/assets.js'
 
 const CITY_CACHE_KEY = 'supported_cities'
 const SELECTED_CITY_KEY = 'selected_city'
@@ -12,7 +13,7 @@ function normalizeCity(city) {
     code: String(city.code).trim(),
     name: String(city.name).trim(),
     desc: String(city.desc || '').trim(),
-    image: String(city.image || '').trim(),
+    image: assetUrl(String(city.image || '').trim()),
     is_default: Boolean(city.is_default),
   }
 }

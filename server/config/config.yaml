@@ -3,20 +3,22 @@ server:
 
 database:
   # Docker Compose 内通过服务名 postgres 连接数据库。
-  dsn: "host=postgres user=nutrilens password=nutrilens123 dbname=nutrilens port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+  dsn: "host=127.0.0.1 user=nutrilens password=nutrilens123 dbname=nutrilens port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 
+redis:
+  dsn: "redis://127.0.0.1:6379/0"
 jwt:
   # 部署前请直接替换为安全随机值，且不要提交生产使用的真实密钥。
   secret: "local-development-secret-change-me"
-  expire_hours: 168
+  expire_hours: 2
 
 wechat:
-  app_id: ""
-  app_secret: ""
+  app_id: "wx93f56eec335dada8"
+  app_secret: "2911bed7800186fab510b2e5ef03d04b"
 
 bailian:
   # 仅在服务端填写，禁止放入小程序代码或提交真实 API Key。
-  api_key: ""
+  api_key: "sk-ws-H.EXLDMXX.o5hW.MEUCIFCwHrfVwT4KlmXSHYfTcTBxAQzQh4MQin0MxrR1tKLUAiEAzKPTVeg4KR_VyhYCMA_MqqQZO08yF4oW8C0nQbXlTnk"
   # 生产环境建议替换为百炼业务空间专属的 compatible-mode/v1 地址。
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   asr_model: "qwen3-asr-flash"
@@ -28,7 +30,7 @@ cors:
 
 storage:
   upload_dir: "/app/uploads"
-  public_base_url: "https://nutrilens.cloud/uploads"
+  public_base_url: "http://127.0.0.1:8080/uploads"
 
 security:
   # 直接填写 32 字节随机值的 Base64；可用 openssl rand -base64 32 生成。

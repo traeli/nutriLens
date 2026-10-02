@@ -14,6 +14,7 @@ import (
 type Config struct {
 	ServerAddr        string
 	DatabaseDSN       string
+	RedisDSN          string
 	JWTSecret         string
 	JWTExpire         time.Duration
 	WeChatAppID       string
@@ -35,6 +36,9 @@ type fileConfig struct {
 	Database struct {
 		DSN string `yaml:"dsn"`
 	} `yaml:"database"`
+	Redis struct {
+		DSN string `yaml:"dsn"`
+	} `yaml:"redis"`
 	JWT struct {
 		Secret      string `yaml:"secret"`
 		ExpireHours int    `yaml:"expire_hours"`
@@ -83,7 +87,7 @@ func loadFile(path string) (Config, error) {
 	}
 	expireHours := fileValues.JWT.ExpireHours
 	if expireHours == 0 {
-		expireHours = 168
+		expireHours = 2
 	}
 	if expireHours < 0 {
 		return Config{}, fmt.Errorf("jwt.expire_hours must be a positive integer")
@@ -102,6 +106,7 @@ func loadFile(path string) (Config, error) {
 	cfg := Config{
 		ServerAddr:        envOr("SERVER_ADDR", valueOr(fileValues.Server.Addr, ":8080")),
 		DatabaseDSN:       envOr("DATABASE_DSN", strings.TrimSpace(fileValues.Database.DSN)),
+		RedisDSN:          envOr("REDIS_DSN", strings.TrimSpace(fileValues.Redis.DSN)),
 		JWTSecret:         envOr("JWT_SECRET", strings.TrimSpace(fileValues.JWT.Secret)),
 		JWTExpire:         time.Duration(expireHours) * time.Hour,
 		WeChatAppID:       envOr("WECHAT_APP_ID", strings.TrimSpace(fileValues.WeChat.AppID)),

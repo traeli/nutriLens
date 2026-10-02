@@ -5,18 +5,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"shijibu/internal/handler"
-	platformauth "shijibu/internal/platform/auth"
 
 	"github.com/gin-gonic/gin"
 )
 
 func TestHealthAndRemovedLegacyRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 
 	health := httptest.NewRecorder()
 	engine.ServeHTTP(health, httptest.NewRequest(http.MethodGet, "/health", nil))
@@ -31,32 +28,29 @@ func TestHealthAndRemovedLegacyRoutes(t *testing.T) {
 	}
 }
 
-func TestHomeSummaryIsPubliclyReachable(t *testing.T) {
+func TestHomeSummaryRequiresAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/home/summary?city_code=310000", nil))
-	if response.Code == http.StatusUnauthorized || response.Code == http.StatusNotFound {
-		t.Fatalf("home summary route status = %d, want a registered public route", response.Code)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("home summary route status = %d, want 401", response.Code)
 	}
 }
 
-func TestNearbyRouteIsPubliclyReachable(t *testing.T) {
+func TestNearbyRouteRequiresAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/routes/nearby?city_code=310000&longitude=121.47&latitude=31.23", nil))
-	if response.Code == http.StatusUnauthorized || response.Code == http.StatusNotFound {
-		t.Fatalf("nearby route status = %d, want a registered public route", response.Code)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("nearby route status = %d, want 401", response.Code)
 	}
 }
 
 func TestProtectedRouteRequiresBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/user/profile", nil))
 	if response.Code != http.StatusUnauthorized {
@@ -69,8 +63,7 @@ func TestProtectedRouteRequiresBearerToken(t *testing.T) {
 
 func TestSpeechTranscriptionRequiresBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/speech/transcribe", nil))
 	if response.Code != http.StatusUnauthorized {
@@ -80,8 +73,7 @@ func TestSpeechTranscriptionRequiresBearerToken(t *testing.T) {
 
 func TestSubmitPlaceRequiresBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/places", nil))
 	if response.Code != http.StatusUnauthorized {
@@ -91,8 +83,7 @@ func TestSubmitPlaceRequiresBearerToken(t *testing.T) {
 
 func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tokens := platformauth.NewTokenManager("01234567890123456789012345678901", time.Hour)
-	engine := New(&handler.Handler{}, tokens, nil)
+	engine := New(&handler.Handler{}, nil, nil)
 	cases := []struct{ method, path string }{
 		{http.MethodPost, "/api/v1/reports"},
 		{http.MethodPost, "/api/v1/records/1/media"},
@@ -106,6 +97,22 @@ func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 		engine.ServeHTTP(response, httptest.NewRequest(item.method, item.path, nil))
 		if response.Code != http.StatusUnauthorized {
 			t.Fatalf("%s %s = %d, want 401", item.method, item.path, response.Code)
+		}
+	}
+}
+
+func TestAllBusinessRoutesRequireAuthentication(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := New(&handler.Handler{}, nil, nil)
+	for _, route := range engine.Routes() {
+		if route.Path == "/health" || route.Path == "/api/v1/auth/login" || route.Path == "/api/v1/auth/wx-login" || route.Path == "/api/v1/auth/refresh" {
+			continue
+		}
+		path := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(route.Path, ":media_id", "1"), ":id", "1"), ":code", "310000")
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequest(route.Method, path, nil))
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s = %d, want 401", route.Method, path, response.Code)
 		}
 	}
 }

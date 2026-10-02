@@ -176,3 +176,17 @@ func (c *Client) Code2Session(ctx context.Context, code string) (string, error) 
 	}
 	return result.OpenID, nil
 }
+
+// Init validates configured WeChat credentials without consuming a login code.
+func (c *Client) Init(ctx context.Context) error {
+	if c.allowMockLogin && c.appID == "" && c.appSecret == "" {
+		return nil
+	}
+	if c.appID == "" || c.appSecret == "" {
+		return fmt.Errorf("wechat credentials are not configured")
+	}
+	if _, err := c.getAccessToken(ctx); err != nil {
+		return fmt.Errorf("wechat startup check failed")
+	}
+	return nil
+}

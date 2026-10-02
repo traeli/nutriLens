@@ -120,3 +120,30 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mediaType string)
 	}
 	return text, nil
 }
+
+// Init probes the configured service without invoking a paid transcription.
+// An empty API key keeps the existing optional speech feature disabled.
+func (c *Client) Init(ctx context.Context) error {
+	if c.apiKey == "" {
+		return nil
+	}
+	if c.baseURL == "" || c.model == "" {
+		return ErrNotConfigured
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/models", nil)
+	if err != nil {
+		return errors.New("invalid bailian endpoint")
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return errors.New("bailian startup connection failed")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("bailian startup check failed: status=%d", response.StatusCode)
+	}
+	return nil
+}

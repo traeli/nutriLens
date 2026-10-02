@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -17,14 +18,22 @@ type AccountStatusChecker interface {
 	IsAccountActive(context.Context, uint) (bool, error)
 }
 
-func Authenticate(tokens *platformauth.TokenManager, statusCheckers ...AccountStatusChecker) gin.HandlerFunc {
+type TokenAuthenticator interface {
+	Authenticate(context.Context, string) (uint, error)
+}
+
+func Authenticate(tokens TokenAuthenticator, statusCheckers ...AccountStatusChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		value := strings.TrimSpace(c.GetHeader("Authorization"))
 		if !strings.HasPrefix(value, "Bearer ") {
 			httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "请先登录")
 			return
 		}
-		userID, err := tokens.Parse(strings.TrimSpace(strings.TrimPrefix(value, "Bearer ")))
+		userID, err := tokens.Authenticate(c.Request.Context(), strings.TrimSpace(strings.TrimPrefix(value, "Bearer ")))
+		if errors.Is(err, platformauth.ErrStoreUnavailable) {
+			httpx.Error(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "鉴权服务暂时不可用")
+			return
+		}
 		if err != nil {
 			httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "登录状态已失效")
 			return

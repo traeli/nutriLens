@@ -1,7 +1,9 @@
+import { assetUrl } from '@/utils/assets.js'
+
 export const diningImages = {
-  shop: '/static/dining/noodle-shop.jpg',
-  noodles: '/static/dining/noodle-detail.jpg',
-  cafe: '/static/dining/corner-cafe.jpg',
+  shop: assetUrl('/static/dining/noodle-shop.jpg'),
+  noodles: assetUrl('/static/dining/noodle-detail.jpg'),
+  cafe: assetUrl('/static/dining/corner-cafe.jpg'),
 }
 
 export const featuredExperience = {
