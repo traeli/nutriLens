@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 	"shijibu/internal/platform/wechat"
 
 	"gorm.io/gorm"
@@ -230,19 +230,10 @@ func (s *RecordService) SubmitPublic(ctx context.Context, userID, recordID uint)
 	if view.Record.PublishStatus != "draft" && view.Record.PublishStatus != "rejected" {
 		return nil, ErrConflict
 	}
-	if len([]rune(strings.TrimSpace(view.Version.Content))) < 20 {
-		return nil, ErrInvalidInput
-	}
-	if len(view.Tags) == 0 {
-		return nil, ErrInvalidInput
-	}
+	// 正文和标签可选，手机号核验不作为提交门槛；内容是否适合公开由审核决定。
 	var flag model.FeatureFlag
 	if err := s.db.First(&flag, "key = ?", "public_submission_enabled").Error; err == nil && !flag.Enabled {
 		return nil, ErrDisabled
-	}
-	var verification model.PublisherVerification
-	if err := s.db.Where("user_id = ? AND status = ?", userID, "verified").First(&verification).Error; err != nil {
-		return nil, ErrForbidden
 	}
 	var agreementCount int64
 	requiredAgreements := RequiredAgreementTypes()
@@ -270,7 +261,10 @@ func (s *RecordService) SubmitPublic(ctx context.Context, userID, recordID uint)
 	}
 	riskLabels := recordRiskLabels(view.Version.Content)
 	provider, providerResult, rawReference := "local_rules", "passed", ""
-	if s.safety != nil {
+	if strings.TrimSpace(view.Version.Content) == "" {
+		// 空正文无需调用文本检测，明确记录不适用，仍创建人工审核任务。
+		providerResult = "not_applicable"
+	} else if s.safety != nil {
 		result, safetyErr := s.safety.CheckText(ctx, user.OpenID, view.Version.Content)
 		if safetyErr != nil {
 			return nil, ErrUnavailable

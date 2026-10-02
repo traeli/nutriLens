@@ -2,7 +2,7 @@
 
 > 版本：0.1
 > 基础路径：`/api/v1`
-> 原则：公开浏览可免登录；保存私人记录、投票、举报、申请公开必须登录；公开发布还必须完成发布者核验。
+> 原则：所有业务查询和写入必须登录，并通过 Redis 会话鉴权；记录提交不要求手机号核验，审核通过后才会公开。
 
 > 业务边界：到店体验与私人营养识别保持独立。`/records` 只保存用户本人确认的到店体验；`/food/*` 只处理私人营养数据，不能自动生成餐厅评价。详细交互见 `city-dining-product-requirements.md`。
 
@@ -21,8 +21,8 @@
 
 ### 鉴权
 
-- `Public`：无需 JWT。
-- `User`：微信登录 JWT。
+- 无访问 Token 的入口仅限登录和刷新；健康检查及公开静态资源不属于业务 API。
+- `User`：微信登录 JWT + Redis 有效会话 + 可用账号。
 - `Verified publisher`：JWT + 已完成手机号/身份核验。
 - `Admin`：独立后台账号、角色权限与操作审计，不能复用普通用户 JWT。
 
@@ -47,7 +47,7 @@
 }
 ```
 
-## 3. 公开浏览接口（9 个）
+## 3. 公开内容浏览接口（需要登录）
 
 | 方法 | 路径 | 说明 | 阶段 |
 |---|---|---|---|
@@ -107,7 +107,7 @@
 | 方法 | 路径 | 说明 | 阶段 |
 |---|---|---|---|
 | POST | `/publisher-verification/phone` | 使用微信手机号 code 完成发布者核验 | P0 |
-| GET | `/publisher-verification/status` | 查询是否具备公开发布资格 | P0 |
+| GET | `/publisher-verification/status` | 查询手机号核验状态，不作为记录提交资格判断 | P0 |
 | GET | `/agreements/current` | 当前协议、隐私政策、社区公约版本 | P0 |
 | POST | `/agreements/accept` | 接受指定版本协议 | P0；可改造现有 privacy 接口 |
 
@@ -144,6 +144,9 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 ### 6.1 短音频语音转写
 
 `POST /speech/transcribe` 需要登录，用 `multipart/form-data` 上传字段名为 `audio` 的音频文件。当前限制为单文件不超过 7MB，支持 AAC、AMR、FLAC、MP3、MPEG、OGG、OPUS、WAV、WebM 和 WMA。服务端调用百炼 `qwen3-asr-flash`，小程序不接触百炼 API Key。7MB 上限为 Base64 编码后的体积预留空间，可确保不超过百炼同步接口的 10MB 输入限制。
+
+语音服务未配置时返回 HTTP 503、错误码 `SPEECH_NOT_CONFIGURED`，提示“语音识别服务尚未配置，请联系管理员”；上游请求失败仍返回 503 / `SERVICE_UNAVAILABLE`，不向客户端暴露密钥或上游内部错误。
+
 
 成功响应：
 
@@ -187,7 +190,9 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 - 单站通过 `wx.openLocation` 打开微信内置地图；整条路线支持复制为有序文本，供用户粘贴到高德、百度等地图。
 - 不依赖高德/百度的私有 App Scheme 或多途经点调起参数，避免微信环境拦截和第三方协议变化。
 
-当前小程序的快速记录在餐厅和总体结论填写完成后即可提交审核；补充文字、消费、排队时间、菜品和照片均为可选。更严格的发布者核验和媒体审核将在审核后台接入时补充。
+当前小程序的快速记录在餐厅和总体结论填写完成后即可提交审核；补充文字、体验标签、消费、排队时间、菜品和照片均为可选。`POST /records`、`PATCH /records/:id` 和 `POST /records/:id/submit-public` 不要求至少一个标签或至少 20 字正文；正文可为空，仍保留 500 字上限。提交审核不再检查 `publisher_verifications`，手机号核验接口保留但不作为前置条件。
+
+提交仍检查所有权、可提交状态、账号状态、协议、发布开关和每日额度。非空正文继续执行文本安全检测，检测调用失败时保持草稿；空正文不调用文本检测，对应检测记录的 `result` 为 `not_applicable`。两种情况都会在成功提交时创建 `moderation_tasks`，记录状态为 `pending_review`，不会直接进入公开列表。
 
 ## 7. 收藏与内容反馈（7 个）
 
@@ -308,3 +313,12 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 - 不建议把新版接口继续放在 `FoodService` 中；新增 `PlaceService`、`RecordService`、`ModerationService`、`CaseService`、`ContributionService`。
 
 P1 可新增无副作用的 `POST /record-assistant/extract`，只根据用户文字、菜品图片或小票返回到店记录字段建议。该接口不得直接创建记录、修改总体结论或触发公开发布。
+
+
+## 登录会话刷新与城市参数补充
+
+`POST /api/v1/auth/wx-login`（兼容 `/auth/login`）保留 `token`、`user_id`、`has_profile`、`profile`，新增 `refresh_token`、`expires_in`、`refresh_expires_in`。两个有效期字段以秒计，当前默认均为 7200。
+
+`POST /api/v1/auth/refresh` 无需访问 Token，请求体为 `{"refresh_token":"<refresh-token>"}`。成功 200 返回 `token`、`refresh_token`、`expires_in`、`refresh_expires_in`；缺少凭据为 400，过期、重用、凭据类型错误或账号不可用为 401，Redis/账号检查不可用为 503。刷新原子替换当前会话内两个 Token，旧值不能继续使用。超过两小时未刷新，需要重新登录；小程序在到期前一分钟的业务请求中主动刷新。
+
+`POST /places` 的 `city_code` 必须为已启用城市的非空编码（例如 `310000`），同时提交店名、详细地址、经纬度。记录页提交前从城市缓存取值；没有编码则等待 `/cities` 初始化，不允许发送空编码。`POST /records` 同步携带选定的 `city_code`，实际地点关联仍以 `place_id` 为准。

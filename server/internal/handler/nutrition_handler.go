@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"shijibu/internal/middleware"
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 	"shijibu/internal/platform/httpx"
 	"shijibu/internal/service"
 

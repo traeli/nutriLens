@@ -1,4 +1,4 @@
-package model
+package pgsql
 
 import "time"
 
@@ -26,7 +26,7 @@ func (ContributionAccount) TableName() string { return "contribution_accounts" }
 
 type Badge struct {
 	ID             uint         `gorm:"primaryKey" json:"id"`
-	Code           string       `gorm:"size:64;not null;uniqueIndex" json:"code"`
+	Code           string       `gorm:"size:64;not null;unique" json:"code"`
 	Name           string       `gorm:"size:100;not null" json:"name"`
 	Description    string       `gorm:"type:text" json:"description"`
 	IconURL        string       `gorm:"size:1024" json:"icon_url"`

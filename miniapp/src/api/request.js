@@ -1,75 +1,95 @@
+import { resolveAssetFields } from '@/utils/assets.js'
+
 const BASE_URL = (import.meta.env.VITE_BASE_URL || 'http://localhost:8080') + '/api/v1'
 
-function request(url, options = {}) {
-  const token = uni.getStorageSync('token')
-  const header = {
-    'Content-Type': 'application/json',
-    ...options.header,
-  }
-  if (token) {
-    header['Authorization'] = 'Bearer ' + token
-  }
+let refreshPromise = null
 
-  return new Promise((resolve, reject) => {
-    uni.request({
-      url: BASE_URL + url,
-      method: options.method || 'GET',
-      data: options.data,
-      header,
-      success(res) {
-        if (res.statusCode === 401) {
-          uni.removeStorageSync('token')
-          // 不自动跳转，由各页面自行判断登录态
-          reject(new Error('未登录'))
-          return
-        }
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data)
-        } else {
-          const apiError = res.data && res.data.error
-          reject(new Error((apiError && (apiError.message || apiError.code)) || apiError || '请求失败'))
-        }
-      },
-      fail(err) {
-        reject(new Error(err.errMsg || '网络请求失败'))
-      },
-    })
-  })
+export function clearSession() {
+  for (const key of ['token', 'refresh_token', 'token_expires_at']) uni.removeStorageSync(key)
 }
 
-function uploadFile(url, filePath, options = {}) {
-  const token = uni.getStorageSync('token')
-  const header = { ...options.header }
-  if (token) header.Authorization = 'Bearer ' + token
+function saveSession(pair) {
+  uni.setStorageSync('token', pair.token)
+  uni.setStorageSync('refresh_token', pair.refresh_token)
+  uni.setStorageSync('token_expires_at', Date.now() + pair.expires_in * 1000)
+}
 
+function send(url, options = {}, filePath) {
+  const token = uni.getStorageSync('token')
+  const header = { ...(filePath ? {} : { 'Content-Type': 'application/json' }), ...options.header }
+  if (token && !options.public) header.Authorization = 'Bearer ' + token
   return new Promise((resolve, reject) => {
-    uni.uploadFile({
-      url: BASE_URL + url,
-      filePath,
-      name: options.name || 'file',
-      formData: options.formData,
-      header,
+    const callbacks = {
       success(res) {
         let data = res.data
-        try { data = JSON.parse(res.data) } catch {}
-        if (res.statusCode === 401) {
-          uni.removeStorageSync('token')
-          reject(new Error('未登录'))
-          return
-        }
+        if (filePath) { try { data = JSON.parse(data) } catch {} }
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(data)
+          resolve(resolveAssetFields(data))
           return
         }
         const apiError = data && data.error
-        reject(new Error((apiError && (apiError.message || apiError.code)) || apiError || '上传失败'))
+        const error = new Error((apiError && (apiError.message || apiError.code)) || '请求失败')
+        error.status = res.statusCode
+        reject(error)
       },
-      fail(err) {
-        reject(new Error(err.errMsg || '上传失败'))
-      },
-    })
+      fail(err) { reject(new Error(err.errMsg || '网络请求失败')) },
+    }
+    if (filePath) {
+      uni.uploadFile({ url: BASE_URL + url, filePath, name: options.name || 'file', formData: options.formData, header, ...callbacks })
+    } else {
+      uni.request({ url: BASE_URL + url, method: options.method || 'GET', data: options.data, header, ...callbacks })
+    }
   })
 }
+
+function refreshSession() {
+  if (refreshPromise) return refreshPromise
+  const previousToken = uni.getStorageSync('token')
+  const refreshToken = uni.getStorageSync('refresh_token')
+  if (!previousToken || !refreshToken) return Promise.reject(new Error('请重新登录'))
+  refreshPromise = send('/auth/refresh', { method: 'POST', public: true, data: { refresh_token: refreshToken } })
+    .then(pair => {
+      // A logout or a new login during this request must not restore the old session.
+      if (uni.getStorageSync('token') !== previousToken) throw new Error('登录状态已变更')
+      saveSession(pair)
+      return pair
+    })
+    .catch(error => {
+      if (error.status === 401 && uni.getStorageSync('token') === previousToken) clearSession()
+      throw error
+    })
+    .finally(() => { refreshPromise = null })
+  return refreshPromise
+}
+
+async function authenticatedRequest(url, options, filePath) {
+  if (options.public) return send(url, options, filePath)
+  const expiresAt = Number(uni.getStorageSync('token_expires_at'))
+  if (uni.getStorageSync('token') && uni.getStorageSync('refresh_token') && expiresAt && expiresAt - Date.now() < 60000) {
+    await refreshSession()
+  }
+  const previousToken = uni.getStorageSync('token')
+  try {
+    return await send(url, options, filePath)
+  } catch (error) {
+    if (error.status !== 401) throw error
+    if (!previousToken || !uni.getStorageSync('token')) throw error
+    if (uni.getStorageSync('token') === previousToken) {
+      if (!uni.getStorageSync('refresh_token')) { clearSession(); throw error }
+      await refreshSession()
+    }
+    const retryToken = uni.getStorageSync('token')
+    try {
+      return await send(url, options, filePath)
+    } catch (retryError) {
+      if (retryError.status === 401 && uni.getStorageSync('token') === retryToken) clearSession()
+      throw retryError
+    }
+  }
+}
+
+function request(url, options = {}) { return authenticatedRequest(url, options) }
+function uploadFile(url, filePath, options = {}) { return authenticatedRequest(url, options, filePath) }
 
 function buildQuery(params) {
   if (!params) return ''
@@ -84,7 +104,12 @@ function buildQuery(params) {
 
 export const api = {
   // Auth
-  wxLogin: (code, inviterId) => request('/auth/wx-login', { method: 'POST', data: { code, inviter_id: inviterId || 0 } }),
+  wxLogin: async (code, inviterId) => {
+    const result = await request('/auth/wx-login', { method: 'POST', public: true, data: { code, inviter_id: inviterId || 0 } })
+    saveSession(result)
+    return result
+  },
+  refreshToken: () => refreshSession(),
 
   // User
   getProfile: () => request('/user/profile'),

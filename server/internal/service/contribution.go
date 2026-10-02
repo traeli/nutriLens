@@ -3,7 +3,7 @@ package service
 import (
 	"errors"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 
 	"gorm.io/gorm"
 )

@@ -49,11 +49,12 @@
 
 <script>
 import { api } from '@/api/request.js'
+import { assetUrl } from '@/utils/assets.js'
 import { diningImages } from '@/mock/city-dining.js'
 import { getSelectedCity } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
 
-const FALLBACK_BACKGROUND = '/static/posters/food-memory-night-v1.jpg'
+const FALLBACK_BACKGROUND = assetUrl('/static/posters/food-memory-night-v1.jpg')
 
 function getNavLayout() {
   const info = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : uni.getSystemInfoSync()

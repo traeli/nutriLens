@@ -1,4 +1,4 @@
-package model
+package pgsql
 
 import (
 	"database/sql/driver"

@@ -45,7 +45,7 @@
 </template>
 
 <script>
-import { api } from '@/api/request.js'
+import { api, clearSession } from '@/api/request.js'
 import { getSelectedCity } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
 
@@ -137,7 +137,7 @@ export default {
       uni.showActionSheet({ itemList: ['编辑个人资料', '清理本地缓存', '退出登录', '注销账号'], success: ({ tapIndex }) => {
         if (tapIndex === 0) this.goProfile()
         if (tapIndex === 1) uni.showToast({ title: '缓存已整理', icon: 'success' })
-        if (tapIndex === 2) { uni.removeStorageSync('token'); uni.reLaunch({ url: '/pages/login/login' }) }
+        if (tapIndex === 2) { clearSession(); uni.reLaunch({ url: '/pages/login/login' }) }
         if (tapIndex === 3) this.confirmDeleteAccount()
       } })
     },

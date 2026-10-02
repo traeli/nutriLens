@@ -1,4 +1,4 @@
-package model
+package pgsql
 
 import "time"
 
@@ -13,8 +13,8 @@ type Place struct {
 	Description  string    `gorm:"type:text;not null;default:''" json:"description"`
 	Longitude    float64   `gorm:"type:numeric(10,7);not null" json:"longitude"`
 	Latitude     float64   `gorm:"type:numeric(10,7);not null" json:"latitude"`
-	POIProvider  *string   `gorm:"size:32" json:"poi_provider,omitempty"`
-	POIID        *string   `gorm:"size:128" json:"poi_id,omitempty"`
+	POIProvider  *string   `gorm:"column:poi_provider;size:32" json:"poi_provider,omitempty"`
+	POIID        *string   `gorm:"column:poi_id;size:128" json:"poi_id,omitempty"`
 	Status       string    `gorm:"size:24;not null;default:'pending';index" json:"status"`
 	MergedIntoID *uint     `gorm:"index" json:"merged_into_id,omitempty"`
 	CreatedBy    *uint     `gorm:"index" json:"created_by,omitempty"`
@@ -26,7 +26,7 @@ func (Place) TableName() string { return "places" }
 
 type Tag struct {
 	ID        uint   `gorm:"primaryKey" json:"id"`
-	Code      string `gorm:"size:64;not null;uniqueIndex" json:"code"`
+	Code      string `gorm:"size:64;not null;unique" json:"code"`
 	Name      string `gorm:"size:64;not null" json:"name"`
 	GroupName string `gorm:"size:64;not null;index" json:"group_name"`
 	Enabled   bool   `gorm:"not null;default:true;index" json:"enabled"`

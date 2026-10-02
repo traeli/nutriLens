@@ -74,8 +74,8 @@ type placeSubmissionRequest struct {
 
 func (h *Handler) SubmitPlace(c *gin.Context) {
 	var request placeSubmissionRequest
-	if c.ShouldBindJSON(&request) != nil {
-		httpx.Error(c, http.StatusBadRequest, "INVALID_ARGUMENT", "地点信息格式不正确")
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpx.Error(c, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error())
 		return
 	}
 	place, err := h.Records.SubmitPlace(middleware.UserID(c), service.PlaceSubmissionInput{

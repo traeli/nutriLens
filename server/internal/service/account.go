@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 	platformauth "shijibu/internal/platform/auth"
 
 	"gorm.io/gorm"
@@ -28,18 +28,18 @@ func RequiredAgreementTypes() []string {
 type AccountService struct {
 	db         *gorm.DB
 	wechat     WeChatSessionProvider
-	tokens     *platformauth.TokenManager
+	tokens     *platformauth.SessionManager
 	uploadRoot string
 }
 
 type LoginResult struct {
-	Token      string     `json:"token"`
+	platformauth.TokenPair
 	UserID     uint       `json:"user_id"`
 	HasProfile bool       `json:"has_profile"`
 	Profile    model.User `json:"profile"`
 }
 
-func NewAccountService(db *gorm.DB, wechat WeChatSessionProvider, tokens *platformauth.TokenManager, uploadRoot ...string) *AccountService {
+func NewAccountService(db *gorm.DB, wechat WeChatSessionProvider, tokens *platformauth.SessionManager, uploadRoot ...string) *AccountService {
 	root := ""
 	if len(uploadRoot) > 0 {
 		root = strings.TrimSpace(uploadRoot[0])
@@ -72,11 +72,11 @@ func (s *AccountService) Login(ctx context.Context, code string) (*LoginResult, 
 	if err := s.ensureAccountState(user.ID); err != nil {
 		return nil, err
 	}
-	token, err := s.tokens.Issue(user.ID)
+	token, err := s.tokens.Issue(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &LoginResult{Token: token, UserID: user.ID, HasProfile: strings.TrimSpace(user.Nickname) != "", Profile: user}, nil
+	return &LoginResult{TokenPair: *token, UserID: user.ID, HasProfile: strings.TrimSpace(user.Nickname) != "", Profile: user}, nil
 }
 
 func (s *AccountService) ensureAccountState(userID uint) error {
@@ -341,4 +341,20 @@ func (s *AccountService) AcceptAgreement(userID uint, agreementType, version, ip
 	}
 	return s.db.Where("user_id = ? AND agreement_type = ? AND version = ?", userID, agreementType, version).
 		FirstOrCreate(&agreement).Error
+}
+
+// Refresh rechecks account state before rotating either credential.
+func (s *AccountService) Refresh(ctx context.Context, value string) (*platformauth.TokenPair, error) {
+	userID, err := s.tokens.ValidateRefresh(ctx, value)
+	if err != nil {
+		return nil, err
+	}
+	active, err := s.IsAccountActive(ctx, userID)
+	if err != nil {
+		return nil, platformauth.ErrStoreUnavailable
+	}
+	if !active {
+		return nil, platformauth.ErrUnauthorized
+	}
+	return s.tokens.Refresh(ctx, value)
 }

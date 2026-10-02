@@ -6,6 +6,10 @@
 
 ## 1. 结论
 
+当前启动实现：数据库连接成功后，`cmd/api/main.go` 调用 `internal/model/pgsql.AutoMigrate`，在事务中根据已注册的 `internal/model/pgsql` 模型补齐业务表，并补齐协议去重、默认城市、地点 POI、路线、记录幂等键、记录版本、审核任务和过时反馈的唯一索引。失败时回滚本次迁移并停止启动；数据库本身需提前创建。新增模型需要加入 `migrate.go` 的注册列表。
+
+自动迁移不清空数据、不删除旧表或旧字段、不导入种子数据；GORM 可能调整已有字段类型和约束。它不完全替代 SQL：未映射的外键、检查约束、管理字段和管理表仍由显式 SQL 管理。完整 SQL 初始化应在首次自动建表前执行；之后补齐已有表的约束应使用增量迁移。城市、标签、路线、店铺等初始数据仍需单独导入，详见 `server/README.md`。
+
 - 现有 `food_records` 继续作为独立的私人营养工具使用；转盘、旧积分和旧成就只做数据归档，不再作为新版小程序入口。
 - 新版餐饮体验使用独立表，不把 `food_records` 转换为公开点评。
 - 公开内容必须保留版本、检测、人工审核、举报和处置记录。
@@ -293,3 +297,10 @@ submitted -> validating -> notice_sent -> waiting_response
 4. 第四批：商家认领、用户可信度、贡献分与新版徽章。
 
 生产环境建议使用显式 SQL migration，不继续只依赖启动时 `AutoMigrate`。
+
+
+## Redis 登录会话
+
+关系型模型和连接迁移逻辑集中在 `server/internal/model/pgsql`，本次目录调整不改变业务表字段。Redis 操作位于 `server/internal/model/redis`。
+
+会话键为 `v1:session:{<session-id>}`，类型 Hash，字段为 `user_id`、`access_hash`、`refresh_hash`；后两者为 Token 的 SHA-256 摘要，不存明文凭据。键 TTL 默认 7200 秒，与两种 JWT 的有效期一致。刷新通过 Lua 比较旧 refresh 摘要、替换两个摘要并重设 TTL，只有一个并发请求能成功；过期或丢失的键拒绝鉴权。账号注销后，账号状态检查立即拒绝该账号的所有会话，残留 Redis 键在 TTL 到期后回收。

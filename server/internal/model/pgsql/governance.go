@@ -1,11 +1,11 @@
-package model
+package pgsql
 
 import "time"
 
 type PublisherVerification struct {
 	UserID              uint      `gorm:"primaryKey" json:"user_id"`
 	PhoneEncrypted      string    `gorm:"type:text;not null" json:"-"`
-	PhoneHash           string    `gorm:"size:64;not null;uniqueIndex" json:"-"`
+	PhoneHash           string    `gorm:"size:64;not null;unique" json:"-"`
 	VerificationChannel string    `gorm:"size:32;not null" json:"verification_channel"`
 	ProviderReference   string    `gorm:"size:128" json:"-"`
 	Status              string    `gorm:"size:24;not null" json:"status"`

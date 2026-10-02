@@ -1,6 +1,6 @@
 <template>
   <view class="profile-page">
-    <image class="profile-art" src="/static/dining/visit-rating-art-v2.jpg" mode="aspectFill" />
+    <image class="profile-art" :src="profileArt" mode="aspectFill" />
     <view class="profile-form">
       <button class="avatar-button" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
         <image v-if="form.avatar_url" class="avatar-image" :src="form.avatar_url" mode="aspectFill" />
@@ -41,10 +41,12 @@
 
 <script>
 import { api } from '@/api/request.js'
+import { assetUrl } from '@/utils/assets.js'
 
 export default {
   data() {
     return {
+      profileArt: assetUrl('/static/dining/visit-rating-art-v2.jpg'),
       form: {
         nickname: '',
         avatar_url: '',

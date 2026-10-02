@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 
 	"gorm.io/gorm"
 )

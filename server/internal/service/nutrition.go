@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"shijibu/internal/model"
+	model "shijibu/internal/model/pgsql"
 
 	"gorm.io/gorm"
 )

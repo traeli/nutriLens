@@ -48,6 +48,10 @@ func (h *Handler) TranscribeSpeech(c *gin.Context) {
 		return
 	}
 	text, err := h.Speech.Transcribe(c.Request.Context(), audio, mediaType)
+	if errors.Is(err, service.ErrSpeechNotConfigured) {
+		httpx.Error(c, http.StatusServiceUnavailable, "SPEECH_NOT_CONFIGURED", "语音识别服务尚未配置，请联系管理员")
+		return
+	}
 	if err != nil {
 		writeServiceError(c, err)
 		return

@@ -46,7 +46,7 @@
 
     <!-- 登录页 -->
     <view class="login-content" v-if="!viewType" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-      <image class="login-background" src="/static/dining/login-cheers-background-v2.jpg" mode="widthFix" />
+      <image class="login-background" :src="loginBackground" mode="widthFix" />
       <view class="login-tone"></view>
       <view class="login-fade"></view>
 
@@ -80,6 +80,7 @@
 
 <script>
 import { api } from '@/api/request.js'
+import { assetUrl } from '@/utils/assets.js'
 import { AGREEMENTS, AGREEMENT_TYPES, AGREEMENT_UPDATED_AT, AGREEMENT_VERSION } from '@/content/agreements.js'
 
 function getNavLayout() {
@@ -97,6 +98,7 @@ export default {
   data() {
     return {
       navLayout: getNavLayout(),
+      loginBackground: assetUrl('/static/dining/login-cheers-background-v2.jpg'),
       privacyAgreed: false,
       checked: false,
       loginChecked: false,
@@ -176,7 +178,6 @@ export default {
         success: async (loginRes) => {
           try {
             const res = await api.wxLogin(loginRes.code, this.inviterId)
-            uni.setStorageSync('token', res.token)
             uni.setStorageSync('user_id', res.user_id)
             uni.setStorageSync('has_profile', res.has_profile)
 
