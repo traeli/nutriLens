@@ -4,7 +4,7 @@ import "time"
 
 type Place struct {
 	ID           uint      `gorm:"primaryKey;comment:地点编号" json:"id"`
-	Name         string    `gorm:"size:160;not null;comment:地点名称" json:"name"`
+	Name         string    `gorm:"size:160;not null;index;comment:地点名称" json:"name"`
 	Category     string    `gorm:"size:32;not null;comment:地点分类" json:"category"`
 	CityCode     string    `gorm:"size:16;not null;index;comment:城市行政编码" json:"city_code"`
 	District     string    `gorm:"size:64;comment:行政区" json:"district"`

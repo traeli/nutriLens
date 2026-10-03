@@ -34,7 +34,7 @@ type ModerationTask struct {
 	ID              uint         `gorm:"primaryKey;comment:审核任务编号" json:"id"`
 	TaskType        string       `gorm:"size:32;not null;comment:任务类型" json:"task_type"`
 	TargetType      string       `gorm:"size:32;not null;comment:审核对象类型" json:"target_type"`
-	TargetID        uint         `gorm:"not null;comment:审核对象编号" json:"target_id"`
+	TargetID        uint         `gorm:"not null;index;comment:审核对象编号" json:"target_id"`
 	RecordVersionID *uint        `gorm:"comment:足迹版本编号" json:"record_version_id,omitempty"`
 	ReviewVersionID *uint        `gorm:"comment:评论版本编号" json:"review_version_id,omitempty"`
 	Priority        int          `gorm:"comment:任务优先级" json:"priority"`

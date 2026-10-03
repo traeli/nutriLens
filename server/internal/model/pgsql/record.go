@@ -20,7 +20,7 @@ type VisitRecord struct {
 	HelpfulCount     int            `gorm:"not null;default:0;comment:兼容用有帮助数量" json:"helpful_count"`
 	OutdatedCount    int            `gorm:"not null;default:0;comment:兼容用过时反馈数量" json:"outdated_count"`
 	ReportCount      int            `gorm:"not null;default:0;comment:兼容用举报数量" json:"report_count"`
-	CreateRequestKey *string        `gorm:"size:128;comment:创建请求幂等键" json:"-"`
+	CreateRequestKey *string        `gorm:"size:128;index;comment:创建请求幂等键" json:"-"`
 	CreatedAt        time.Time      `gorm:"comment:创建时间" json:"created_at"`
 	UpdatedAt        time.Time      `gorm:"comment:更新时间" json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index;comment:软删除时间" json:"-"`

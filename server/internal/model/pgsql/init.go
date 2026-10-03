@@ -30,9 +30,17 @@ func Init() error {
 		_ = closeDB(db)
 		return fmt.Errorf("database self-check: %w", err)
 	}
-	if err := AutoMigrate(db); err != nil {
+	if err := db.AutoMigrate(autoMigrateModels()...); err != nil {
 		_ = closeDB(db)
 		return fmt.Errorf("database migration: %w", err)
+	}
+	if err := applyTableComments(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("database table comments: %w", err)
+	}
+	if err := migrateLegacyRestaurantReviews(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("database compatibility migration: %w", err)
 	}
 	if err := Seed(db); err != nil {
 		_ = closeDB(db)
@@ -40,37 +48,6 @@ func Init() error {
 	}
 	defaultDB = db
 	return nil
-}
-
-// AutoMigrate 创建当前业务表结构并执行幂等兼容迁移；结构迁移统一由 Go 代码维护，且先于种子数据执行。
-func AutoMigrate(db *gorm.DB) error {
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(autoMigrateModels()...); err != nil {
-			return fmt.Errorf("migrate business models: %w", err)
-		}
-		if err := applyTableComments(tx); err != nil {
-			return err
-		}
-
-		indexes := []string{
-			`CREATE UNIQUE INDEX IF NOT EXISTS privacy_agreements_user_id_agreement_type_version_key ON privacy_agreements(user_id, agreement_type, version)`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_cities_single_default ON cities(is_default) WHERE is_default = TRUE`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_places_provider_poi ON places(poi_provider, poi_id) WHERE poi_provider IS NOT NULL AND poi_id IS NOT NULL`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_city_routes_city_title ON city_routes(city_code, title)`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS city_route_stops_route_id_sort_order_key ON city_route_stops(route_id, sort_order)`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_visit_records_idempotency ON visit_records(user_id, create_request_key) WHERE create_request_key IS NOT NULL`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS visit_record_versions_record_id_version_no_key ON visit_record_versions(record_id, version_no)`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS restaurant_review_versions_review_id_version_no_key ON restaurant_review_versions(review_id, version_no)`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_moderation_open_record ON moderation_tasks(target_type, target_id) WHERE status IN ('pending', 'assigned')`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS idx_outdated_pending_unique ON outdated_signals(user_id, record_id) WHERE status = 'pending'`,
-		}
-		for _, statement := range indexes {
-			if err := tx.Exec(statement).Error; err != nil {
-				return fmt.Errorf("migrate business unique indexes: %w", err)
-			}
-		}
-		return migrateLegacyRestaurantReviews(tx)
-	})
 }
 
 // autoMigrateModels 集中声明由应用管理的持久化模型，便于迁移和结构测试共用同一份清单。
