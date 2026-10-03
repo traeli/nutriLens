@@ -12,7 +12,7 @@ import (
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
-	sessionmodel "shijibu/internal/model/redis"
+	sessionmodel "shijibu/internal/cache/redis"
 )
 
 func testRedis(t *testing.T) (*sessionmodel.Client, *goredis.Client) {
@@ -43,7 +43,7 @@ func testRedis(t *testing.T) (*sessionmodel.Client, *goredis.Client) {
 			t.Error(err)
 		}
 	})
-	client, err := sessionmodel.NewRedis("unix://" + socket)
+	client, err := sessionmodel.New("unix://" + socket)
 	if err != nil {
 		t.Fatal(err)
 	}

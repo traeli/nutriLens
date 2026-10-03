@@ -9,8 +9,7 @@ import (
 	"shijibu/internal/platform/bailian"
 )
 
-// Base64 adds roughly one third to the request size. Seven MiB keeps the
-// encoded audio below Bailian's ten MiB synchronous-input limit.
+// Base64 编码会增加约三分之一体积，将原始音频限制为 7 MiB 可确保编码后不超过百炼 10 MiB 的同步输入上限。
 const MaxSpeechAudioBytes int64 = 7 << 20
 
 var ErrSpeechNotConfigured = errors.New("speech recognition is not configured")

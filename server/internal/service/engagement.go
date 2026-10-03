@@ -34,8 +34,8 @@ func (s *EngagementService) FavoritePlaces(userID uint) ([]model.Place, error) {
 }
 
 func (s *EngagementService) Helpful(userID, recordID uint) error {
-	var record model.VisitRecord
-	if err := s.db.Where("id = ? AND publish_status = ? AND visibility = ?", recordID, "published", "public").First(&record).Error; err != nil {
+	var record model.RestaurantReview
+	if err := s.db.Where("id = ? AND status = ?", recordID, "published").First(&record).Error; err != nil {
 		return mapNotFound(err)
 	}
 	if record.UserID == userID {
@@ -46,7 +46,7 @@ func (s *EngagementService) Helpful(userID, recordID uint) error {
 		if result.Error != nil || result.RowsAffected == 0 {
 			return result.Error
 		}
-		return tx.Model(&model.VisitRecord{}).Where("id = ?", recordID).UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1")).Error
+		return tx.Model(&model.RestaurantReview{}).Where("id = ?", recordID).UpdateColumn("helpful_count", gorm.Expr("helpful_count + 1")).Error
 	})
 }
 
@@ -56,7 +56,7 @@ func (s *EngagementService) Unhelpful(userID, recordID uint) error {
 		if result.Error != nil || result.RowsAffected == 0 {
 			return result.Error
 		}
-		return tx.Model(&model.VisitRecord{}).Where("id = ?", recordID).
+		return tx.Model(&model.RestaurantReview{}).Where("id = ?", recordID).
 			UpdateColumn("helpful_count", gorm.Expr("GREATEST(helpful_count - 1, 0)")).Error
 	})
 }
@@ -66,8 +66,8 @@ func (s *EngagementService) MarkOutdated(userID, recordID uint, reason string) e
 		return ErrInvalidInput
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		var record model.VisitRecord
-		if err := tx.Where("id = ? AND publish_status = ?", recordID, "published").First(&record).Error; err != nil {
+		var record model.RestaurantReview
+		if err := tx.Where("id = ? AND status = ?", recordID, "published").First(&record).Error; err != nil {
 			return mapNotFound(err)
 		}
 		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&model.OutdatedSignal{UserID: userID, RecordID: recordID, Reason: strings.TrimSpace(reason), Status: "pending"})
@@ -85,13 +85,13 @@ var reportReasons = map[string]bool{
 
 func (s *EngagementService) CreateReport(userID uint, targetType string, targetID uint, reason, description string) (*model.ContentReport, error) {
 	targetType, reason, description = strings.TrimSpace(targetType), strings.TrimSpace(reason), strings.TrimSpace(description)
-	if userID == 0 || targetID == 0 || targetType != "record" || !reportReasons[reason] || len([]rune(description)) > 1000 {
+	if userID == 0 || targetID == 0 || (targetType != "record" && targetType != "review") || !reportReasons[reason] || len([]rune(description)) > 1000 {
 		return nil, ErrInvalidInput
 	}
-	report := &model.ContentReport{ReporterUserID: userID, TargetType: targetType, TargetID: targetID, ReasonCode: reason, Description: description, Status: "pending"}
+	report := &model.ContentReport{ReporterUserID: userID, TargetType: "restaurant_review", TargetID: targetID, ReasonCode: reason, Description: description, Status: "pending"}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var record model.VisitRecord
-		if err := tx.Where("id = ? AND publish_status = ?", targetID, "published").First(&record).Error; err != nil {
+		var record model.RestaurantReview
+		if err := tx.Where("id = ? AND status = ?", targetID, "published").First(&record).Error; err != nil {
 			return mapNotFound(err)
 		}
 		var recent int64
@@ -120,7 +120,7 @@ func (s *EngagementService) CreateAppeal(userID, recordID uint, text string) (*m
 	if recordID == 0 || len([]rune(text)) < 10 || len([]rune(text)) > 2000 {
 		return nil, ErrInvalidInput
 	}
-	var record model.VisitRecord
+	var record model.RestaurantReview
 	if err := s.db.Where("id = ? AND user_id = ?", recordID, userID).First(&record).Error; err != nil {
 		return nil, mapNotFound(err)
 	}

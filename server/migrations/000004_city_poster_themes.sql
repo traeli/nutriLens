@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS city_poster_themes (
     CHECK (jsonb_typeof(motifs) = 'array')
 );
 
-COMMENT ON TABLE city_poster_themes IS 'Non-geographic visual themes for personal dining-memory posters';
-COMMENT ON COLUMN city_poster_themes.motifs IS 'Decorative words only; never stores boundaries, roads, directions, or coordinates';
+COMMENT ON TABLE city_poster_themes IS '用于个人饮食记忆海报的非地理视觉主题';
+COMMENT ON COLUMN city_poster_themes.motifs IS '仅保存装饰文案，不得保存边界、道路、方向或坐标';
 
 INSERT INTO city_poster_themes (
     city_code, version, title, subtitle, background_image,

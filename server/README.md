@@ -6,9 +6,10 @@
 
 ```bash
 go run ./cmd/api
+# 或：cd cmd/api && go run main.go
 ```
 
-默认从当前工作目录读取 `config/config.yaml`，也可以通过 `CONFIG_PATH` 指定其他文件。当前 Docker Compose 会将 `server/config/config.yaml` 只读挂载到容器内 `/app/config/config.yaml`，后端业务配置直接从该文件读取。部署前必须填写新的微信密钥、百炼 Key、JWT 密钥和数据加密密钥，且不得提交生产使用的真实密钥。
+默认从当前工作目录读取 `config/config.yaml`，也可以通过 `CONFIG_PATH` 指定其他文件。当前 Docker Compose 会将 `server/config/config.yaml` 只读挂载到容器内 `/app/config/config.yaml`，后端业务配置直接从该文件读取。部署前必须填写新的微信密钥、百炼 Key、JWT 密钥和数据加密密钥，且不得提交生产使用的真实密钥。营养文字识别使用独立的 `llm` 配置，默认调用百炼 `qwen-plus`，也可切换到 DeepSeek 等其他 OpenAI-compatible 服务。
 
 开发环境可以向 `/api/v1/auth/wx-login` 提交 `code=the code is a mock one` 创建本地测试账号。
 
@@ -16,40 +17,25 @@ go run ./cmd/api
 
 兼容已有 SQL 表结构时，`User.OpenID`、`Tag.Code`、`Badge.Code`、`PublisherVerification.PhoneHash` 使用 GORM 的 `unique` 标签，对应原 SQL 的单字段 `UNIQUE` 约束。不要仅改成 `uniqueIndex`：GORM 会将其视作另一类定义，可能尝试按生成的名称删除原约束而导致启动失败。原先仅有独立唯一索引的数据库可能会新增唯一约束，旧索引不会在本次修改中自动清理。
 
-启动时还会根据 `redis.dsn`（可由 `REDIS_DSN` 覆盖）创建 Redis 客户端并执行 PING；配置无效或连接失败会停止启动，正常退出时关闭连接池。本地 Go 进程连接 Docker Redis 可使用 `redis://127.0.0.1:6379/0`，同一 Compose 网络中的后端使用 `redis://redis:6379/0`。需要认证时支持 `redis://用户名:密码@主机:端口/数据库编号`，凭据中的特殊字符需进行 URL 编码；真实凭据不应提交到仓库。
+配置由 `internal/config/init.go` 使用 Viper 在包加载阶段读取，支持 `CONFIG_PATH` 和原有环境变量覆盖。`main` 再按当前进程需要显式调用 PostgreSQL 与 Redis 的 `Init()`，各包自行设置连接池并执行 PING；初始化失败会停止启动，正常退出时由 `main` 显式调用对应 `Close()`。本地 Go 进程连接 Docker Redis 可使用 `redis://127.0.0.1:6379/0`，同一 Compose 网络中的后端使用 `redis://redis:6379/0`。需要认证时支持 `redis://用户名:密码@主机:端口/数据库编号`，凭据中的特殊字符需进行 URL 编码；真实凭据不应提交到仓库。
 
-`internal/model/redis.Client` 封装底层 `go-redis` 客户端和 `v1:` 键名前缀，并负责登录会话存储和原子刷新。可在项目根目录运行 `docker compose up -d redis` 启动本地 Redis。
+`internal/cache/redis.Client` 封装底层 `go-redis` 客户端和 `v1:` 键名前缀，并负责登录会话存储和原子刷新。可在项目根目录运行 `docker compose up -d redis` 启动本地 Redis。
 
-后端连接数据库成功后，会调用 `pgsql.AutoMigrate`，根据 `internal/model/pgsql` 中注册的业务模型自动创建缺失的表、字段及索引；迁移失败则停止启动。重复启动不会清空已有数据，也不会自动删除旧表或旧字段，但 GORM 可能调整已有字段的类型或约束。数据库本身仍需预先创建，连接账号需要建表及修改结构的权限。
+数据库包完成连接自检后，会在 `internal/model/pgsql/init.go` 调用 `AutoMigrate` 自动补齐当前业务表、字段、索引和兼容数据迁移，然后由 `internal/model/pgsql/seed.go` 写入城市、初始地点、海报主题、体验标签、城市路线和功能开关。任一步失败都会关闭连接并停止启动。种子写入使用幂等策略，不覆盖运营人员已经维护的数据。
 
-自动建表不等于导入初始数据：城市、标签、路线、店铺和功能开关等仍由以下 SQL 脚本初始化。首次部署需要这些内容时执行（已有库请先备份，部分种子脚本会更新运营配置）：
-
-```bash
-psql "$DATABASE_DSN" -f migrations/000001_core.sql
-psql "$DATABASE_DSN" -f migrations/000002_cities.sql
-psql "$DATABASE_DSN" -f migrations/000004_city_poster_themes.sql
-psql "$DATABASE_DSN" -f migrations/000005_city_routes.sql
-psql "$DATABASE_DSN" -f migrations/000006_place_seeds.sql
-psql "$DATABASE_DSN" -f migrations/000007_city_route_stops.sql
-psql "$DATABASE_DSN" -f migrations/000008_place_descriptions.sql
-psql "$DATABASE_DSN" -f migrations/000009_governance_and_engagement.sql
-```
-
-迁移使用原有核心表名，包括 `nutrilens_users`、`places`、`visit_records` 和 `visit_record_versions`。`000002_cities.sql` 创建城市配置表；`000004_city_poster_themes.sql` 创建非地理足迹海报主题。已经停用的 `city_maps` 原型表仅为兼容历史开发数据库保留，服务端不再注册读取接口。后续新增城市海报只需写入 `city_poster_themes`，无需修改小程序渲染器。`000005_city_routes.sql` 创建首页城市路线表（轮播卡片与精选手绘路线）并写入各城市初始路线；`000007_city_route_stops.sql` 将路线站点规范化关联到 `places`，供攻略详情逐站打开地图。`000006_place_seeds.sql` 为各城市写入初始店铺目录（`status='active'`，同名地点已存在时跳过），供「找一家店」搜索冷启动使用。
-
-自动迁移仅覆盖当前注册的业务模型及必要的唯一索引，不保证与 SQL 完全等价：SQL 中的外键、额外检查约束、管理字段，以及 `moderation_actions`、`case_materials` 管理表没有全部映射到模型。需要完整 SQL 结构时应在首次自动建表之前执行上述脚本；在自动建表之后运行 `CREATE TABLE IF NOT EXISTS` 不会补齐已有表中缺失的外键或管理字段，需要另行编写增量迁移。
+`migrations/` 中原有 SQL 仅作为历史结构参考，不再为新功能增加 SQL 文件，也不再作为启动前置步骤。新增模型应注册到 `pgsql.AutoMigrate`，新增基础数据应写入 `pgsql.Seed`。数据库本身仍需预先创建，连接账号需要建表和修改结构权限。
 
 迁移也不会清理旧业务遗留表。是否归档或删除旧营养业务数据，应在确认备份与保留期限后通过单独的数据迁移处理。
 
 ## 当前接口范围
 
-到店记录提交已放宽：无需手机号核验，标签和正文选填（正文 0～500 字），成功提交后仍为 `pending_review` 并创建人工审核任务。非空正文继续调用文本安全检测；空正文的检测记录标为 `not_applicable`，不向微信发送空文本。登录、协议、所有权、账号状态、提交开关和每日额度检查仍保留。独立手机号核验接口继续兼容，但记录页面不再调用。
+私人到店足迹、公开餐厅评论和私人饮食记录使用独立数据表。一次提交先保存私人足迹，再由 `POST /visits/:id/review` 创建评论快照；足迹不进入审核，评论状态为 `pending/published/rejected`。同一用户可通过不同到店足迹多次评论同一餐厅。公开发现与餐厅统计只读取已发布评论，营养识别只写入 `nutrition_records`。
 
 - 微信登录与个人资料
 - 城市、地点搜索、公开体验和标签
 - 登录用户的短音频语音转写
 - 私人到店记录的创建、读取、版本化编辑与软删除
-- 公开审核提交、发布者微信手机号核验、文本内容安全检查、我的记录、足迹汇总与地图点位
+- 评论审核提交、文本内容安全检查、我的评论、私人足迹汇总与地图点位
 - 公开图片和私密消费凭证上传、收藏、有帮助、信息过时、举报与申诉
 - 路线收藏、开始路线和完成站点；私人营养记录与汇总
 - 贡献账户、可信等级和徽章
@@ -57,6 +43,8 @@ psql "$DATABASE_DSN" -f migrations/000009_governance_and_engagement.sql
 审核管理界面不由本服务提供；小程序侧只创建和查询审核、举报及申诉数据。快速记录支持用店名创建待确认地点；待确认地点不会直接进入公开推荐。旧 `/food`、`/wheel`、旧积分、成就、通知和 Webhook 路由不再注册，私人营养数据使用独立的 `/nutrition/*` 接口。
 
 生产环境必须配置 `DATABASE_DSN`、`JWT_SECRET`、`WECHAT_APP_ID`、`WECHAT_APP_SECRET`、`DATA_ENCRYPTION_KEY`（32 字节密钥的 Base64）、`UPLOAD_DIR` 和 `PUBLIC_BASE_URL`。公开内容提交前会调用微信文本内容安全接口；调用失败时保持草稿，不会绕过检查。
+
+`POST /api/v1/nutrition/records` 只提交 `meal_period`、`eaten_at`、`description` 和空 `foods` 时，后端使用营养 LLM 估算食物份量、热量、蛋白质、脂肪、碳水和简短饮食建议，校验模型 JSON 后一次性保存并返回记录。默认使用百炼兼容地址和 `qwen-plus`；当 `llm.base_url` 与 `bailian.base_url` 一致时可复用百炼 Key。`llm.thinking_mode=disabled` 会关闭千问思考模式且不降低 `max_tokens`；不支持该扩展参数的供应商可设为 `provider_default`。切换供应商时通过 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 覆盖。模型未配置或调用失败时不会保存空记录，接口返回 503；客户端直接提交完整营养值的旧调用方式仍兼容。
 
 账号注销使用 `DELETE /api/v1/user/account`。注销会永久清除用户账号、到店记录、营养记录、上传图片和消费凭证等关联数据，并使注销前签发的 JWT 失效。
 
@@ -89,9 +77,9 @@ go build ./...
 
 ### 初始化与登录会话
 
-PostgreSQL 连接、迁移和所有持久化业务结构位于 `internal/model/pgsql`；Redis 客户端、会话结构与读写位于同级 `internal/model/redis`。微信、百炼客户端保留在 `internal/platform`，请求 DTO 和业务服务仍归各自层。
+PostgreSQL 连接池、迁移、种子和持久化模型位于 `internal/model/pgsql`。Redis 初始化、连接池和会话读写位于 `internal/cache/redis`。微信、百炼和 LLM 客户端保留在 `internal/platform`。
 
-`main` 创建实例后显式调用 `Init` 检查连接，失败即 panic（不输出连接凭据）。Go 的内置小写 `init()` 无法由 main 主动调用，故使用导出的 `Init`。PostgreSQL、Redis 使用 PING；微信预取服务端 access_token；已配置百炼 Key 时调用 `/models` 检查可达性及认证，不产生转写。未配置百炼 Key 时保留语音禁用行为；微信仅在允许 mock 且未配置凭据时跳过检查。正常退出关闭数据库和 Redis 连接池。
+PostgreSQL 与 Redis 分别提供包级导出函数 `pgsql.Init()` 和 `redis.Init()`，但不会在导入包时自动连接。`main` 明确选择本进程需要的组件并负责按逆序调用 `redis.Close()`、`pgsql.Close()`。数据库初始化内部继续执行自检、自动迁移和种子生成；微信、百炼和 LLM 作为普通外部客户端装配。
 
 所有 `/api/v1` 业务接口必须使用 `Authorization: Bearer <token>`，登录 `/auth/wx-login`（兼容 `/auth/login`）和 `/auth/refresh` 除外。`/health` 和公开静态资源 `/uploads` 仍可直接访问。鉴权同时校验 JWT、Redis 中的 Token 摘要及账号状态；Redis 不可用返回 503，凭据过期/被替换返回 401。
 

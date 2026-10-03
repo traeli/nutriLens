@@ -10,7 +10,7 @@ import (
 
 var ErrSessionMissing = errors.New("session missing or expired")
 
-// Session stores only token digests; raw bearer credentials never enter Redis.
+// Session 只保存令牌摘要，原始 Bearer 凭据不会写入 Redis。
 type Session struct {
 	UserID      uint   `json:"user_id"`
 	AccessHash  string `json:"access_hash"`
@@ -39,7 +39,7 @@ func (c *Client) MatchSession(ctx context.Context, id, field, hash string) (bool
 	return value == hash && value != "", err
 }
 
-// Compare and replace in one command prevents two refresh requests from reusing a credential.
+// 在一条命令中完成比较与替换，避免并发刷新请求重复使用同一刷新凭据。
 var rotateSession = goredis.NewScript(`
 if redis.call('HGET', KEYS[1], 'refresh_hash') ~= ARGV[1] then return 0 end
 redis.call('HSET', KEYS[1], 'access_hash', ARGV[2], 'refresh_hash', ARGV[3])

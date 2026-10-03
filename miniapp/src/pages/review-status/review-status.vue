@@ -5,12 +5,12 @@
     <text class="status-desc">{{ statusDescription }}</text>
 
     <view class="timeline">
-      <view class="timeline-item done"><text class="dot">✓</text><view><text>私人记录已保存</text><text>内容和亲历信息已进入系统</text></view></view>
-      <view class="timeline-item" :class="{ current: status === 'pending_review', done: status === 'published' }"><text class="dot">{{ status === 'published' ? '✓' : '' }}</text><view><text>人工审核</text><text>{{ submittedText }}</text></view></view>
+      <view class="timeline-item done"><text class="dot">✓</text><view><text>私人足迹已保存</text><text>到店信息仅在你的足迹中保留</text></view></view>
+      <view class="timeline-item" :class="{ current: status === 'pending', done: status === 'published' }"><text class="dot">{{ status === 'published' ? '✓' : '' }}</text><view><text>人工审核</text><text>{{ submittedText }}</text></view></view>
       <view class="timeline-item" :class="{ done: status === 'published' }"><text class="dot">{{ status === 'published' ? '✓' : '' }}</text><view><text>公开展示</text><text>{{ status === 'published' ? '这条体验已经公开' : '审核通过后将公开' }}</text></view></view>
     </view>
 
-    <view class="private-note surface"><text class="book">▢</text><view><text>私人记录已保存</text><text>审核期间，你仍可在足迹中查看和编辑。</text></view></view>
+    <view class="private-note surface"><text class="book">▢</text><view><text>私人足迹已保存</text><text>评论审核不影响你的私人足迹。</text></view></view>
     <button class="primary-button" @tap="goFootprints">查看我的足迹</button>
     <button v-if="status === 'rejected' || status === 'hidden'" class="text-button" @tap="appeal">提交申诉</button>
     <button class="text-button" @tap="goHome">返回发现</button>
@@ -21,10 +21,10 @@
 <script>
 import { api } from '@/api/request.js'
 export default {
-  data() { return { id: '', status: 'pending_review', submittedAt: '' } },
+  data() { return { id: '', status: 'pending', submittedAt: '' } },
   computed: {
-    statusTitle() { return ({ published: '已经公开', rejected: '需要修改', draft: '私人记录已保存', pending_review: '已提交审核' })[this.status] || '正在处理' },
-    statusDescription() { return ({ published: '这条真实到店体验已经可以在发现页看到', rejected: '审核未通过，请回到足迹检查并修改内容', draft: '这条记录目前仅自己可见', pending_review: '你的公开申请已进入人工审核' })[this.status] || '状态更新后会在这里显示' },
+    statusTitle() { return ({ published: '已经公开', rejected: '未通过审核', pending: '已提交审核' })[this.status] || '正在处理' },
+    statusDescription() { return ({ published: '这条餐厅评论已经可以在发现页看到', rejected: '这条评论未通过审核，如有异议可以提交申诉', pending: '你的餐厅评论已进入人工审核' })[this.status] || '状态更新后会在这里显示' },
     submittedText() { return this.submittedAt ? `${this.formatDate(this.submittedAt)} 提交` : '等待审核进度更新' },
   },
   onLoad(options) { this.id = options.id || ''; this.loadStatus() },
@@ -32,7 +32,7 @@ export default {
     async loadStatus() {
       if (!this.id) return
       try {
-        const result = await api.getVisitRecordReviewStatus(this.id)
+        const result = await api.getRestaurantReviewStatus(this.id)
         this.status = result.publish_status || this.status
         this.submittedAt = result.submitted_at || ''
       } catch (error) { uni.showToast({ title: error.message || '状态加载失败', icon: 'none' }) }

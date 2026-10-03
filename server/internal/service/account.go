@@ -119,9 +119,8 @@ func (s *AccountService) IsAccountActive(ctx context.Context, userID uint) (bool
 	return count == 1, err
 }
 
-// DeleteAccount permanently removes user-owned records and identifying account data.
-// Files are removed after the database transaction commits so a filesystem error cannot
-// leave the relational data only partially deleted.
+// DeleteAccount 永久删除用户拥有的记录和身份信息。文件在数据库事务提交后删除，
+// 避免文件系统错误导致关系数据只删除一部分。
 func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 	if userID == 0 {
 		return ErrInvalidInput
@@ -136,7 +135,7 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			return ErrNotFound
 		}
 
-		var recordIDs, versionIDs, appealIDs, moderationTaskIDs []uint
+		var recordIDs, versionIDs, reviewVersionIDs, appealIDs, moderationTaskIDs []uint
 		if err := tx.Table("visit_records").Where("user_id = ?", userID).Pluck("id", &recordIDs).Error; err != nil {
 			return err
 		}
@@ -154,6 +153,11 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 				return err
 			}
 			if err := appendStoredObjects(tx, &storedObjects, "record_evidences", "masked_object_key", "record_id IN ?", recordIDs); err != nil {
+				return err
+			}
+		}
+		if len(recordIDs) > 0 {
+			if err := tx.Table("restaurant_review_versions").Where("review_id IN ?", recordIDs).Pluck("id", &reviewVersionIDs).Error; err != nil {
 				return err
 			}
 		}
@@ -182,8 +186,11 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 		if len(versionIDs) > 0 {
 			tasks = tasks.Or("record_version_id IN ?", versionIDs)
 		}
+		if len(reviewVersionIDs) > 0 {
+			tasks = tasks.Or("review_version_id IN ?", reviewVersionIDs)
+		}
 		if len(recordIDs) > 0 {
-			tasks = tasks.Or("target_type = ? AND target_id IN ?", "visit_record", recordIDs)
+			tasks = tasks.Or("target_type IN ? AND target_id IN ?", []string{"visit_record", "restaurant_review"}, recordIDs)
 		}
 		if err := tasks.Pluck("id", &moderationTaskIDs).Error; err != nil {
 			return err
@@ -198,7 +205,7 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			}
 		}
 		if len(recordIDs) > 0 {
-			if err := tx.Exec("DELETE FROM moderation_actions WHERE target_type IN ? AND target_id IN ?", []string{"record", "visit_record"}, recordIDs).Error; err != nil {
+			if err := tx.Exec("DELETE FROM moderation_actions WHERE target_type IN ? AND target_id IN ?", []string{"record", "visit_record", "restaurant_review"}, recordIDs).Error; err != nil {
 				return err
 			}
 		}
@@ -218,8 +225,30 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 				return err
 			}
 		}
+		if len(reviewVersionIDs) > 0 {
+			if err := tx.Exec("DELETE FROM content_safety_checks WHERE target_type = ? AND target_id IN ?", "restaurant_review_version", reviewVersionIDs).Error; err != nil {
+				return err
+			}
+		}
 		if len(recordIDs) > 0 {
-			if err := tx.Exec("DELETE FROM content_reports WHERE target_type IN ? AND target_id IN ?", []string{"record", "visit_record"}, recordIDs).Error; err != nil {
+			if err := tx.Exec("DELETE FROM content_reports WHERE target_type IN ? AND target_id IN ?", []string{"record", "visit_record", "restaurant_review"}, recordIDs).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec("DELETE FROM restaurant_review_media WHERE review_id IN ?", recordIDs).Error; err != nil {
+				return err
+			}
+			if len(reviewVersionIDs) > 0 {
+				if err := tx.Exec("DELETE FROM restaurant_review_tag_links WHERE review_version_id IN ?", reviewVersionIDs).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Exec("UPDATE restaurant_reviews SET current_version_id = NULL WHERE id IN ?", recordIDs).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec("DELETE FROM restaurant_review_versions WHERE review_id IN ?", recordIDs).Error; err != nil {
+				return err
+			}
+			if err := tx.Exec("DELETE FROM restaurant_reviews WHERE id IN ?", recordIDs).Error; err != nil {
 				return err
 			}
 			for _, table := range []string{"helpful_votes", "outdated_signals", "record_media", "record_evidences"} {
@@ -241,23 +270,23 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 		if err := tx.Exec("UPDATE places SET created_by = NULL WHERE created_by = ?", userID).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec(`UPDATE visit_records AS records
+		if err := tx.Exec(`UPDATE restaurant_reviews AS records
 			SET helpful_count = GREATEST(0, records.helpful_count - votes.vote_count::integer)
 			FROM (SELECT record_id, COUNT(*) AS vote_count FROM helpful_votes WHERE user_id = ? GROUP BY record_id) AS votes
 			WHERE records.id = votes.record_id`, userID).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec(`UPDATE visit_records AS records
+		if err := tx.Exec(`UPDATE restaurant_reviews AS records
 			SET outdated_count = GREATEST(0, records.outdated_count - signals.signal_count::integer)
 			FROM (SELECT record_id, COUNT(*) AS signal_count FROM outdated_signals WHERE user_id = ? GROUP BY record_id) AS signals
 			WHERE records.id = signals.record_id`, userID).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec(`UPDATE visit_records AS records
+		if err := tx.Exec(`UPDATE restaurant_reviews AS records
 			SET report_count = GREATEST(0, records.report_count - reports.report_count::integer)
 			FROM (
 				SELECT target_id, COUNT(*) AS report_count FROM content_reports
-				WHERE reporter_user_id = ? AND target_type IN ('record', 'visit_record') GROUP BY target_id
+				WHERE reporter_user_id = ? AND target_type IN ('record', 'visit_record', 'restaurant_review') GROUP BY target_id
 			) AS reports
 			WHERE records.id = reports.target_id`, userID).Error; err != nil {
 			return err
@@ -355,7 +384,7 @@ func (s *AccountService) AcceptAgreement(userID uint, agreementType, version, ip
 		FirstOrCreate(&agreement).Error
 }
 
-// Refresh rechecks account state before rotating either credential.
+// Refresh 在轮换访问凭据和刷新凭据之前重新检查账号状态。
 func (s *AccountService) Refresh(ctx context.Context, value string) (*platformauth.TokenPair, error) {
 	userID, err := s.tokens.ValidateRefresh(ctx, value)
 	if err != nil {

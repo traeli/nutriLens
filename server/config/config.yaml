@@ -4,9 +4,23 @@ server:
 database:
   # Docker Compose 内通过服务名 postgres 连接数据库。
   dsn: "host=127.0.0.1 user=nutrilens password=nutrilens123 dbname=nutrilens port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 10m
+  check_timeout: 5s
 
 redis:
   dsn: "redis://127.0.0.1:6379/0"
+  pool_size: 20
+  min_idle_conns: 2
+  max_idle_conns: 10
+  conn_max_idle_time: 10m
+  conn_max_lifetime: 30m
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  check_timeout: 5s
 jwt:
   # 部署前请直接替换为安全随机值，且不要提交生产使用的真实密钥。
   secret: "local-development-secret-change-me"
@@ -23,6 +37,14 @@ bailian:
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   asr_model: "qwen3-asr-flash"
 
+llm:
+  # 营养文字识别使用独立的 OpenAI-compatible 配置；同一百炼地址下留空可复用上方 API Key。
+  api_key: "sk-ws-H.EXLDMXX.o5hW.MEUCIFCwHrfVwT4KlmXSHYfTcTBxAQzQh4MQin0MxrR1tKLUAiEAzKPTVeg4KR_VyhYCMA_MqqQZO08yF4oW8C0nQbXlTnk"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  model: "qwen3.6-plus"
+  # 营养结构化提取不需要深度推理；不支持该扩展参数的供应商可使用 provider_default。
+  thinking_mode: "disabled"
+
 cors:
   allow_origins:
     - "http://localhost:5173"
@@ -34,7 +56,7 @@ storage:
 
 security:
   # 直接填写 32 字节随机值的 Base64；可用 openssl rand -base64 32 生成。
-  data_encryption_key: ""
+  data_encryption_key: "U87z6w2b2KXtTK4iTgS8s4Bc09vvvdQNuZkIsM1nN8I="
   allow_mock_login: false
 
 # SMTP 留空时禁用邮箱登录；实际凭据优先通过环境变量设置，不提交到仓库。

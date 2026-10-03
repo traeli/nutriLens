@@ -2,9 +2,9 @@
 
 > 版本：0.1
 > 基础路径：`/api/v1`
-> 原则：所有业务查询和写入必须登录，并通过 Redis 会话鉴权；记录提交不要求手机号核验，审核通过后才会公开。
+> 原则：所有业务查询和写入必须登录，并通过 Redis 会话鉴权；私人足迹和饮食记录永不进入公开审核，只有餐厅评论审核通过后才会公开。
 
-> 业务边界：到店体验与私人营养识别保持独立。`/records` 只保存用户本人确认的到店体验；`/food/*` 只处理私人营养数据，不能自动生成餐厅评价。详细交互见 `city-dining-product-requirements.md`。
+> 业务边界：`/records` 保存私人到店足迹，`/reviews` 保存公开餐厅评论，`/nutrition/*` 保存私人饮食记录。三类数据独立，不相互参与列表、统计或审核。
 
 ## 1. 结论
 
@@ -121,13 +121,13 @@
 
 POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥。
 
-## 6. 私人记录与公开申请（12 个）
+## 6. 私人足迹、餐厅评论与饮食记录
 
 | 方法 | 路径 | 说明 | 阶段 |
 |---|---|---|---|
 | POST | `/records` | 新建私人草稿 | MVP |
-| GET | `/records/:id` | 查看本人记录，包括草稿和审核中内容 | MVP |
-| PATCH | `/records/:id` | 保存草稿或修改被驳回记录 | MVP |
+| GET | `/records/:id` | 查看本人的私人足迹 | MVP |
+| PATCH | `/records/:id` | 修改本人的私人足迹 | MVP |
 | DELETE | `/records/:id` | 软删除本人记录 | MVP |
 | GET | `/me/records` | 本人足迹列表；筛选状态、日期、城市 | MVP |
 | GET | `/me/footprints/summary` | 店铺数、商圈数、本月记录数 | MVP |
@@ -135,8 +135,9 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 | POST | `/records/:id/media/presign` | 获取公开图片上传凭证 | MVP；复用上传服务 |
 | DELETE | `/records/:id/media/:media_id` | 删除草稿图片 | MVP |
 | POST | `/records/:id/evidences/presign` | 获取私密凭证上传地址 | MVP/P0 |
-| POST | `/records/:id/submit-public` | 申请公开，进入检测和人工审核 | P0 |
-| GET | `/records/:id/review-status` | 查看检测、人工审核和驳回原因 | MVP |
+| POST | `/visits/:id/review` | 从一次私人足迹创建一条餐厅评论 | P0 |
+| GET | `/reviews/:id/status` | 查看评论审核状态 | MVP |
+| GET | `/me/reviews` | 本人的评论列表 | MVP |
 
 当前小程序采用服务端 multipart 上传：`POST /records/:id/media`（字段 `file`、`media_type`）和
 `POST /records/:id/evidences`（字段 `file`、`evidence_type`）。服务端存储实现可在保持接口不变的情况下替换为对象存储。
@@ -157,6 +158,23 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 ```
 
 空文件、超限或格式不支持返回 `400 INVALID_ARGUMENT`；百炼未配置、超时或识别失败返回 `503 SERVICE_UNAVAILABLE`。音频只在请求内存中用于当次转写，不在该接口中落库。
+
+### 6.2 私人营养文字识别
+
+`POST /nutrition/records` 需要登录。小程序提交饮食描述，由服务端调用独立配置的 OpenAI-compatible LLM（默认使用百炼 `qwen-plus`），校验结构化营养结果后保存并返回完整记录。LLM Key 只保存在服务端，不下发到小程序。
+
+请求示例：
+
+```json
+{
+  "meal_period": "lunch",
+  "eaten_at": "2026-10-03T12:30:00+08:00",
+  "description": "我吃了一个苹果",
+  "foods": []
+}
+```
+
+响应包含 `foods`、`calories`、`protein_grams`、`fat_grams`、`carbohydrate_grams` 和 `advice`，`source_type` 为 `llm_text`。`advice` 是针对本餐的简短均衡饮食建议，不提供疾病诊断、治疗或极端节食建议。识别成功后记录已经落库，客户端不得再次调用创建接口。未配置 LLM 时返回 `503 NUTRITION_ANALYSIS_NOT_CONFIGURED`；上游错误、空响应或结构校验失败返回 `503 SERVICE_UNAVAILABLE`，失败时不创建记录。营养数据为估算值，仅供私人日常记录参考。
 
 `POST /records` 请求示例：
 
@@ -190,9 +208,9 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 - 单站通过 `wx.openLocation` 打开微信内置地图；整条路线支持复制为有序文本，供用户粘贴到高德、百度等地图。
 - 不依赖高德/百度的私有 App Scheme 或多途经点调起参数，避免微信环境拦截和第三方协议变化。
 
-当前小程序的快速记录在餐厅和总体结论填写完成后即可提交审核；补充文字、体验标签、消费、排队时间、菜品和照片均为可选。`POST /records`、`PATCH /records/:id` 和 `POST /records/:id/submit-public` 不要求至少一个标签或至少 20 字正文；正文可为空，仍保留 500 字上限。提交审核不再检查 `publisher_verifications`，手机号核验接口保留但不作为前置条件。
+当前小程序仍以一次按钮操作完成提交：先保存私人足迹，再以足迹 ID 调用 `POST /visits/:id/review`。评论服务复制当次足迹的当前版本、标签和图片作为独立快照，足迹本身始终保持 `private/draft`。同一足迹只生成一条评论；用户再次到店会形成新的足迹，因此可以对同一餐厅多次评论。
 
-提交仍检查所有权、可提交状态、账号状态、协议、发布开关和每日额度。非空正文继续执行文本安全检测，检测调用失败时保持草稿；空正文不调用文本检测，对应检测记录的 `result` 为 `not_applicable`。两种情况都会在成功提交时创建 `moderation_tasks`，记录状态为 `pending_review`，不会直接进入公开列表。
+评论正文和标签均可为空，正文保留 500 字上限。提交只校验足迹所有权与账号状态；非空正文执行文本安全检测，随后创建 `pending` 评论及审核任务。评论审核状态为 `pending/published/rejected`。公开发现流、餐厅平均消费、推荐数和互动只读取 `published` 评论。旧 `/records/:id/submit-public` 与 `/records/:id/review-status` 暂保留一个兼容周期，但内部已转发到评论服务，不再修改足迹。
 
 ## 7. 收藏与内容反馈（7 个）
 
@@ -294,8 +312,8 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 21. `GET /publisher-verification/status`
 22. `GET /agreements/current`
 23. `POST /agreements/accept`
-24. `POST /records/:id/submit-public`
-25. `GET /records/:id/review-status`
+24. `POST /visits/:id/review`
+25. `GET /reviews/:id/status`
 26. `POST /reports`
 27. `POST /records/:id/appeals`
 28. `GET /admin/moderation/tasks`
@@ -308,7 +326,7 @@ POI 搜索由服务端代理地图服务，前端不直接持有第三方密钥�
 
 - 继续复用：`POST /auth/wx-login`、`GET/PUT /user/profile`、上传签名底层能力、通知设置。
 - 需要改造：协议版本接口、上传 `biz_type`、登录响应中的发布者核验状态。
-- 独立保留：`/food/analyze/image`、`/food/analyze/text` 和必要的私人营养记录能力，作为“餐食营养”工具，不与公开体验混用。
+- 独立保留：`/nutrition/*` 私人饮食记录能力，不与足迹或公开评论混用。
 - 前端下线：`/wheel/*`、旧 `/score/*`、旧 `/achievement/*` 对应页面；服务端可在完成数据归档后另行移除。
 - 不建议把新版接口继续放在 `FoodService` 中；新增 `PlaceService`、`RecordService`、`ModerationService`、`CaseService`、`ContributionService`。
 

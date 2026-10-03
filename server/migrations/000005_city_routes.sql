@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS city_routes (
 CREATE INDEX IF NOT EXISTS idx_city_routes_city ON city_routes(city_code, enabled, sort_order);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_city_routes_city_title ON city_routes(city_code, title);
 
-COMMENT ON TABLE city_routes IS 'Operator-managed city dining routes rendered on the mini program home page';
-COMMENT ON COLUMN city_routes.stops IS 'Ordered stop names, e.g. ["老周生煎","阿庆牛肉面"]';
-COMMENT ON COLUMN city_routes.keyword IS 'Search keyword used when the route card is tapped';
+COMMENT ON TABLE city_routes IS '由运营维护并展示在小程序首页的城市餐饮路线';
+COMMENT ON COLUMN city_routes.stops IS '按顺序保存的站点名称，例如：["老周生煎","阿庆牛肉面"]';
+COMMENT ON COLUMN city_routes.keyword IS '点击路线卡片后使用的搜索关键词';
 
 INSERT INTO city_routes (city_code, title, tag, meta, keyword, image, footnote, stops, is_featured, enabled, sort_order) VALUES
     (

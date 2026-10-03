@@ -17,13 +17,13 @@ import (
 type DiscoveryService struct{ db *gorm.DB }
 
 type ExperienceView struct {
-	Record           model.VisitRecord        `json:"record"`
-	Version          model.VisitRecordVersion `json:"version"`
-	Place            model.Place              `json:"place"`
-	Author           AuthorSummary            `json:"author"`
-	Tags             []model.Tag              `json:"tags"`
-	Media            []model.RecordMedia      `json:"media"`
-	EvidenceVerified bool                     `json:"evidence_verified"`
+	Record           model.RestaurantReview        `json:"record"`
+	Version          model.RestaurantReviewVersion `json:"version"`
+	Place            model.Place                   `json:"place"`
+	Author           AuthorSummary                 `json:"author"`
+	Tags             []model.Tag                   `json:"tags"`
+	Media            []model.RecordMedia           `json:"media"`
+	EvidenceVerified bool                          `json:"evidence_verified"`
 }
 
 type AuthorSummary struct {
@@ -160,9 +160,8 @@ func (s *DiscoveryService) Cities() ([]model.City, error) {
 	return cities, err
 }
 
-// HomeSummary aggregates every data block the mini program home page renders:
-// city switcher, route swiper, featured route card, daily picks, community
-// records and lightweight city stats, keyed by the required city code.
+// HomeSummary 按必填城市编码聚合小程序首页需要的城市切换、路线轮播、精选路线、
+// 每日推荐、社区记录和城市概览数据。
 func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error) {
 	cityCode = strings.TrimSpace(cityCode)
 	if cityCode == "" {
@@ -312,9 +311,9 @@ func (s *DiscoveryService) NearbyRoute(cityCode string, longitude, latitude floa
 		Count   int64
 	}
 	var countRows []placeExperienceCount
-	if err := s.db.Model(&model.VisitRecord{}).
+	if err := s.db.Model(&model.RestaurantReview{}).
 		Select("place_id, COUNT(*) AS count").
-		Where("publish_status = ? AND visibility = ? AND deleted_at IS NULL", "published", "public").
+		Where("status = ? AND deleted_at IS NULL", "published").
 		Where("place_id IN ?", placeIDs(places)).
 		Group("place_id").Scan(&countRows).Error; err != nil {
 		return nil, err
@@ -441,10 +440,10 @@ func (s *DiscoveryService) dailyPlace(view ExperienceView) (DailyPlaceView, erro
 		RecommendCount  int64
 		AverageCost     *float64
 	}
-	err := s.db.Table("visit_records").
-		Select("COUNT(visit_records.id) AS experience_count, COUNT(visit_records.id) FILTER (WHERE versions.conclusion = 'recommend') AS recommend_count, AVG(versions.average_cost) AS average_cost").
-		Joins("JOIN visit_record_versions AS versions ON versions.id = visit_records.current_version_id").
-		Where("visit_records.place_id = ? AND visit_records.publish_status = ? AND visit_records.visibility = ? AND visit_records.deleted_at IS NULL", view.Place.ID, "published", "public").
+	err := s.db.Table("restaurant_reviews AS reviews").
+		Select("COUNT(reviews.id) AS experience_count, COUNT(reviews.id) FILTER (WHERE versions.conclusion = 'recommend') AS recommend_count, AVG(versions.average_cost) AS average_cost").
+		Joins("JOIN restaurant_review_versions AS versions ON versions.id = reviews.current_version_id").
+		Where("reviews.place_id = ? AND reviews.status = ? AND reviews.deleted_at IS NULL", view.Place.ID, "published").
 		Scan(&stats).Error
 	if err != nil {
 		return DailyPlaceView{}, err
@@ -465,9 +464,9 @@ func truncateRunes(value string, limit int) string {
 
 func (s *DiscoveryService) homeStats(cityCode string) (HomeStatsView, error) {
 	var stats HomeStatsView
-	if err := s.db.Model(&model.VisitRecord{}).
-		Joins("JOIN places ON places.id = visit_records.place_id").
-		Where("places.city_code = ? AND visit_records.publish_status = ? AND visit_records.visibility = ? AND visit_records.deleted_at IS NULL", cityCode, "published", "public").
+	if err := s.db.Model(&model.RestaurantReview{}).
+		Joins("JOIN places ON places.id = restaurant_reviews.place_id").
+		Where("places.city_code = ? AND restaurant_reviews.status = ? AND restaurant_reviews.deleted_at IS NULL", cityCode, "published").
 		Count(&stats.ExperienceCount).Error; err != nil {
 		return stats, err
 	}
@@ -508,8 +507,8 @@ func (s *DiscoveryService) CityPosterTheme(cityCode string) (*CityPosterThemeVie
 
 func (s *DiscoveryService) SearchPlaces(cityCode, query, cursor string, limit int, recommended bool) (Page[PlaceSearchView], error) {
 	limit = normalizeLimit(limit)
-	db := s.db.Table("places").Select("places.*, COUNT(visit_records.id) AS experience_count").
-		Joins("LEFT JOIN visit_records ON visit_records.place_id = places.id AND visit_records.publish_status = 'published' AND visit_records.visibility = 'public' AND visit_records.deleted_at IS NULL").
+	db := s.db.Table("places").Select("places.*, COUNT(reviews.id) AS experience_count").
+		Joins("LEFT JOIN restaurant_reviews AS reviews ON reviews.place_id = places.id AND reviews.status = 'published' AND reviews.deleted_at IS NULL").
 		Where("places.status = ?", "active")
 	if cityCode = strings.TrimSpace(cityCode); cityCode != "" {
 		db = db.Where("places.city_code = ?", cityCode)
@@ -524,8 +523,8 @@ func (s *DiscoveryService) SearchPlaces(cityCode, query, cursor string, limit in
 	var rows []PlaceSearchView
 	order := "places.id DESC"
 	if recommended {
-		order = "COUNT(visit_records.id) DESC, places.id DESC"
-		db = db.Having("COUNT(visit_records.id) > 0")
+		order = "COUNT(reviews.id) DESC, places.id DESC"
+		db = db.Having("COUNT(reviews.id) > 0")
 	}
 	if err := db.Group("places.id").Order(order).Limit(limit + 1).Scan(&rows).Error; err != nil {
 		return Page[PlaceSearchView]{}, err
@@ -547,10 +546,10 @@ func (s *DiscoveryService) GetPlace(id uint) (*PlaceDetailView, error) {
 		RecommendCount  int64
 		AverageCost     *float64
 	}
-	if err := s.db.Table("visit_records").
-		Select("COUNT(visit_records.id) AS experience_count, COUNT(visit_records.id) FILTER (WHERE versions.conclusion = 'recommend') AS recommend_count, AVG(versions.average_cost) AS average_cost").
-		Joins("JOIN visit_record_versions AS versions ON versions.id = visit_records.current_version_id").
-		Where("visit_records.place_id = ? AND visit_records.publish_status = ? AND visit_records.visibility = ? AND visit_records.deleted_at IS NULL", id, "published", "public").
+	if err := s.db.Table("restaurant_reviews AS reviews").
+		Select("COUNT(reviews.id) AS experience_count, COUNT(reviews.id) FILTER (WHERE versions.conclusion = 'recommend') AS recommend_count, AVG(versions.average_cost) AS average_cost").
+		Joins("JOIN restaurant_review_versions AS versions ON versions.id = reviews.current_version_id").
+		Where("reviews.place_id = ? AND reviews.status = ? AND reviews.deleted_at IS NULL", id, "published").
 		Scan(&stats).Error; err != nil {
 		return nil, err
 	}
@@ -560,9 +559,10 @@ func (s *DiscoveryService) GetPlace(id uint) (*PlaceDetailView, error) {
 	var media model.RecordMedia
 	if err := s.db.Table("record_media AS media").
 		Select("media.*").
-		Joins("JOIN visit_records AS records ON records.id = media.record_id").
-		Where("records.place_id = ? AND records.publish_status = ? AND records.visibility = ? AND records.deleted_at IS NULL AND media.safety_status = ? AND media.desensitize_status = ?", id, "published", "public", "passed", "completed").
-		Order("records.id DESC, media.sort_order, media.id").First(&media).Error; err == nil {
+		Joins("JOIN restaurant_review_media AS links ON links.media_id = media.id").
+		Joins("JOIN restaurant_reviews AS reviews ON reviews.id = links.review_id").
+		Where("reviews.place_id = ? AND reviews.status = ? AND reviews.deleted_at IS NULL AND media.safety_status = ? AND media.desensitize_status = ?", id, "published", "passed", "completed").
+		Order("reviews.id DESC, media.sort_order, media.id").First(&media).Error; err == nil {
 		detail.ImageURL = media.PublicURL
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -583,19 +583,19 @@ func (s *DiscoveryService) ListPlaceExperiences(placeID uint, cursor string, lim
 
 func (s *DiscoveryService) listExperiences(cityCode string, placeID uint, cursor string, limit int) (Page[ExperienceView], error) {
 	limit = normalizeLimit(limit)
-	db := s.db.Model(&model.VisitRecord{}).
-		Where("visit_records.publish_status = ? AND visit_records.visibility = ?", "published", "public")
+	db := s.db.Model(&model.RestaurantReview{}).
+		Where("restaurant_reviews.status = ?", "published")
 	if placeID > 0 {
-		db = db.Where("visit_records.place_id = ?", placeID)
+		db = db.Where("restaurant_reviews.place_id = ?", placeID)
 	}
 	if cityCode = strings.TrimSpace(cityCode); cityCode != "" {
-		db = db.Joins("JOIN places ON places.id = visit_records.place_id").Where("places.city_code = ?", cityCode)
+		db = db.Joins("JOIN places ON places.id = restaurant_reviews.place_id").Where("places.city_code = ?", cityCode)
 	}
 	if cursorID := parseCursor(cursor); cursorID > 0 {
-		db = db.Where("visit_records.id < ?", cursorID)
+		db = db.Where("restaurant_reviews.id < ?", cursorID)
 	}
-	var records []model.VisitRecord
-	if err := db.Order("visit_records.id DESC").Limit(limit + 1).Find(&records).Error; err != nil {
+	var records []model.RestaurantReview
+	if err := db.Order("restaurant_reviews.id DESC").Limit(limit + 1).Find(&records).Error; err != nil {
 		return Page[ExperienceView]{}, err
 	}
 	hasMore := len(records) > limit
@@ -615,14 +615,14 @@ func (s *DiscoveryService) listExperiences(cityCode string, placeID uint, cursor
 }
 
 func (s *DiscoveryService) GetExperience(id uint) (*ExperienceView, error) {
-	var record model.VisitRecord
-	if err := s.db.Where("id = ? AND publish_status = ? AND visibility = ?", id, "published", "public").First(&record).Error; err != nil {
+	var record model.RestaurantReview
+	if err := s.db.Where("id = ? AND status = ?", id, "published").First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	views, err := s.loadExperienceViews([]model.VisitRecord{record})
+	views, err := s.loadExperienceViews([]model.RestaurantReview{record})
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +635,7 @@ func (s *DiscoveryService) Tags() ([]model.Tag, error) {
 	return tags, err
 }
 
-func (s *DiscoveryService) loadExperienceViews(records []model.VisitRecord) ([]ExperienceView, error) {
+func (s *DiscoveryService) loadExperienceViews(records []model.RestaurantReview) ([]ExperienceView, error) {
 	views := make([]ExperienceView, 0, len(records))
 	for _, record := range records {
 		view := ExperienceView{Record: record}
@@ -652,14 +652,17 @@ func (s *DiscoveryService) loadExperienceViews(records []model.VisitRecord) ([]E
 		if err := s.db.Select("nickname", "avatar_url").First(&user, record.UserID).Error; err == nil {
 			view.Author = AuthorSummary{Nickname: user.Nickname, AvatarURL: user.AvatarURL}
 		}
-		if err := s.db.Where("record_version_id = ? AND safety_status = ? AND desensitize_status = ?", view.Version.ID, "passed", "completed").Order("sort_order, id").Find(&view.Media).Error; err != nil {
+		if err := s.db.Table("record_media AS media").
+			Joins("JOIN restaurant_review_media AS links ON links.media_id = media.id").
+			Where("links.review_id = ? AND media.safety_status = ? AND media.desensitize_status = ?", record.ID, "passed", "completed").
+			Order("media.sort_order, media.id").Find(&view.Media).Error; err != nil {
 			return nil, err
 		}
-		if err := s.db.Table("tags").Joins("JOIN visit_record_tag_links l ON l.tag_id = tags.id").Where("l.record_version_id = ?", view.Version.ID).Order("tags.sort_order").Find(&view.Tags).Error; err != nil {
+		if err := s.db.Table("tags").Joins("JOIN restaurant_review_tag_links links ON links.tag_id = tags.id").Where("links.review_version_id = ?", view.Version.ID).Order("tags.sort_order").Find(&view.Tags).Error; err != nil {
 			return nil, err
 		}
 		var verifiedCount int64
-		if err := s.db.Model(&model.RecordEvidence{}).Where("record_id = ? AND verify_status = ?", record.ID, "verified").Count(&verifiedCount).Error; err != nil {
+		if err := s.db.Model(&model.RecordEvidence{}).Where("record_id = ? AND verify_status = ?", record.VisitRecordID, "verified").Count(&verifiedCount).Error; err != nil {
 			return nil, err
 		}
 		view.EvidenceVerified = verifiedCount > 0

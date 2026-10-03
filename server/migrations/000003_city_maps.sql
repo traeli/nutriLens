@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS city_maps (
     CHECK (jsonb_typeof(geometry) = 'object')
 );
 
-COMMENT ON TABLE city_maps IS 'Lightweight normalized geometry for the mini program city constellation canvas';
-COMMENT ON COLUMN city_maps.geometry IS 'Normalized 0..1 outline, waterways and simplified road paths';
+COMMENT ON TABLE city_maps IS '用于小程序城市星图画布的轻量归一化几何数据';
+COMMENT ON COLUMN city_maps.geometry IS '归一化到 0 至 1 范围的轮廓、水系和简化道路路径';
 
 INSERT INTO city_maps (
     city_code, version, center_longitude, center_latitude,

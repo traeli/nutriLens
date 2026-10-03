@@ -1,12 +1,12 @@
 <template>
   <view class="records-page">
     <view class="records-heading">
-      <text>我的记录</text>
-      <text>每一次提交，都能在这里看到审核进度</text>
+      <text>我的评论</text>
+      <text>公开评论与审核进度集中在这里</text>
     </view>
 
     <view class="status-summary">
-      <view><text>{{ statusCounts.pending_review }}</text><text>待审核</text></view>
+      <view><text>{{ statusCounts.pending }}</text><text>待审核</text></view>
       <view><text>{{ statusCounts.published }}</text><text>审核通过</text></view>
       <view><text>{{ statusCounts.rejected }}</text><text>审核不通过</text></view>
     </view>
@@ -17,10 +17,10 @@
       </view>
     </scroll-view>
 
-    <view v-if="loading" class="state-card">正在整理你的记录…</view>
+    <view v-if="loading" class="state-card">正在整理你的评论…</view>
     <view v-else-if="!filteredRecords.length" class="state-card empty">
-      <text>这里还没有记录</text>
-      <text>提交一条到店体验后，审核状态会出现在这里。</text>
+      <text>这里还没有评论</text>
+      <text>提交一条到店评论后，审核状态会出现在这里。</text>
       <button @tap="startRecord">去记录</button>
     </view>
 
@@ -48,7 +48,7 @@ export default {
       selectedStatus: '',
       filters: [
         { value: '', label: '全部' },
-        { value: 'pending_review', label: '待审核' },
+        { value: 'pending', label: '待审核' },
         { value: 'published', label: '审核通过' },
         { value: 'rejected', label: '审核不通过' },
       ],
@@ -57,7 +57,7 @@ export default {
   computed: {
     filteredRecords() { return this.selectedStatus ? this.records.filter(item => item.status === this.selectedStatus) : this.records },
     statusCounts() {
-      return this.records.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result }, { pending_review: 0, published: 0, rejected: 0 })
+      return this.records.reduce((result, item) => { result[item.status] = (result[item.status] || 0) + 1; return result }, { pending: 0, published: 0, rejected: 0 })
     },
   },
   onLoad(options) {
@@ -71,20 +71,20 @@ export default {
       if (!uni.getStorageSync('token')) { uni.navigateTo({ url: '/pages/login/login' }); return }
       this.loading = true
       try {
-        const page = await api.getMyRecords({ limit: 50 })
-        this.records = (page.items || []).filter(item => ['pending_review', 'published', 'rejected'].includes(item.record.publish_status)).map(this.normalizeRecord)
+        const page = await api.getMyReviews({ limit: 50 })
+        this.records = (page.items || []).map(this.normalizeRecord)
       } catch (error) {
-        uni.showToast({ title: error.message || '记录加载失败', icon: 'none' })
+        uni.showToast({ title: error.message || '评论加载失败', icon: 'none' })
       } finally { this.loading = false }
     },
     normalizeRecord(item) {
-      const status = item.record.publish_status
-      const labels = { pending_review: '待审核', published: '审核通过', rejected: '审核不通过' }
-      const hints = { pending_review: '内容已提交，等待审核', published: '已经公开展示', rejected: '查看原因并修改后重新提交' }
+      const status = item.review.publish_status
+      const labels = { pending: '待审核', published: '审核通过', rejected: '审核不通过' }
+      const hints = { pending: '内容已提交，等待审核', published: '已经公开展示', rejected: '审核未通过，可提交申诉' }
       const conclusions = { hot: '夯 · 值得专程去', recommend: '推荐 · 愿意再来', neutral: '一般 · 如实记录', caution: '谨慎 · 建议留意' }
       const date = String(item.version.visit_date || '').slice(0, 10)
       return {
-        id: item.record.id, status, statusLabel: labels[status], statusHint: hints[status],
+        id: item.review.id, status, statusLabel: labels[status], statusHint: hints[status],
         place: item.place.name || '未命名餐厅', city: item.place.city_code || '当前城市',
         date: date ? date.replace(/^\d{4}-/, '').replace('-', '月') + '日' : '最近提交',
         conclusion: conclusions[item.version.conclusion] || '真实到店记录',
@@ -129,7 +129,7 @@ export default {
 .record-copy text:first-child { overflow: hidden; font-size: 24rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
 .record-copy text:last-child { margin-top: 5rpx; color: #7e857b; font-size: 17rpx; }
 .status-pill { flex: none; padding: 8rpx 13rpx; border-radius: 18rpx; font-size: 17rpx; font-weight: 800; }
-.status-pending_review { background: #fff0c6; color: #8a6411; }
+.status-pending { background: #fff0c6; color: #8a6411; }
 .status-published { background: #e1f6d8; color: #387425; }
 .status-rejected { background: #f9e1dc; color: #b23e2b; }
 .record-bottom { display: grid; grid-template-columns: auto 1fr auto; gap: 12rpx; margin-top: 18rpx; padding-top: 17rpx; border-top: 1rpx solid #edf0e9; align-items: center; }

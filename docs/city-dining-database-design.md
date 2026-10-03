@@ -1,17 +1,18 @@
 # 城市餐饮体验：数据库表结构草案
 
 > 版本：0.1
-> 范围：个人主体、具体餐饮地点、全量先审后公开
+> 范围：私人足迹、公开餐厅评论、私人饮食记录；仅评论先审后公开
 > 数据库：PostgreSQL + GORM
 
 ## 1. 结论
 
-当前启动实现：数据库连接成功后，`cmd/api/main.go` 调用 `internal/model/pgsql.AutoMigrate`，在事务中根据已注册的 `internal/model/pgsql` 模型补齐业务表，并补齐协议去重、默认城市、地点 POI、路线、记录幂等键、记录版本、审核任务和过时反馈的唯一索引。失败时回滚本次迁移并停止启动；数据库本身需提前创建。新增模型需要加入 `migrate.go` 的注册列表。
+当前启动实现：`main` 显式调用 `internal/model/pgsql.Init()`；连接自检通过后，同文件中的 `AutoMigrate` 在事务中补齐业务表、索引和历史兼容数据。失败时回滚并停止启动；数据库本身需提前创建。新增模型需要加入该函数的注册列表。
 
-自动迁移不清空数据、不删除旧表或旧字段、不导入种子数据；GORM 可能调整已有字段类型和约束。它不完全替代 SQL：未映射的外键、检查约束、管理字段和管理表仍由显式 SQL 管理。完整 SQL 初始化应在首次自动建表前执行；之后补齐已有表的约束应使用增量迁移。城市、标签、路线、店铺等初始数据仍需单独导入，详见 `server/README.md`。
+迁移完成后，`internal/model/pgsql/seed.go` 的 `Seed` 会幂等生成城市、初始地点、海报主题、体验标签、城市路线和功能开关，不覆盖已有运营数据。后续结构与基础数据调整统一使用 Go 代码，不再增加 SQL migration 文件。
 
 - 现有 `food_records` 继续作为独立的私人营养工具使用；转盘、旧积分和旧成就只做数据归档，不再作为新版小程序入口。
 - 新版餐饮体验使用独立表，不把 `food_records` 转换为公开点评。
+- `nutrition_records.advice` 保存营养识别时生成的本餐饮食建议，仅本人可见，不用于公开评价或医疗判断。
 - 公开内容必须保留版本、检测、人工审核、举报和处置记录。
 - 消费凭证和公开图片分开存储；凭证默认仅审核人员可访问。
 
@@ -102,7 +103,7 @@
 
 ### 3.3 `visit_records`（MVP）
 
-一条到店体验的稳定主记录，保存所有者、当前版本和状态。
+用户本人的私人到店足迹。它不参与审核、公开发现流或餐厅统计；保留旧发布字段仅用于平滑迁移，服务写入固定为 `visibility=private`、`publish_status=draft`。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -125,7 +126,7 @@
 
 ### 3.4 `visit_record_versions`（MVP）
 
-每次保存、修改、驳回后重提都生成新版本，用于审计和争议固定。
+每次保存或修改足迹都生成新版本。已创建的餐厅评论持有独立快照，之后修改足迹不会静默改变已提交评论。
 
 核心字段：
 
@@ -137,17 +138,28 @@
 
 约束：`UNIQUE(record_id, version_no)`；正文长度由服务端校验 20～500 字。
 
-### 3.5 `tags`（MVP）
+### 3.5 `restaurant_reviews` 与评论快照（MVP）
+
+公开餐厅评论使用四张独立表：
+
+- `restaurant_reviews`：评论主记录，关联 `user_id`、`place_id` 和来源 `visit_record_id`；每次足迹最多一条评论，状态为 `pending/published/rejected`。
+- `restaurant_review_versions`：评论内容快照，保存到店日期、结论、消费、排队、菜品和正文。
+- `restaurant_review_tag_links`：评论版本与标签的关系。
+- `restaurant_review_media`：评论与已上传媒体的关系。
+
+评论 ID 与来源足迹 ID 在兼容期保持一致，使已有体验详情、投票、举报和申诉外键能够平滑迁移。一个用户可以通过多次到店足迹对同一餐厅提交多条评论。发现流、餐厅平均值和“我的评论”只能查询这些评论表，不能读取饮食记录或私人足迹。
+
+### 3.6 `tags`（MVP）
 
 标签字典。核心字段：`id`、`code` 唯一、`name`、`group_name`、`enabled`、`sort_order`。
 
 首批数据：`taste` 口味、`price` 价格、`service` 服务、`queue` 排队、`hygiene_observation` 卫生观感、`promotion_mismatch` 宣传不符、`other` 其他。
 
-### 3.6 `visit_record_tag_links`（MVP）
+### 3.7 `visit_record_tag_links`（MVP）
 
 字段：`record_version_id`、`tag_id`，联合主键。标签绑定具体版本，避免编辑后丢失历史。
 
-### 3.7 `record_media`（MVP）
+### 3.8 `record_media`（MVP）
 
 公开内容图片。
 
@@ -155,13 +167,17 @@
 
 公开页面只能返回已检测、已脱敏的 `processed_object_key`。
 
-### 3.8 `record_evidences`（MVP）
+### 3.9 `record_evidences`（MVP）
 
 消费凭证，仅审核可见。
 
 核心字段：`id`、`record_id`、`user_id`、`evidence_type`、`original_object_key`、`masked_object_key`、`verify_status`、`verified_by`、`verified_at`、`retention_until`、`created_at`。
 
 禁止在普通详情接口中返回原始路径。
+
+### 3.10 `nutrition_records`（MVP）
+
+私人饮食记录，仅关联 `user_id`，保存餐次、进食时间、食物明细、营养估算和建议。该表没有地点、可见性、审核或社交互动字段；数据只出现在饮食记录页面，不进入足迹、我的评论、城市最近足迹和餐厅平均统计。
 
 ## 4. 用户互动表
 
@@ -261,19 +277,14 @@
 
 ## 7. 状态枚举
 
-### 记录状态
+### 评论状态
 
 ```text
-draft
-  -> detecting
-  -> pending_review
-  -> published
-
-pending_review -> rejected -> draft -> detecting
-published -> reported -> limited/hidden -> published/deleted
+pending -> published
+pending -> rejected
 ```
 
-首版所有 `visibility=public` 的记录都必须经过 `pending_review`，不存在低风险自动直发。
+私人足迹固定为 `private/draft`，不进入状态机。首版所有评论必须经过 `pending`，不存在低风险自动直发。
 
 ### 审核任务状态
 
@@ -291,17 +302,17 @@ submitted -> validating -> notice_sent -> waiting_response
 
 ## 8. 实施顺序
 
-1. 第一批：`places`、`place_suggestions`、`visit_records`、`visit_record_versions`、`tags`、`visit_record_tag_links`、`record_media`、`record_evidences`。
+1. 第一批：`places`、`place_suggestions`、私人足迹表、餐厅评论表、`nutrition_records`、标签、媒体和凭证表。
 2. 第二批：`publisher_verifications`、`content_safety_checks`、`moderation_tasks`、`moderation_actions`。
 3. 第三批：`place_favorites`、`helpful_votes`、`outdated_signals`、`content_reports`、`appeal_cases`、`case_materials`。
 4. 第四批：商家认领、用户可信度、贡献分与新版徽章。
 
-生产环境建议使用显式 SQL migration，不继续只依赖启动时 `AutoMigrate`。
+生产环境与开发环境使用同一套 `pgsql.AutoMigrate` 和 `pgsql.Seed` 启动流程。
 
 
 ## Redis 登录会话
 
-关系型模型和连接迁移逻辑集中在 `server/internal/model/pgsql`，本次目录调整不改变业务表字段。Redis 操作位于 `server/internal/model/redis`。
+关系型模型、连接池、自动迁移和种子数据集中在 `server/internal/model/pgsql`。Redis 操作位于 `server/internal/cache/redis`；两者都由 `main` 显式控制生命周期。
 
 会话键为 `v1:session:{<session-id>}`，类型 Hash，字段为 `user_id`、`access_hash`、`refresh_hash`；后两者为 Token 的 SHA-256 摘要，不存明文凭据。键 TTL 默认 7200 秒，与两种 JWT 的有效期一致。刷新通过 Lua 比较旧 refresh 摘要、替换两个摘要并重设 TTL，只有一个并发请求能成功；过期或丢失的键拒绝鉴权。账号注销后，账号状态检查立即拒绝该账号的所有会话，残留 Redis 键在 TTL 到期后回收。
 

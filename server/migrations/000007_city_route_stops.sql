@@ -25,7 +25,7 @@ WHERE NOT EXISTS (
 )
 ON CONFLICT (route_id, sort_order) DO NOTHING;
 
-COMMENT ON TABLE city_route_stops IS 'Ordered canonical places in a lightweight dining guide route';
-COMMENT ON COLUMN city_route_stops.note IS 'Optional guide copy for this stop; routing is delegated to the user map app';
+COMMENT ON TABLE city_route_stops IS '轻量餐饮攻略路线中按顺序排列的标准地点';
+COMMENT ON COLUMN city_route_stops.note IS '站点的可选攻略文案，实际导航交由用户地图应用完成';
 
 COMMIT;

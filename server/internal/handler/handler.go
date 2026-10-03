@@ -15,6 +15,7 @@ type Handler struct {
 	Accounts      *service.AccountService
 	Discovery     *service.DiscoveryService
 	Records       *service.RecordService
+	Reviews       *service.ReviewService
 	Contributions *service.ContributionService
 	Speech        *service.SpeechService
 	Engagement    *service.EngagementService
@@ -23,8 +24,8 @@ type Handler struct {
 	Verification  *service.VerificationService
 }
 
-func New(accounts *service.AccountService, discovery *service.DiscoveryService, records *service.RecordService, contributions *service.ContributionService, speech *service.SpeechService, engagement *service.EngagementService, nutrition *service.NutritionService, media *service.MediaService, verification *service.VerificationService) *Handler {
-	return &Handler{Accounts: accounts, Discovery: discovery, Records: records, Contributions: contributions, Speech: speech, Engagement: engagement, Nutrition: nutrition, Media: media, Verification: verification}
+func New(accounts *service.AccountService, discovery *service.DiscoveryService, records *service.RecordService, reviews *service.ReviewService, contributions *service.ContributionService, speech *service.SpeechService, engagement *service.EngagementService, nutrition *service.NutritionService, media *service.MediaService, verification *service.VerificationService) *Handler {
+	return &Handler{Accounts: accounts, Discovery: discovery, Records: records, Reviews: reviews, Contributions: contributions, Speech: speech, Engagement: engagement, Nutrition: nutrition, Media: media, Verification: verification}
 }
 
 func writeServiceError(c *gin.Context, err error) {
@@ -48,8 +49,10 @@ func writeServiceError(c *gin.Context, err error) {
 		httpx.Error(c, http.StatusConflict, "STATE_CONFLICT", "当前状态不允许此操作")
 	case errors.Is(err, service.ErrForbidden):
 		httpx.Error(c, http.StatusForbidden, "FORBIDDEN", "无权执行此操作")
+	case errors.Is(err, service.ErrNutritionAnalysisNotConfigured):
+		httpx.Error(c, http.StatusServiceUnavailable, "NUTRITION_ANALYSIS_NOT_CONFIGURED", "营养识别服务尚未配置")
 	case errors.Is(err, service.ErrUnavailable):
-		httpx.Error(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "语音识别暂时不可用")
+		httpx.Error(c, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "智能识别暂时不可用")
 	case errors.Is(err, service.ErrRateLimited):
 		httpx.Error(c, http.StatusTooManyRequests, "RATE_LIMITED", "操作过于频繁，请稍后再试")
 	case errors.Is(err, service.ErrDisabled):

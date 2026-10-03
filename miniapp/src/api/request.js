@@ -49,7 +49,7 @@ function refreshSession() {
   if (!previousToken || !refreshToken) return Promise.reject(new Error('请重新登录'))
   refreshPromise = send('/auth/refresh', { method: 'POST', public: true, data: { refresh_token: refreshToken } })
     .then(pair => {
-      // A logout or a new login during this request must not restore the old session.
+      // 请求期间发生退出或重新登录时，不允许旧请求恢复之前的会话。
       if (uni.getStorageSync('token') !== previousToken) throw new Error('登录状态已变更')
       saveSession(pair)
       return pair
@@ -103,7 +103,7 @@ function buildQuery(params) {
 }
 
 export const api = {
-  // Auth
+  // 认证
   wxLogin: async (code, inviterId) => {
     const result = await request('/auth/wx-login', { method: 'POST', public: true, data: { code, inviter_id: inviterId || 0 } })
     saveSession(result)
@@ -117,21 +117,21 @@ export const api = {
   },
   refreshToken: () => refreshSession(),
 
-  // User
+  // 用户
   getProfile: () => request('/user/profile'),
   updateProfile: (data) => request('/user/profile', { method: 'PUT', data }),
   deleteAccount: () => request('/user/account', { method: 'DELETE' }),
 
-  // Speech
+  // 语音
   transcribeVisitAudio: filePath => uploadFile('/speech/transcribe', filePath, {
     name: 'audio',
     formData: { scene: 'visit_experience' },
   }),
 
-  // Privacy
+  // 隐私协议
   agreePrivacy: (data) => request('/agreements/accept', { method: 'POST', data }),
 
-  // City dining
+  // 城市餐饮
   getCities: () => request('/cities'),
   getCityPosterTheme: code => request('/cities/' + code + '/poster-theme'),
   getHomeSummary: (cityCode) => request('/home/summary' + buildQuery({ city_code: cityCode })),
@@ -151,6 +151,9 @@ export const api = {
   submitVisitRecord: id => request('/records/' + id + '/submit-public', { method: 'POST' }),
   getVisitRecordReviewStatus: id => request('/records/' + id + '/review-status'),
   getMyRecords: params => request('/me/records' + buildQuery(params)),
+  createRestaurantReview: visitId => request(`/visits/${visitId}/review`, { method: 'POST' }),
+  getRestaurantReviewStatus: id => request(`/reviews/${id}/status`),
+  getMyReviews: params => request('/me/reviews' + buildQuery(params)),
   getFootprintSummary: () => request('/me/footprints/summary'),
   getFootprintMap: () => request('/me/footprints/map'),
   getContribution: () => request('/me/contribution'),
