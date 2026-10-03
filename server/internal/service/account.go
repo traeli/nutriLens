@@ -13,7 +13,6 @@ import (
 	platformauth "shijibu/internal/platform/auth"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type WeChatSessionProvider interface {
@@ -27,13 +26,10 @@ func RequiredAgreementTypes() []string {
 }
 
 type AccountService struct {
-	db          *gorm.DB
-	wechat      WeChatSessionProvider
-	tokens      *platformauth.SessionManager
-	uploadRoot  string
-	emailCodes  EmailCodeStore
-	emailSender EmailSender
-	emailSecret []byte
+	db         *gorm.DB
+	wechat     WeChatSessionProvider
+	tokens     *platformauth.SessionManager
+	uploadRoot string
 }
 
 type LoginResult struct {
@@ -51,14 +47,12 @@ func NewAccountService(db *gorm.DB, wechat WeChatSessionProvider, tokens *platfo
 	return &AccountService{db: db, wechat: wechat, tokens: tokens, uploadRoot: root}
 }
 
-// Login 用微信临时 code 确认身份，为首次登录的用户建档，并签发已保存到 Redis 的双 Token。
-// 任一步骤失败都不会返回登录成功；用户创建与附属账户初始化目前是独立的数据库操作。
 func (s *AccountService) Login(ctx context.Context, code string) (*LoginResult, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil, ErrInvalidInput
 	}
-	openID, err := s.wechat.Code2Session(ctx, code) // 向微信验证 code，获取用户 OpenID。
+	openID, err := s.wechat.Code2Session(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -75,31 +69,25 @@ func (s *AccountService) Login(ctx context.Context, code string) (*LoginResult, 
 	if user.AccountStatus != "" && user.AccountStatus != "active" {
 		return nil, ErrForbidden
 	}
-	if err := s.ensureAccountState(user.ID); err != nil { // 补齐信用档案和贡献账户，不重置已有数据。
+	if err := s.ensureAccountState(user.ID); err != nil {
 		return nil, err
 	}
-	token, err := s.tokens.Issue(ctx, user.ID) // 生成双 Token 并保存 Redis 会话，失败则不返回登录成功。
+	token, err := s.tokens.Issue(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 	return &LoginResult{TokenPair: *token, UserID: user.ID, HasProfile: strings.TrimSpace(user.Nickname) != "", Profile: user}, nil
 }
 
-// ensureAccountState 补齐用户的信用档案和贡献账户，不创建用户本身。
-// 已有档案直接读取，不重置默认值；缺失时才创建。两份附属数据处于同一事务，失败则回滚。
-// 该事务不包含 Login 中的用户创建。
 func (s *AccountService) ensureAccountState(userID uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error { return ensureAccountStateTx(tx, userID) }) // 两份附属数据一起提交。
-}
-
-// ensureAccountStateTx 复用调用方事务补齐附属账户，冲突时保留原有数据。
-func ensureAccountStateTx(tx *gorm.DB, userID uint) error {
-	trust := model.UserTrustProfile{UserID: userID, TrustLevel: "new", DailyPublishLimit: 1, RiskFlags: model.JSONDocument("{}"), UpdatedAt: time.Now()}
-	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&trust).Error; err != nil {
-		return err
-	}
-	contribution := model.ContributionAccount{UserID: userID, UpdatedAt: time.Now()}
-	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&contribution).Error
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		trust := model.UserTrustProfile{UserID: userID, TrustLevel: "new", DailyPublishLimit: 1, RiskFlags: model.JSONDocument("{}"), UpdatedAt: time.Now()}
+		if err := tx.Where("user_id = ?", userID).FirstOrCreate(&trust).Error; err != nil {
+			return err
+		}
+		contribution := model.ContributionAccount{UserID: userID, UpdatedAt: time.Now()}
+		return tx.Where("user_id = ?", userID).FirstOrCreate(&contribution).Error
+	})
 }
 
 func (s *AccountService) Get(userID uint) (*model.User, error) {
