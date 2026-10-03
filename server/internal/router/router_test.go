@@ -87,6 +87,9 @@ func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 	cases := []struct{ method, path string }{
 		{http.MethodPost, "/api/v1/reports"},
 		{http.MethodPost, "/api/v1/records/1/media"},
+		{http.MethodPost, "/api/v1/visits/1/review"},
+		{http.MethodGet, "/api/v1/reviews/1/status"},
+		{http.MethodGet, "/api/v1/me/reviews"},
 		{http.MethodPost, "/api/v1/publisher-verification/phone"},
 		{http.MethodPost, "/api/v1/nutrition/records"},
 		{http.MethodPost, "/api/v1/routes/1/start"},

@@ -425,7 +425,7 @@ export default {
 .campaign-copy text:last-child { margin-top: 7rpx; color: #5F5C57; font-size: 18rpx; }
 .campaign-arrow { position: relative; z-index: 3; width: 45rpx; height: 45rpx; flex: none; margin-right: 218rpx; border-radius: 50%; background: #1B1B19; color: #fff; line-height: 42rpx; text-align: center; font-size: 25rpx; }
 
-/* New visual language: handmade display type + modern functional UI. */
+/* 新视觉语言：手作展示字体与现代功能界面。 */
 .home-page { padding: 0 24rpx calc(142rpx + env(safe-area-inset-bottom)); background: #f5faec; }
 .topbar { gap: 18rpx; }
 .brand { font-family: "PingFang SC", sans-serif; font-size: 32rpx; font-weight: 900; }

@@ -177,7 +177,7 @@ func (c *Client) Code2Session(ctx context.Context, code string) (string, error) 
 	return result.OpenID, nil
 }
 
-// Init validates configured WeChat credentials without consuming a login code.
+// Init 在不消耗登录 code 的情况下校验微信配置凭据。
 func (c *Client) Init(ctx context.Context) error {
 	if c.allowMockLogin && c.appID == "" && c.appSecret == "" {
 		return nil

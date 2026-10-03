@@ -39,7 +39,3 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	}
 	httpx.OK(c, http.StatusOK, result)
 }
-
-//func (h *Handler) authlogin(c *gin.Context) {
-//
-//}

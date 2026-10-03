@@ -44,11 +44,11 @@
 
         <view class="recent-submissions">
           <view class="recent-submissions-head">
-            <view><text>最近提交</text><text>提交后，可以马上在这里看到进度</text></view>
+            <view><text>最近评论</text><text>提交后，可以马上在这里看到审核进度</text></view>
             <text @tap="openMyRecords">全部 ›</text>
           </view>
-          <view v-if="recentLoading" class="recent-submit-empty">正在整理记录…</view>
-          <view v-else-if="!recentRecords.length" class="recent-submit-empty">还没有提交记录，认真记下第一餐吧。</view>
+          <view v-if="recentLoading" class="recent-submit-empty">正在整理评论…</view>
+          <view v-else-if="!recentRecords.length" class="recent-submit-empty">还没有餐厅评论，认真记下第一餐吧。</view>
           <view v-for="item in recentRecords" :key="item.id" class="recent-submit-row" @tap="openSubmittedRecord(item)">
             <view class="recent-submit-mark">{{ item.place.slice(0, 1) }}</view>
             <view class="recent-submit-copy"><text>{{ item.place }}</text><text>{{ item.date }} · {{ item.conclusion }}</text></view>
@@ -553,13 +553,13 @@ export default {
         }, this.recordRequestKey)
         if (this.receiptImage) await api.uploadEvidence(created.record.id, this.receiptImage, 'receipt')
         for (const photo of this.experiencePhotos) await api.uploadRecordMedia(created.record.id, photo, 'photo')
-        const submitted = await api.submitVisitRecord(created.record.id)
+        const submitted = await api.createRestaurantReview(created.record.id)
         this.resetVisitForm()
         this.recordMode = ''
         await this.loadRecentRecords()
         uni.showModal({
           title: '提交成功',
-          content: '记录已经生成，当前状态为“待审核”。你可以在本页下方或“我的记录”查看进度。',
+          content: '到店足迹已经保存，餐厅评论已提交审核。你可以在本页下方或“我的评论”查看进度。',
           showCancel: false,
           confirmText: '知道了',
         })
@@ -589,18 +589,18 @@ export default {
       if (!uni.getStorageSync('token')) { this.recentRecords = []; return }
       this.recentLoading = true
       try {
-        const page = await api.getMyRecords({ limit: 10 })
-        this.recentRecords = (page.items || []).filter(item => item.record.publish_status !== 'draft').slice(0, 3).map(this.normalizeSubmittedRecord)
+        const page = await api.getMyReviews({ limit: 10 })
+        this.recentRecords = (page.items || []).slice(0, 3).map(this.normalizeSubmittedRecord)
       } catch (error) {
         console.warn('[record] recent submissions load failed:', error.message)
       } finally { this.recentLoading = false }
     },
     normalizeSubmittedRecord(item) {
-      const status = item.record.publish_status
-      const labels = { pending_review: '待审核', published: '审核通过', rejected: '审核不通过' }
+      const status = item.review.publish_status
+      const labels = { pending: '待审核', published: '审核通过', rejected: '审核不通过' }
       const conclusions = { hot: '夯', recommend: '推荐', neutral: '一般', caution: '谨慎' }
       return {
-        id: item.record.id, status, statusLabel: labels[status] || '处理中',
+        id: item.review.id, status, statusLabel: labels[status] || '处理中',
         place: item.place.name || '未命名餐厅', conclusion: conclusions[item.version.conclusion] || '已记录',
         date: this.formatVisitDate(item.version.visit_date),
       }
@@ -1282,7 +1282,7 @@ export default {
   to { transform: scale(1.05) rotate(2deg); }
 }
 
-/* Refined editorial notebook theme. */
+/* 精细化编辑手账主题。 */
 .record-page {
   background: #F4F0E7;
   color: #20231F;
@@ -1745,7 +1745,7 @@ export default {
 .recent-submit-copy text:first-child { overflow: hidden; font-size: 23rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
 .recent-submit-copy text:last-child { margin-top: 6rpx; color: #7e857b; font-size: 17rpx; }
 .record-status { flex: none; padding: 8rpx 13rpx; border-radius: 18rpx; font-size: 17rpx; font-weight: 800; }
-.status-pending_review { background: #fff0c6; color: #8a6411; }
+.status-pending { background: #fff0c6; color: #8a6411; }
 .status-published { background: #e1f6d8; color: #387425; }
 .status-rejected { background: #f9e1dc; color: #b23e2b; }
 .recent-submit-arrow { color: #8a9187; font-size: 34rpx; }
@@ -1754,7 +1754,7 @@ export default {
 .rating-nav-title, .feeling-title, .story-trigger view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-weight: 900; }
 .stamp-button.ready { border-radius: 48rpx; background: #111; }
 
-/* Visit form: aligned with the black, lime and soft-card product language. */
+/* 到店表单：与黑色、青柠色和柔和卡片的产品语言保持一致。 */
 .rating-page {
   min-height: 100vh;
   background: #f5faec;

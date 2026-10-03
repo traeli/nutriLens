@@ -121,8 +121,7 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, mediaType string)
 	return text, nil
 }
 
-// Init probes the configured service without invoking a paid transcription.
-// An empty API key keeps the existing optional speech feature disabled.
+// Init 在不触发付费转写的情况下检查服务；API Key 为空时保持语音功能关闭。
 func (c *Client) Init(ctx context.Context) error {
 	if c.apiKey == "" {
 		return nil

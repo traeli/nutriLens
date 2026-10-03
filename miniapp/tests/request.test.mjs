@@ -15,7 +15,7 @@ async function setup(handle) {
     uploadFile: options => { calls.push(options); queueMicrotask(() => handle(options)) },
   }
   const source = original.replace(/import \{ resolveAssetFields \}[^\n]+/, 'const resolveAssetFields = value => value').replace('import.meta.env.VITE_BASE_URL', 'undefined')
-  const module = await import('data:text/javascript;base64,' + Buffer.from(source + `\n// test ${sequence++}`).toString('base64'))
+  const module = await import('data:text/javascript;base64,' + Buffer.from(source + `\n// 测试 ${sequence++}`).toString('base64'))
   return { ...module, storage, calls }
 }
 const pair = { token: 'new', refresh_token: 'refresh-new', expires_in: 7200 }

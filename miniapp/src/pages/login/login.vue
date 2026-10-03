@@ -105,7 +105,7 @@ export default {
       countdown: 3,
       timer: null,
       loginLoading: false,
-      viewType: '', // '', 'privacy', 'user_service', 'community'
+      viewType: '', // 可选值：空、隐私政策、用户协议、社区规范
       inviterId: 0,
     }
   },
@@ -607,7 +607,7 @@ export default {
   font-size: 20rpx;
 }
 
-/* Unified NutriLens visual language: soft green, black and electric lime. */
+/* 统一视觉语言：柔和绿色、黑色与亮青柠色。 */
 .login-page {
   min-height: 100vh;
   background: #f5faec;
@@ -945,7 +945,7 @@ export default {
   color: #60685d;
 }
 
-/* Youthful food-sticker login cover. */
+/* 年轻化食物贴纸登录封面。 */
 .login-content {
   overflow: hidden;
   padding-right: 28rpx;
@@ -1240,7 +1240,7 @@ export default {
   margin-top: 17rpx;
 }
 
-/* Login controls live in the quiet upper field of the full-screen artwork. */
+/* 登录控件放置在全屏插画上方较安静的视觉区域。 */
 .login-brand {
   align-self: center;
   height: 76rpx;
@@ -1292,7 +1292,7 @@ export default {
   box-shadow: none;
 }
 
-/* Muted artwork with a conventional bottom action area. */
+/* 低饱和插画搭配常规底部操作区域。 */
 .login-background {
   opacity: .82;
 }
@@ -1348,7 +1348,7 @@ export default {
   font-size: 17rpx;
 }
 
-/* Behance-inspired onboarding structure, adapted to the NutriLens visual system. */
+/* 参考作品集式引导结构，并适配当前产品视觉体系。 */
 .login-content {
   overflow: hidden;
   padding-right: 28rpx;
@@ -1700,7 +1700,7 @@ export default {
   background: #27452b;
 }
 
-/* Full-bleed shared-table login artwork. */
+/* 满版共享餐桌登录插画。 */
 .login-page {
   min-height: 100vh;
   background: #f5faec;

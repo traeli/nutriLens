@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	sessionmodel "shijibu/internal/model/redis"
+	sessionmodel "shijibu/internal/cache/redis"
 )
 
 var (

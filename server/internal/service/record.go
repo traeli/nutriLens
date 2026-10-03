@@ -1,26 +1,18 @@
 package service
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"strconv"
 	"strings"
 	"time"
 
-	model "shijibu/internal/model/pgsql"
-	"shijibu/internal/platform/wechat"
-
 	"gorm.io/gorm"
+	model "shijibu/internal/model/pgsql"
 )
 
-type TextSafetyProvider interface {
-	CheckText(context.Context, string, string) (wechat.TextSafetyResult, error)
-}
 type RecordService struct {
-	db     *gorm.DB
-	safety TextSafetyProvider
+	db *gorm.DB
 }
 
 type RecordInput struct {
@@ -68,18 +60,13 @@ type FootprintPoint struct {
 	LastVisitAt  string  `json:"last_visit_at"`
 }
 
-func NewRecordService(db *gorm.DB, safety ...TextSafetyProvider) *RecordService {
-	s := &RecordService{db: db}
-	if len(safety) > 0 {
-		s.safety = safety[0]
-	}
-	return s
+func NewRecordService(db *gorm.DB) *RecordService {
+	return &RecordService{db: db}
 }
 
 func (s *RecordService) Create(userID uint, input RecordInput, requestKey string) (*RecordView, error) {
-	if input.Visibility == "" {
-		input.Visibility = "private"
-	}
+	// 到店足迹始终是私人数据；公开状态只属于由足迹创建的餐厅评论。
+	input.Visibility = "private"
 	if err := validateRecordInput(input); err != nil {
 		return nil, err
 	}
@@ -134,9 +121,7 @@ func (s *RecordService) GetOwned(userID, recordID uint) (*RecordView, error) {
 }
 
 func (s *RecordService) Update(userID, recordID uint, input RecordInput) (*RecordView, error) {
-	if input.Visibility == "" {
-		input.Visibility = "private"
-	}
+	input.Visibility = "private"
 	if err := validateRecordInput(input); err != nil {
 		return nil, err
 	}
@@ -144,9 +129,6 @@ func (s *RecordService) Update(userID, recordID uint, input RecordInput) (*Recor
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ? AND user_id = ?", recordID, userID).First(&record).Error; err != nil {
 			return mapNotFound(err)
-		}
-		if record.PublishStatus != "draft" && record.PublishStatus != "rejected" {
-			return ErrConflict
 		}
 		placeID, err := resolveRecordPlace(tx, userID, input)
 		if err != nil {
@@ -220,105 +202,6 @@ func (s *RecordService) ListMine(userID uint, status, cityCode, cursor string, l
 		page.NextCursor = strconv.FormatUint(uint64(views[len(views)-1].Record.ID), 10)
 	}
 	return page, nil
-}
-
-func (s *RecordService) SubmitPublic(ctx context.Context, userID, recordID uint) (*RecordView, error) {
-	view, err := s.GetOwned(userID, recordID)
-	if err != nil {
-		return nil, err
-	}
-	if view.Record.PublishStatus != "draft" && view.Record.PublishStatus != "rejected" {
-		return nil, ErrConflict
-	}
-	// 正文和标签可选，手机号核验不作为提交门槛；内容是否适合公开由审核决定。
-	var flag model.FeatureFlag
-	if err := s.db.First(&flag, "key = ?", "public_submission_enabled").Error; err == nil && !flag.Enabled {
-		return nil, ErrDisabled
-	}
-	var agreementCount int64
-	requiredAgreements := RequiredAgreementTypes()
-	if err := s.db.Model(&model.PrivacyAgreement{}).Where("user_id = ? AND version = ? AND agreement_type IN ?", userID, CurrentAgreementVersion, requiredAgreements).Count(&agreementCount).Error; err != nil {
-		return nil, err
-	}
-	if agreementCount != int64(len(requiredAgreements)) {
-		return nil, ErrForbidden
-	}
-	var user model.User
-	if err := s.db.First(&user, userID).Error; err != nil || user.AccountStatus != "active" {
-		return nil, ErrForbidden
-	}
-	var trust model.UserTrustProfile
-	if err := s.db.First(&trust, "user_id = ?", userID).Error; err != nil {
-		return nil, ErrForbidden
-	}
-	var submittedToday int64
-	dayStart := time.Now().Truncate(24 * time.Hour)
-	if err := s.db.Model(&model.VisitRecord{}).Where("user_id = ? AND submitted_at >= ?", userID, dayStart).Count(&submittedToday).Error; err != nil {
-		return nil, err
-	}
-	if submittedToday >= int64(trust.DailyPublishLimit) {
-		return nil, ErrRateLimited
-	}
-	riskLabels := recordRiskLabels(view.Version.Content)
-	provider, providerResult, rawReference := "local_rules", "passed", ""
-	if strings.TrimSpace(view.Version.Content) == "" {
-		// 空正文无需调用文本检测，明确记录不适用，仍创建人工审核任务。
-		providerResult = "not_applicable"
-	} else if s.safety != nil {
-		result, safetyErr := s.safety.CheckText(ctx, user.OpenID, view.Version.Content)
-		if safetyErr != nil {
-			return nil, ErrUnavailable
-		}
-		provider, providerResult, rawReference = "wechat", result.Suggest, strconv.Itoa(result.RiskLabel)
-		if result.Suggest != "pass" {
-			riskLabels = append(riskLabels, "wechat_"+strconv.Itoa(result.RiskLabel))
-		}
-	}
-	riskJSON, _ := json.Marshal(riskLabels)
-	now := time.Now()
-	err = s.db.Transaction(func(tx *gorm.DB) error {
-		check := model.ContentSafetyCheck{TargetType: "record_version", TargetID: view.Version.ID, Provider: provider, CheckType: "text", Result: providerResult, RiskLabels: model.JSONDocument(riskJSON), RawResponseRef: rawReference, CheckedAt: now}
-		if len(riskLabels) > 0 {
-			check.Result = "review"
-		}
-		if err := tx.Create(&check).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&model.VisitRecordVersion{}).Where("id = ? AND record_id = ?", view.Version.ID, recordID).Update("visibility", "public").Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&model.VisitRecord{}).Where("id = ? AND user_id = ?", recordID, userID).Updates(map[string]any{
-			"visibility": "public", "publish_status": "pending_review", "submitted_at": now,
-		}).Error; err != nil {
-			return err
-		}
-		priority := len(riskLabels) * 10
-		dueAt := now.Add(24 * time.Hour)
-		return tx.Create(&model.ModerationTask{TaskType: "record_publish", TargetType: "visit_record", TargetID: recordID, RecordVersionID: &view.Version.ID, Priority: priority, RiskLabels: model.JSONDocument(riskJSON), Status: "pending", DueAt: &dueAt}).Error
-	})
-	if err != nil {
-		return nil, err
-	}
-	return s.GetOwned(userID, recordID)
-}
-
-func recordRiskLabels(content string) []string {
-	content = strings.ToLower(content)
-	rules := map[string][]string{
-		"serious_accusation": {"中毒", "诈骗", "违法", "违禁品", "黑店"},
-		"personal_attack":    {"骗子", "垃圾", "人渣", "去死"},
-		"privacy":            {"手机号", "电话", "微信号", "身份证"},
-	}
-	labels := make([]string, 0)
-	for label, words := range rules {
-		for _, word := range words {
-			if strings.Contains(content, word) {
-				labels = append(labels, label)
-				break
-			}
-		}
-	}
-	return labels
 }
 
 func (s *RecordService) FootprintSummary(userID uint) (*FootprintSummary, error) {
@@ -403,8 +286,8 @@ func resolveRecordPlace(tx *gorm.DB, userID uint, input RecordInput) (uint, erro
 	return place.ID, nil
 }
 
-// findPlaceByName matches a place by city + case-insensitive name, preferring
-// operator-activated rows over the user's own pending submissions.
+// findPlaceByName 按城市和不区分大小写的名称匹配地点，优先返回运营已启用的地点，
+// 其次返回当前用户待审核的地点。
 func findPlaceByName(tx *gorm.DB, userID uint, name, cityCode string) (*model.Place, bool, error) {
 	var place model.Place
 	err := tx.Where("city_code = ? AND LOWER(name) = LOWER(?) AND (status = ? OR created_by = ?)", cityCode, name, "active", userID).
@@ -432,9 +315,8 @@ type PlaceSubmissionInput struct {
 
 var placeCategories = map[string]bool{"restaurant": true, "stall": true, "night_market": true, "drink": true}
 
-// SubmitPlace stores a user-proposed place with status=pending; it becomes
-// searchable only after an operator activates it. Submitting a name that
-// already exists in the city returns the existing row without duplicating.
+// SubmitPlace 以待审核状态保存用户提交的地点，运营启用后才进入搜索结果；
+// 同一城市存在同名地点时直接返回已有数据，避免重复创建。
 func (s *RecordService) SubmitPlace(userID uint, input PlaceSubmissionInput) (*model.Place, error) {
 	name := strings.TrimSpace(input.Name)
 	cityCode := strings.TrimSpace(input.CityCode)

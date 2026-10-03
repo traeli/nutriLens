@@ -2,9 +2,9 @@
   "pages": [
     { "path": "pages/home/home", "style": { "navigationStyle": "custom" } },
     { "path": "pages/record/record", "style": { "navigationStyle": "custom" } },
-    { "path": "pages/nutrition/nutrition", "style": { "navigationBarTitleText": "私人营养记录", "navigationBarBackgroundColor": "#F5FAEC" } },
+    { "path": "pages/nutrition/nutrition", "style": { "navigationBarTitleText": "饮食记录", "navigationBarBackgroundColor": "#F5FAEC" } },
     { "path": "pages/footprints/footprints", "style": { "navigationStyle": "custom" } },
-    { "path": "pages/my-records/my-records", "style": { "navigationBarTitleText": "我的记录", "navigationBarBackgroundColor": "#F5FAEC", "enablePullDownRefresh": true } },
+    { "path": "pages/my-records/my-records", "style": { "navigationBarTitleText": "我的评论", "navigationBarBackgroundColor": "#F5FAEC", "enablePullDownRefresh": true } },
     { "path": "pages/mine/mine", "style": { "navigationStyle": "custom" } },
     { "path": "pages/search/search", "style": { "navigationBarTitleText": "找一家店", "navigationBarBackgroundColor": "#F3F3EF" } },
     { "path": "pages/place-detail/place-detail", "style": { "navigationBarTitleText": "店铺详情", "navigationBarBackgroundColor": "#F3F3EF" } },

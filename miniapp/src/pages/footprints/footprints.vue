@@ -98,9 +98,7 @@ export default {
       } finally { this.loading = false }
     },
     normalizeRecord(item) {
-      const statusMap = { draft: ['草稿', 'private'], pending_review: ['审核中', 'reviewing'], published: ['已公开', 'published'], rejected: ['需修改', 'warning'], withdrawn: ['已撤回', 'private'] }
-      const state = statusMap[item.record.publish_status] || ['仅自己可见', 'private']
-      return { id: item.record.id, place: item.place.name, date: this.formatDate(item.version.visit_date), area: [item.place.district, item.place.business_area].filter(Boolean).join(' · '), status: state[0], publishStatus: item.record.publish_status, image: (item.media && item.media[0] && item.media[0].public_url) || diningImages.shop }
+      return { id: item.record.id, place: item.place.name, date: this.formatDate(item.version.visit_date), area: [item.place.district, item.place.business_area].filter(Boolean).join(' · '), status: '私人足迹', image: (item.media && item.media[0] && item.media[0].public_url) || diningImages.shop }
     },
     formatDate(value) { return value ? String(value).slice(0, 10).replace(/^\d{4}-/, '').replace('-', '月') + '日' : '日期待补充' },
     async openPoster() {
@@ -127,7 +125,7 @@ export default {
       ctx.draw(false, () => setTimeout(() => uni.canvasToTempFilePath({ canvasId: 'footprintPoster', width: 650, height: 920, destWidth: 1300, destHeight: 1840, success: result => uni.previewImage({ urls: [result.tempFilePath] }), fail: () => uni.showToast({ title: '海报生成失败', icon: 'none' }) }, this), 120))
     },
     backToCityPicker() { uni.switchTab({ url: '/pages/home/home' }) },
-    goRecord(record) { uni.navigateTo({ url: record.publishStatus === 'published' ? `/pages/experience-detail/experience-detail?id=${record.id}` : `/pages/review-status/review-status?id=${record.id}` }) },
+    goRecord() { uni.showToast({ title: '这是仅自己可见的到店足迹', icon: 'none' }) },
     startRecord() { uni.switchTab({ url: '/pages/record/record' }) },
   },
 }

@@ -1,6 +1,5 @@
--- Seed catalog places for the search page ("找一家店").
--- Idempotent: each row is skipped when a place with the same name already
--- exists in the city (user-submitted places take precedence over seeds).
+-- 为“找一家店”搜索页生成地点目录种子数据。
+-- 保持幂等：同一城市存在同名地点时跳过，优先保留用户已经提交的地点。
 BEGIN;
 
 INSERT INTO places (name, category, city_code, district, business_area, address, longitude, latitude, status)

@@ -25,7 +25,7 @@
       </view>
 
       <view class="mini-stats">
-        <view><text>♜</text><text>{{ metrics.records }}</text><text>我的记录</text></view>
+        <view><text>♜</text><text>{{ metrics.records }}</text><text>到店足迹</text></view>
         <view><text>♨</text><text>{{ metrics.helpful }}</text><text>有用投票</text></view>
         <view><text>ϟ</text><text>{{ unlockedBadges.length }}</text><text>已解锁徽章</text></view>
       </view>
@@ -65,8 +65,7 @@ function getNavLayout() {
   const menuHeight = menu && Number(menu.height) > 0 ? Number(menu.height) : 32
   const menuBottom = menu && Number(menu.bottom) > menuTop ? Number(menu.bottom) : menuTop + menuHeight
 
-  // Content begins below both the system status area (including Dynamic Island)
-  // and the WeChat capsule. The extra gap keeps handwritten ascenders clear.
+  // 内容需要同时避开系统状态区域（包括灵动岛）和微信胶囊，并额外留出手写字体上沿空间。
   return { contentTop: Math.max(statusBarHeight, menuBottom) + 16 }
 }
 
@@ -78,8 +77,8 @@ export default {
       contribution: { total_points: 0, month_points: 0 }, trust: { trust_level: 'new' }, badges: [],
       metrics: { records: 0, helpful: 0, badges: 0 },
       quickActions: [
-        { label: '我的记录', desc: '查看提交与审核状态', icon: '记', tone: 'red', action: 'records' },
-        { label: '草稿与审核', desc: '暂无待处理', icon: '审', tone: 'green', action: 'review' },
+        { label: '我的评论', desc: '查看公开评论与审核状态', icon: '评', tone: 'red', action: 'records' },
+        { label: '饮食记录', desc: '查看私人饮食与营养数据', icon: '食', tone: 'green', action: 'diet' },
         { label: '举报与申诉', desc: '处理进度', icon: '诉', tone: 'ink', action: 'cases' },
       ],
       accountActions: [
@@ -103,8 +102,8 @@ export default {
   methods: {
     async loadMine() {
       if (!uni.getStorageSync('token')) return
-      const results = await Promise.allSettled([api.getProfile(), api.getContribution(), api.getBadges(), api.getMyRecords({ limit: 20 })])
-      const [profileResult, contributionResult, badgeResult, recordResult] = results
+      const results = await Promise.allSettled([api.getProfile(), api.getContribution(), api.getBadges(), api.getMyReviews({ limit: 20 }), api.getFootprintSummary()])
+      const [profileResult, contributionResult, badgeResult, recordResult, footprintResult] = results
       if (profileResult.status === 'fulfilled') this.profile = profileResult.value
       if (contributionResult.status === 'fulfilled') {
         this.contribution = contributionResult.value.account || this.contribution
@@ -113,13 +112,13 @@ export default {
       if (badgeResult.status === 'fulfilled') this.badges = badgeResult.value.badges || []
       if (recordResult.status === 'fulfilled') {
         const records = recordResult.value.items || []
-        this.metrics.records = records.length
-        this.metrics.helpful = records.reduce((sum, item) => sum + Number(item.record.helpful_count || 0), 0)
-        const submittedCount = records.filter(item => ['pending_review', 'published', 'rejected'].includes(item.record.publish_status)).length
-        const pendingCount = records.filter(item => item.record.publish_status === 'pending_review').length
-        this.quickActions[0].desc = submittedCount ? `${submittedCount} 条提交记录` : '还没有提交记录'
-        this.quickActions[1].desc = pendingCount ? `${pendingCount} 条待审核` : '暂无待审核'
+        this.metrics.helpful = records.reduce((sum, item) => sum + Number(item.review.helpful_count || 0), 0)
+        const submittedCount = records.length
+        const pendingCount = records.filter(item => item.review.publish_status === 'pending').length
+        this.quickActions[0].desc = submittedCount ? `${submittedCount} 条餐厅评论` : '还没有公开评论'
+        if (pendingCount) this.quickActions[0].desc += `，${pendingCount} 条待审核`
       }
+      if (footprintResult.status === 'fulfilled') this.metrics.records = Number(footprintResult.value.total_record_count || 0)
       this.metrics.badges = this.unlockedBadges.length
       const failed = results.find(item => item.status === 'rejected')
       if (failed) console.warn('[mine] some data use preview:', failed.reason && failed.reason.message ? failed.reason.message : failed.reason)
@@ -128,7 +127,7 @@ export default {
     openAction(item) {
       if (item.url) return uni.navigateTo({ url: item.url })
       if (item.action === 'records') return uni.navigateTo({ url: '/pages/my-records/my-records' })
-      if (item.action === 'review') return uni.navigateTo({ url: '/pages/my-records/my-records?status=pending_review' })
+      if (item.action === 'diet') return uni.navigateTo({ url: '/pages/nutrition/nutrition' })
       if (item.action === 'cases') return uni.navigateTo({ url: '/pages/cases/cases' })
       if (item.action === 'settings') return this.showSettings()
       uni.showToast({ title: `${item.label}将在数据接入后开放`, icon: 'none' })

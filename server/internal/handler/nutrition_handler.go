@@ -45,7 +45,7 @@ func (h *Handler) CreateNutritionRecord(c *gin.Context) {
 		httpx.Error(c, http.StatusBadRequest, "INVALID_ARGUMENT", "食物列表格式不正确")
 		return
 	}
-	item, err := h.Nutrition.Create(middleware.UserID(c), service.NutritionInput{MealPeriod: input.MealPeriod, EatenAt: eatenAt, Description: input.Description, Foods: model.JSONDocument(input.Foods), Calories: input.Calories, ProteinGrams: input.ProteinGrams, FatGrams: input.FatGrams, CarbohydrateGrams: input.CarbohydrateGrams})
+	item, err := h.Nutrition.Create(c.Request.Context(), middleware.UserID(c), service.NutritionInput{MealPeriod: input.MealPeriod, EatenAt: eatenAt, Description: input.Description, Foods: model.JSONDocument(input.Foods), Calories: input.Calories, ProteinGrams: input.ProteinGrams, FatGrams: input.FatGrams, CarbohydrateGrams: input.CarbohydrateGrams})
 	if err != nil {
 		writeServiceError(c, err)
 		return

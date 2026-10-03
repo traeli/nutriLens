@@ -102,7 +102,8 @@ func (h *Handler) SubmitRecord(c *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.Records.SubmitPublic(c.Request.Context(), middleware.UserID(c), id)
+	// 兼容旧客户端：旧“公开记录”入口现在只创建独立评论，不再修改私人足迹。
+	view, err := h.Reviews.CreateFromVisit(c.Request.Context(), middleware.UserID(c), id)
 	if err != nil {
 		writeServiceError(c, err)
 		return
@@ -115,15 +116,16 @@ func (h *Handler) RecordReviewStatus(c *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.Records.GetOwned(middleware.UserID(c), id)
+	// 评论 ID 在兼容迁移期间与来源足迹 ID 一致，因此旧状态地址可以直接转发。
+	view, err := h.Reviews.GetOwned(middleware.UserID(c), id)
 	if err != nil {
 		writeServiceError(c, err)
 		return
 	}
 	httpx.OK(c, http.StatusOK, gin.H{
-		"record_id": view.Record.ID, "publish_status": view.Record.PublishStatus,
-		"risk_level": view.Record.RiskLevel, "submitted_at": view.Record.SubmittedAt,
-		"published_at": view.Record.PublishedAt,
+		"record_id": view.Review.VisitRecordID, "review_id": view.Review.ID,
+		"publish_status": view.Review.PublishStatus, "risk_level": view.Review.RiskLevel,
+		"submitted_at": view.Review.SubmittedAt, "published_at": view.Review.PublishedAt,
 	})
 }
 
