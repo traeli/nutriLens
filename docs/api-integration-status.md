@@ -59,3 +59,7 @@
 ### Redis 鉴权与记录城市参数
 
 业务接口（包括城市和发现查询）已统一要求登录并校验 Redis 会话。登录返回双 Token，新增 `/auth/refresh`，默认有效期均为两小时；小程序请求和上传支持预刷新、并发合并及一次重试。记录页创建 `/places` 前确保城市初始化，避免 `city_code` 为空，并向 `/records` 同步传递城市编码。
+
+### 邮箱验证码登录
+
+`POST /auth/getemailcode` 与 `POST /auth/email-login` 已完成 SMTP、Redis 验证码及账户业务。请求封装新增 `api.sendEmailCode(email)` 和 `api.emailLogin(email, emailCode)`，邮箱登录会保存双 Token；尚未增加邮箱登录页面。真实发信需要本地配置 SMTP 账号与授权码。

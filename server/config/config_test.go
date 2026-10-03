@@ -82,3 +82,39 @@ func TestLoadMissingFileReturnsError(t *testing.T) {
 		t.Fatal("loadFile() error = nil, want missing file error")
 	}
 }
+
+func TestSMTPConfiguration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("database:\n  dsn: test\njwt:\n  secret: test-secret-with-at-least-32-characters\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("APP_ENV", "test")
+	for _, key := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_TLS_MODE"} {
+		t.Setenv(key, "")
+	}
+	cfg, err := loadFile(path)
+	if err != nil || cfg.SMTP.Host != "" {
+		t.Fatalf("disabled SMTP: %v", err)
+	}
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+	if _, err := loadFile(path); err == nil {
+		t.Fatal("partial SMTP config accepted")
+	}
+	t.Setenv("SMTP_USERNAME", "sender@example.com")
+	t.Setenv("SMTP_PASSWORD", "test-only-password")
+	t.Setenv("SMTP_FROM", "sender@example.com")
+	t.Setenv("SMTP_TLS_MODE", "starttls")
+	cfg, err = loadFile(path)
+	if err != nil || cfg.SMTP.Port != 587 || cfg.SMTP.TLSMode != "starttls" {
+		t.Fatalf("SMTP env config: %v", err)
+	}
+	t.Setenv("SMTP_PORT", "0")
+	if _, err := loadFile(path); err == nil {
+		t.Fatal("invalid port accepted")
+	}
+	t.Setenv("SMTP_PORT", "465")
+	t.Setenv("SMTP_TLS_MODE", "none")
+	if _, err := loadFile(path); err == nil {
+		t.Fatal("plaintext SMTP accepted")
+	}
+}

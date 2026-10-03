@@ -322,3 +322,27 @@ P1 可新增无副作用的 `POST /record-assistant/extract`，只根据用户�
 `POST /api/v1/auth/refresh` 无需访问 Token，请求体为 `{"refresh_token":"<refresh-token>"}`。成功 200 返回 `token`、`refresh_token`、`expires_in`、`refresh_expires_in`；缺少凭据为 400，过期、重用、凭据类型错误或账号不可用为 401，Redis/账号检查不可用为 503。刷新原子替换当前会话内两个 Token，旧值不能继续使用。超过两小时未刷新，需要重新登录；小程序在到期前一分钟的业务请求中主动刷新。
 
 `POST /places` 的 `city_code` 必须为已启用城市的非空编码（例如 `310000`），同时提交店名、详细地址、经纬度。记录页提交前从城市缓存取值；没有编码则等待 `/cities` 初始化，不允许发送空编码。`POST /records` 同步携带选定的 `city_code`，实际地点关联仍以 `place_id` 为准。
+
+## 邮箱验证码登录
+
+两个接口均位于 `/api/v1`，无需访问 Token，但受 Redis 频率限制：
+
+| 方法 | 路径 | 请求 | 成功响应 |
+|---|---|---|---|
+| POST | `/auth/getemailcode` | `{"email":"user@example.com"}` | 200，`{"message":"验证码已发送"}` |
+| POST | `/auth/email-login` | `{"email":"user@example.com","email_code":"001234"}` | 200，现有 `LoginResult` |
+
+`email_code` 为六位数字字符串，不要使用数字类型，否则会丢失前导零。不再提交微信 `code`。邮箱会统一转小写和去除首尾空格，仅接受单个 ASCII 邮箱地址。首次验证成功自动注册，后续使用同一邮箱登录；不会自动绑定或合并微信账号。
+
+`LoginResult` 包含 `token`、`refresh_token`、`expires_in`、`refresh_expires_in`、`user_id`、`has_profile`、`profile`；邮箱不在用户资料 JSON 中直接公开。后续业务接口及 `/auth/refresh` 与微信登录相同。
+
+| HTTP | 错误码 | 说明 |
+|---|---|---|
+| 400 | `INVALID_ARGUMENT` | 邮箱或验证码格式错误 |
+| 401 | `EMAIL_CODE_INVALID` | 验证码错误、过期、尚未启用、已消费或累计输错五次 |
+| 403 | `FORBIDDEN` | 账号已禁用或注销 |
+| 429 | `RATE_LIMITED` | 触发邮箱/IP 发送或校验额度 |
+| 503 | `EMAIL_NOT_CONFIGURED` | SMTP 依赖未配置 |
+| 503 | `EMAIL_SERVICE_UNAVAILABLE` | SMTP 或验证码 Redis 操作失败 |
+
+验证码有效期 5 分钟，同邮箱发送间隔 60 秒；邮箱/IP 每小时各限 10 次发送，IP 每分钟限 30 次校验。只有 SMTP 接受邮件后验证码才启用，校验成功即一次性消费。成功消费后若数据库/会话存储失败，需要重新获取验证码。邮件发送成功不是最终投递保证。

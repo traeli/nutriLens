@@ -79,3 +79,19 @@ test('login stores both credentials and is sent without bearer authorization', a
   assert.equal(calls[0].header.Authorization, undefined)
   assert.equal(storage.get('refresh_token'), 'refresh-new')
 })
+
+test('email login uses email_code without WeChat code and saves both credentials', async () => {
+  const { api, storage, calls } = await setup(o => o.success({ statusCode: 200, data: pair }))
+  await api.emailLogin('user@example.com', '001234')
+  assert.deepEqual(calls[0].data, { email: 'user@example.com', email_code: '001234' })
+  assert.equal(calls[0].header.Authorization, undefined)
+  assert.equal(storage.get('refresh_token'), 'refresh-new')
+})
+
+test('send email code is public and never sends the session token', async () => {
+  const { api, calls } = await setup(o => o.success({ statusCode: 200, data: { message: '验证码已发送' } }))
+  await api.sendEmailCode('user@example.com')
+  assert.ok(calls[0].url.endsWith('/auth/getemailcode'))
+  assert.deepEqual(calls[0].data, { email: 'user@example.com' })
+  assert.equal(calls[0].header.Authorization, undefined)
+})

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"os"
 	"strconv"
 	"strings"
@@ -11,7 +12,17 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	From     string `yaml:"from"`
+	TLSMode  string `yaml:"tls_mode"`
+}
+
 type Config struct {
+	SMTP              SMTPConfig
 	ServerAddr        string
 	DatabaseDSN       string
 	RedisDSN          string
@@ -30,6 +41,7 @@ type Config struct {
 }
 
 type fileConfig struct {
+	SMTP   SMTPConfig `yaml:"smtp"`
 	Server struct {
 		Addr string `yaml:"addr"`
 	} `yaml:"server"`
@@ -103,7 +115,40 @@ func loadFile(path string) (Config, error) {
 	if value := strings.TrimSpace(os.Getenv("CORS_ALLOW_ORIGINS")); value != "" {
 		allowedOrigins = cleanValues(strings.Split(value, ","))
 	}
+	smtpConfig := fileValues.SMTP
+	smtpConfig.Host = envOr("SMTP_HOST", strings.TrimSpace(smtpConfig.Host))
+	smtpConfig.Username = envOr("SMTP_USERNAME", strings.TrimSpace(smtpConfig.Username))
+	smtpConfig.Password = envOr("SMTP_PASSWORD", smtpConfig.Password)
+	smtpConfig.From = envOr("SMTP_FROM", strings.TrimSpace(smtpConfig.From))
+	smtpConfig.TLSMode = strings.ToLower(envOr("SMTP_TLS_MODE", valueOr(smtpConfig.TLSMode, "tls")))
+	if smtpConfig.Port == 0 {
+		if smtpConfig.TLSMode == "starttls" {
+			smtpConfig.Port = 587
+		} else {
+			smtpConfig.Port = 465
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("SMTP_PORT")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("SMTP_PORT must be an integer")
+		}
+		smtpConfig.Port = parsed
+	}
+	if smtpConfig.Host != "" || smtpConfig.Username != "" || smtpConfig.Password != "" || smtpConfig.From != "" {
+		address, err := mail.ParseAddress(smtpConfig.From)
+		if smtpConfig.Host == "" || smtpConfig.Username == "" || smtpConfig.Password == "" || err != nil || address.Address != smtpConfig.From || strings.ContainsAny(smtpConfig.From, "\r\n") {
+			return Config{}, fmt.Errorf("SMTP requires host, username, password and a valid from address")
+		}
+	}
+	if smtpConfig.Port < 1 || smtpConfig.Port > 65535 {
+		return Config{}, fmt.Errorf("SMTP port must be between 1 and 65535")
+	}
+	if smtpConfig.TLSMode != "tls" && smtpConfig.TLSMode != "starttls" {
+		return Config{}, fmt.Errorf("SMTP TLS mode must be tls or starttls")
+	}
 	cfg := Config{
+		SMTP:              smtpConfig,
 		ServerAddr:        envOr("SERVER_ADDR", valueOr(fileValues.Server.Addr, ":8080")),
 		DatabaseDSN:       envOr("DATABASE_DSN", strings.TrimSpace(fileValues.Database.DSN)),
 		RedisDSN:          envOr("REDIS_DSN", strings.TrimSpace(fileValues.Redis.DSN)),

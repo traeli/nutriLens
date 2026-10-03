@@ -11,6 +11,7 @@ const UserTableName = "nutrilens_users"
 type User struct {
 	ID            uint           `gorm:"primaryKey" json:"id"`
 	OpenID        string         `gorm:"column:open_id;size:128;unique;not null" json:"-"`
+	Email         *string        `gorm:"column:email;size:254;uniqueIndex:idx_nutrilens_users_email" json:"-"`
 	Nickname      string         `gorm:"size:64" json:"nickname"`
 	AvatarURL     string         `gorm:"size:512" json:"avatar_url"`
 	AccountStatus string         `gorm:"size:24;not null;default:'active';index" json:"account_status"`

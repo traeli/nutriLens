@@ -146,6 +146,9 @@ func NewClient(appID, appSecret string, allowMock ...bool) *Client {
 	return client
 }
 
+// Code2Session 将小程序 uni.login 获得的临时 code 交给微信验证，返回本小程序下的 OpenID。
+// 仅显式开启开发模拟登录时接受固定 mock code；请求取消、网络或微信校验失败均返回错误。
+// 请求地址含应用密钥和临时 code，不应记录完整 URL。
 func (c *Client) Code2Session(ctx context.Context, code string) (string, error) {
 	if c.allowMockLogin && code == "the code is a mock one" {
 		return "mock_openid_dev", nil

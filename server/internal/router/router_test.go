@@ -105,7 +105,7 @@ func TestAllBusinessRoutesRequireAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := New(&handler.Handler{}, nil, nil)
 	for _, route := range engine.Routes() {
-		if route.Path == "/health" || route.Path == "/api/v1/auth/login" || route.Path == "/api/v1/auth/wx-login" || route.Path == "/api/v1/auth/refresh" {
+		if route.Path == "/api/v1/auth/email-login" || route.Path == "/api/v1/auth/getemailcode" || route.Path == "/health" || route.Path == "/api/v1/auth/login" || route.Path == "/api/v1/auth/wx-login" || route.Path == "/api/v1/auth/refresh" {
 			continue
 		}
 		path := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(route.Path, ":media_id", "1"), ":id", "1"), ":code", "310000")

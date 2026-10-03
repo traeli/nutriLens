@@ -21,8 +21,9 @@ func New(h *handler.Handler, tokens middleware.TokenAuthenticator, allowedOrigin
 	}
 
 	v1 := r.Group("/api/v1")
-	v1.POST("/auth/wx-login", h.Login)
-	v1.POST("/auth/login", h.Login)
+	v1.POST("/auth/wx-login", h.WxLogin)
+	v1.POST("/auth/email-login", h.EmailLogin)
+	v1.POST("/auth/getemailcode", h.SendEmailCode)
 
 	v1.POST("/auth/refresh", h.RefreshToken)
 

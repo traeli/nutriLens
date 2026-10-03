@@ -109,6 +109,12 @@ export const api = {
     saveSession(result)
     return result
   },
+  sendEmailCode: email => request('/auth/getemailcode', { method: 'POST', public: true, data: { email } }),
+  emailLogin: async (email, emailCode) => {
+    const result = await request('/auth/email-login', { method: 'POST', public: true, data: { email, email_code: emailCode } })
+    saveSession(result)
+    return result
+  },
   refreshToken: () => refreshSession(),
 
   // User

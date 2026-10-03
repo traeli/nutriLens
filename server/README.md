@@ -112,3 +112,33 @@ PostgreSQL 连接、迁移和所有持久化业务结构位于 `internal/model/p
 - 503 / `SERVICE_UNAVAILABLE`：已进入识别服务，但上游请求失败或没有识别结果。
 
 百炼请求结构采用官方 [Qwen-ASR API](https://www.alibabacloud.com/help/zh/model-studio/qwen-asr-api-reference) 的 `/chat/completions`、`input_audio.data` 和 Base64 Data URL 格式。
+
+### 邮箱验证码登录
+
+新增两个无需登录凭据的入口：
+
+- `POST /api/v1/auth/getemailcode`，请求 `{"email":"user@example.com"}`，成功返回 `{"message":"验证码已发送"}`。
+- `POST /api/v1/auth/email-login`，请求 `{"email":"user@example.com","email_code":"001234"}`。不需要微信 `code`；成功返回现有 `LoginResult`（双 Token、有效期、用户 ID 和资料）。
+
+在本地私有配置或服务进程环境变量中填写 SMTP 参数，随后重启后端。默认全部留空时禁用邮箱登录，接口返回 503 / `EMAIL_NOT_CONFIGURED`；填写不完整时配置校验失败。已启用时 `main` 调用 SMTP `Init` 检查连接和认证，失败 panic，检查本身不发送邮件。
+
+| YAML 字段 | 环境变量 | 含义 |
+|---|---|---|
+| `smtp.host` | `SMTP_HOST` | 邮件服务商提供的 SMTP 主机 |
+| `smtp.port` | `SMTP_PORT` | 隐式 TLS 通常为 465，STARTTLS 通常为 587，以服务商配置为准 |
+| `smtp.username` | `SMTP_USERNAME` | SMTP 登录账号 |
+| `smtp.password` | `SMTP_PASSWORD` | 邮箱服务商提供的 SMTP 授权码或密码 |
+| `smtp.from` | `SMTP_FROM` | 服务商允许该账号使用的发件邮箱，不带显示名 |
+| `smtp.tls_mode` | `SMTP_TLS_MODE` | `tls` 或 `starttls`，禁止明文降级 |
+
+QQ、163 和企业邮箱需先在邮件服务商处启用 SMTP；密钥只填写在本地或部署环境，不放入小程序或提交到仓库。切换 STARTTLS 时同时修改端口。客户端支持 AUTH PLAIN 和 AUTH LOGIN，连接及发送最长 15 秒，跟随请求取消。SMTP 成功表示服务商接受邮件，收件箱仍可能存在投递延迟或垃圾邮件归类。
+
+验证码使用安全随机源生成六位数字，5 分钟过期；Redis 只保存 HMAC-SHA256 摘要（复用 JWT 密钥并用用途域隔离），邮箱和 IP 键也使用摘要。邮件被接受后才启用验证码。发送失败撤销当前批次，但保留发送冷却与额度；SMTP 接受后 Redis 激活失败也不会报告成功。
+
+频率限制：同邮箱 60 秒一次；同邮箱及同 IP 每小时分别最多 10 次发送；同 IP 每分钟最多 30 次校验。每份验证码最多输错 5 次，成功校验后原子删除，不能重复使用。为防伪造转发头，IP 取 TCP 对端；反向代理部署时多个用户可能共享该额度，需在可信代理方案确定后调整。Redis Cluster 中邮箱验证键使用统一 `{email-auth}` hash tag，以支持邮箱/IP 联合限流的 Lua 脚本。
+
+首次邮箱登录在同一 PostgreSQL 事务中创建用户、信用档案与贡献账户；邮箱唯一索引处理并发注册。`open_id` 使用 `email_<uuid>` 占位，保留原有非空唯一约束；不会调用微信或自动合并已有微信账号。邮箱用户尚未绑定微信身份，依赖真实 OpenID 的微信能力不因此自动可用。验证码消费后如果数据库或 Token 存储失败，用户需在冷却结束后重新取码。
+
+已有数据迁移：`model/pgsql.User.Email` 为可空字符串，原微信账号保持 `NULL`。启动时的 `AutoMigrate` 会添加缺失字段和唯一索引；也可在备份后执行增量脚本 `migrations/000010_user_email.sql`。无需重建表或重跑种子数据。SQL 迁移期间应避开高峰；回退应用时可保留新增字段，避免丢失邮箱数据。
+
+验证：`go test ./...` 包含临时 Redis 和本地 TLS SMTP 测试，不发送真实邮件。若设置专用测试库 `EMAIL_TEST_DATABASE_DSN`，还会创建独立测试 schema 验证已有用户迁移、并发注册和事务回滚；不设置则跳过该集成测试。不要使用生产库作为测试库。

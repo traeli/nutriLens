@@ -15,6 +15,7 @@ import (
 	platformredis "shijibu/internal/model/redis"
 	platformauth "shijibu/internal/platform/auth"
 	"shijibu/internal/platform/bailian"
+	platformemail "shijibu/internal/platform/email"
 	"shijibu/internal/platform/wechat"
 	"shijibu/internal/router"
 	"shijibu/internal/service"
@@ -77,6 +78,19 @@ func main() {
 
 	// 4. 创建业务服务并传入它们需要的依赖，避免业务代码自行连接数据库或使用全局变量。
 	accounts := service.NewAccountService(db, wechatClient, tokens, cfg.UploadDir)
+	if cfg.SMTP.Host != "" {
+		mailer, err := platformemail.NewClient(platformemail.Config{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password, From: cfg.SMTP.From, TLSMode: cfg.SMTP.TLSMode})
+		if err != nil {
+			panic("invalid SMTP configuration")
+		}
+		if err := mailer.Init(context.Background()); err != nil {
+			panic("initialize SMTP failed")
+		}
+		accounts.WithEmailLogin(redis, mailer, cfg.JWTSecret) // 复用 Redis，以用途隔离的 HMAC 保护验证码。
+	} else {
+		log.Print("email login disabled: configure SMTP settings")
+	}
+
 	speech := service.NewSpeechService(bailianClient)
 
 	// 5. Handler 持有各业务服务，负责接收接口参数、调用业务逻辑并返回响应。

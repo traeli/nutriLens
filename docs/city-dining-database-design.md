@@ -304,3 +304,11 @@ submitted -> validating -> notice_sent -> waiting_response
 关系型模型和连接迁移逻辑集中在 `server/internal/model/pgsql`，本次目录调整不改变业务表字段。Redis 操作位于 `server/internal/model/redis`。
 
 会话键为 `v1:session:{<session-id>}`，类型 Hash，字段为 `user_id`、`access_hash`、`refresh_hash`；后两者为 Token 的 SHA-256 摘要，不存明文凭据。键 TTL 默认 7200 秒，与两种 JWT 的有效期一致。刷新通过 Lua 比较旧 refresh 摘要、替换两个摘要并重设 TTL，只有一个并发请求能成功；过期或丢失的键拒绝鉴权。账号注销后，账号状态检查立即拒绝该账号的所有会话，残留 Redis 键在 TTL 到期后回收。
+
+## 邮箱登录增量字段与 Redis 验证码
+
+`nutrilens_users.email` 为可空 `VARCHAR(254)`，唯一索引 `idx_nutrilens_users_email`。所有邮箱登录入口统一以小写地址存储和查询；微信用户邮箱为 `NULL`，不统一填空字符串。邮箱用户的 `open_id` 使用 `email_<uuid>`，原微信 OpenID 和全部已有数据保留。增量迁移见 `server/migrations/000010_user_email.sql`，与启动 `AutoMigrate` 的模型定义一致，不执行种子导入。回退应用可保留字段和索引；移除字段将丢失邮箱资料，因此不提供自动删除回滚。
+
+验证码键为 `v1:{email-auth}:code:<email-hmac>`，Hash 字段为 `id`（随机发送批次）、`digest`（验证码 HMAC）、`attempts`、`ready`，TTL 为 300 秒。`ready=0` 不允许登录；SMTP 接受后变为 1，失败时按批次比对后删除。相关键 `cooldown` 为 60 秒、`send-email`/`send-ip` 为 3600 秒、`login-ip` 为 60 秒。验证码与身份键均不保存原始邮箱、IP 或验证码；HMAC 使用 JWT 密钥及独立用途域，密钥变更会使未消费验证码失效。
+
+发送限流、校验计数及一次性消费通过 Redis Lua 完成。所有邮箱认证键使用同一 Cluster hash tag 保证多键原子执行；业务用户与附属信用/贡献数据在 PostgreSQL 事务中创建，并通过邮箱唯一索引避免并发重复注册。

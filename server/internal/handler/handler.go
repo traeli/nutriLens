@@ -29,6 +29,13 @@ func New(accounts *service.AccountService, discovery *service.DiscoveryService, 
 
 func writeServiceError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, service.ErrEmailCodeInvalid):
+		httpx.Error(c, http.StatusUnauthorized, "EMAIL_CODE_INVALID", "验证码错误或已过期")
+	case errors.Is(err, service.ErrEmailNotConfigured):
+		httpx.Error(c, http.StatusServiceUnavailable, "EMAIL_NOT_CONFIGURED", "邮箱登录服务尚未配置")
+	case errors.Is(err, service.ErrEmailUnavailable):
+		httpx.Error(c, http.StatusServiceUnavailable, "EMAIL_SERVICE_UNAVAILABLE", "邮箱登录服务暂时不可用，请稍后重试")
+
 	case errors.Is(err, platformauth.ErrUnauthorized):
 		httpx.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "登录状态已失效")
 	case errors.Is(err, platformauth.ErrStoreUnavailable):

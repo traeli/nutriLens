@@ -36,3 +36,12 @@ security:
   # 直接填写 32 字节随机值的 Base64；可用 openssl rand -base64 32 生成。
   data_encryption_key: ""
   allow_mock_login: false
+
+# SMTP 留空时禁用邮箱登录；实际凭据优先通过环境变量设置，不提交到仓库。
+smtp:
+  host: ""
+  port: 465
+  username: ""
+  password: ""
+  from: ""
+  tls_mode: "tls"
