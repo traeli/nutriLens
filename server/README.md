@@ -34,7 +34,7 @@ go run ./cmd/api
 - 微信登录与个人资料
 - 城市、地点搜索、公开体验和标签
 - 登录用户的短音频语音转写
-- 私人到店记录的创建、读取、版本化编辑与软删除
+- 私人到店记录的创建、读取、编辑与软删除
 - 评论审核提交、文本内容安全检查、我的评论、私人足迹汇总与地图点位
 - 公开图片和私密消费凭证上传、收藏、有帮助、信息过时、举报与申诉
 - 路线收藏、开始路线和完成站点；私人营养记录与汇总
@@ -65,6 +65,27 @@ docker compose build --build-arg GOPROXY=https://your-go-proxy.example,direct se
 
 服务仅绑定宿主机回环地址 `127.0.0.1:8080`，应由 HTTPS 反向代理对外提供服务。上传目录固定为容器内 `/app/uploads` 并挂载持久化卷。可选管理服务不会默认启动；确有需要时填写 Directus 独立密钥后使用 `--profile admin` 启动。
 运行镜像包含 `tzdata`，以支持数据库 DSN 中的 `TimeZone=Asia/Shanghai`。
+
+## 直接使用 Dockerfile 部署
+
+生产服务器不使用 Docker Compose 时，将仓库根目录的 `deploy.sh` 安装到固定服务目录：
+
+```bash
+mkdir -p /home/work/service/nutriLens
+cp /home/work/codeBase/nutriLens/deploy.sh /home/work/service/nutriLens/deploy.sh
+chmod +x /home/work/service/nutriLens/deploy.sh
+```
+
+生产配置固定放在 `/home/work/service/nutriLens/config.yaml`，脚本会将其只读挂载到容器的 `/app/config/config.yaml`。代码仓库固定为 `/home/work/codeBase/nutriLens`，上传文件保存在 Docker 卷 `server_uploads`。常用命令：
+
+```bash
+cd /home/work/service/nutriLens
+./deploy.sh build
+./deploy.sh restart
+./deploy.sh stop
+```
+
+`build` 使用 `git pull --ff-only` 更新代码，以 `nutrilens-server:YYYY-MM-DD-HHMMSS` 构建镜像。镜像和配置验证成功后才停止旧容器；新容器不能稳定启动时，脚本会恢复旧容器。旧镜像不会自动删除，可用于人工回滚。
 
 ## 验证
 
