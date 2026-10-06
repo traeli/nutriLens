@@ -59,12 +59,12 @@ func (s *ReviewService) CreateFromVisit(ctx context.Context, userID, visitID uin
 		PublishStatus: "pending", RiskLevel: riskLevel(riskLabels), SubmittedAt: now,
 	}
 	version := model.RestaurantReviewVersion{
-		ID: source.ID, ReviewID: review.ID, VersionNo: 1, EditorUserID: userID,
+		ReviewID: review.ID, VersionNo: 1, EditorUserID: userID,
 		VisitDate: source.VisitDate, Conclusion: source.Conclusion, AverageCost: source.AverageCost,
 		WaitMinutes: source.WaitMinutes, MealPeriod: source.MealPeriod, Dishes: source.Dishes,
 		Content: source.Content, ChangeSummary: source.ChangeSummary, CreatedAt: now,
 	}
-	if err := s.saveReview(review, version, source.ID, provider, result, rawReference, riskLabels, now); err != nil {
+	if err := s.saveReview(review, &version, []uint(visit.TagIDs), []model.RecordMedia(visit.Media), provider, result, rawReference, riskLabels, now); err != nil {
 		return nil, err
 	}
 	review.CurrentVersionID = &version.ID
@@ -76,13 +76,7 @@ func (s *ReviewService) loadReviewSource(userID, visitID uint) (model.VisitRecor
 	if err := s.db.Where("id = ? AND user_id = ?", visitID, userID).First(&visit).Error; err != nil {
 		return visit, model.VisitRecordVersion{}, model.User{}, mapNotFound(err)
 	}
-	if visit.CurrentVersionID == nil {
-		return visit, model.VisitRecordVersion{}, model.User{}, ErrInvalidInput
-	}
-	var source model.VisitRecordVersion
-	if err := s.db.Where("id = ? AND record_id = ?", *visit.CurrentVersionID, visit.ID).First(&source).Error; err != nil {
-		return visit, source, model.User{}, mapNotFound(err)
-	}
+	source := versionFromRecord(visit)
 	var user model.User
 	if err := s.db.First(&user, userID).Error; err != nil || user.AccountStatus != "active" {
 		return visit, source, user, ErrForbidden
@@ -109,23 +103,21 @@ func (s *ReviewService) checkReviewText(ctx context.Context, user model.User, co
 }
 
 // saveReview 原子保存不可变评论快照、复制的媒体关系、内容安全结果和审核任务。
-func (s *ReviewService) saveReview(review model.RestaurantReview, version model.RestaurantReviewVersion, sourceVersionID uint, provider, result, rawReference string, riskLabels []string, now time.Time) error {
+func (s *ReviewService) saveReview(review model.RestaurantReview, version *model.RestaurantReviewVersion, tagIDs []uint, media []model.RecordMedia, provider, result, rawReference string, riskLabels []string, now time.Time) error {
 	riskJSON, _ := json.Marshal(riskLabels)
 	return s.db.Transaction(func(tx *gorm.DB) error {
+		review.Media = model.JSONList[model.RecordMedia](media)
 		if err := tx.Create(&review).Error; err != nil {
 			return err
 		}
-		if err := tx.Create(&version).Error; err != nil {
+		if err := tx.Create(version).Error; err != nil {
 			return err
 		}
 		review.CurrentVersionID = &version.ID
 		if err := tx.Model(&review).Update("current_version_id", version.ID).Error; err != nil {
 			return err
 		}
-		if err := copyReviewTags(tx, sourceVersionID, version.ID); err != nil {
-			return err
-		}
-		if err := copyReviewMedia(tx, review.VisitRecordID, review.ID); err != nil {
+		if err := copyReviewTags(tx, tagIDs, version.ID); err != nil {
 			return err
 		}
 		check := model.ContentSafetyCheck{TargetType: "restaurant_review_version", TargetID: version.ID, Provider: provider, CheckType: "text", Result: result, RiskLabels: model.JSONDocument(riskJSON), RawResponseRef: rawReference, CheckedAt: now}
@@ -189,32 +181,13 @@ func (s *ReviewService) loadView(review model.RestaurantReview) (*ReviewView, er
 	if err := s.db.Table("tags").Joins("JOIN restaurant_review_tag_links links ON links.tag_id = tags.id").Where("links.review_version_id = ?", view.Version.ID).Order("tags.sort_order, tags.id").Find(&view.Tags).Error; err != nil {
 		return nil, err
 	}
-	if err := s.db.Table("record_media AS media").Joins("JOIN restaurant_review_media links ON links.media_id = media.id").Where("links.review_id = ?", review.ID).Order("media.sort_order, media.id").Find(&view.Media).Error; err != nil {
-		return nil, err
-	}
+	view.Media = append(view.Media, []model.RecordMedia(review.Media)...)
 	return view, nil
 }
 
-func copyReviewTags(tx *gorm.DB, sourceVersionID, reviewVersionID uint) error {
-	var links []model.VisitRecordTagLink
-	if err := tx.Where("record_version_id = ?", sourceVersionID).Find(&links).Error; err != nil {
-		return err
-	}
-	for _, link := range links {
-		if err := tx.Create(&model.RestaurantReviewTagLink{ReviewVersionID: reviewVersionID, TagID: link.TagID}).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func copyReviewMedia(tx *gorm.DB, visitID, reviewID uint) error {
-	var media []model.RecordMedia
-	if err := tx.Where("record_id = ?", visitID).Find(&media).Error; err != nil {
-		return err
-	}
-	for _, item := range media {
-		if err := tx.Create(&model.RestaurantReviewMedia{ReviewID: reviewID, MediaID: item.ID}).Error; err != nil {
+func copyReviewTags(tx *gorm.DB, tagIDs []uint, reviewVersionID uint) error {
+	for _, tagID := range tagIDs {
+		if err := tx.Create(&model.RestaurantReviewTagLink{ReviewVersionID: reviewVersionID, TagID: tagID}).Error; err != nil {
 			return err
 		}
 	}

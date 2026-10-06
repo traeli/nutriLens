@@ -3,15 +3,44 @@ import { resolveAssetFields } from '@/utils/assets.js'
 const BASE_URL = (import.meta.env.VITE_BASE_URL || 'http://localhost:8080') + '/api/v1'
 
 let refreshPromise = null
+let loginRedirecting = false
 
 export function clearSession() {
-  for (const key of ['token', 'refresh_token', 'token_expires_at']) uni.removeStorageSync(key)
+  for (const key of ['token', 'refresh_token', 'token_expires_at', 'user_id', 'has_profile', 'nickname']) uni.removeStorageSync(key)
+}
+
+function redirectToLogin() {
+  clearSession()
+  if (loginRedirecting) return
+  let currentRoute = ''
+  try {
+    const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
+    currentRoute = pages.length ? pages[pages.length - 1].route : ''
+  } catch {}
+  if (currentRoute === 'pages/login/login') return
+  loginRedirecting = true
+  uni.reLaunch({
+    url: '/pages/login/login',
+    complete() { loginRedirecting = false },
+  })
 }
 
 function saveSession(pair) {
   uni.setStorageSync('token', pair.token)
   uni.setStorageSync('refresh_token', pair.refresh_token)
   uni.setStorageSync('token_expires_at', Date.now() + pair.expires_in * 1000)
+}
+
+function logHTTPError(url, options, filePath, statusCode, apiError) {
+  console.error('[API] HTTP 请求失败', {
+    method: options.method || (filePath ? 'POST' : 'GET'),
+    path: url,
+    upload: Boolean(filePath),
+    statusCode,
+    code: (apiError && apiError.code) || '',
+    message: (apiError && apiError.message) || '请求失败',
+    requestId: (apiError && apiError.request_id) || '',
+  })
 }
 
 function send(url, options = {}, filePath) {
@@ -28,8 +57,11 @@ function send(url, options = {}, filePath) {
           return
         }
         const apiError = data && data.error
+        logHTTPError(url, options, filePath, res.statusCode, apiError)
         const error = new Error((apiError && (apiError.message || apiError.code)) || '请求失败')
         error.status = res.statusCode
+        error.code = (apiError && apiError.code) || ''
+        error.requestId = (apiError && apiError.request_id) || ''
         reject(error)
       },
       fail(err) { reject(new Error(err.errMsg || '网络请求失败')) },
@@ -55,7 +87,7 @@ function refreshSession() {
       return pair
     })
     .catch(error => {
-      if (error.status === 401 && uni.getStorageSync('token') === previousToken) clearSession()
+      if (error.status === 401 && uni.getStorageSync('token') === previousToken) redirectToLogin()
       throw error
     })
     .finally(() => { refreshPromise = null })
@@ -73,16 +105,19 @@ async function authenticatedRequest(url, options, filePath) {
     return await send(url, options, filePath)
   } catch (error) {
     if (error.status !== 401) throw error
-    if (!previousToken || !uni.getStorageSync('token')) throw error
+    if (!previousToken || !uni.getStorageSync('token')) {
+      redirectToLogin()
+      throw error
+    }
     if (uni.getStorageSync('token') === previousToken) {
-      if (!uni.getStorageSync('refresh_token')) { clearSession(); throw error }
+      if (!uni.getStorageSync('refresh_token')) { redirectToLogin(); throw error }
       await refreshSession()
     }
     const retryToken = uni.getStorageSync('token')
     try {
       return await send(url, options, filePath)
     } catch (retryError) {
-      if (retryError.status === 401 && uni.getStorageSync('token') === retryToken) clearSession()
+      if (retryError.status === 401 && uni.getStorageSync('token') === retryToken) redirectToLogin()
       throw retryError
     }
   }

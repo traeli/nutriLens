@@ -65,6 +65,10 @@ export default {
     },
   },
   onLoad() {
+    if (!uni.getStorageSync('token')) {
+      uni.reLaunch({ url: '/pages/login/login' })
+      return
+    }
     this.loadProfile()
   },
   methods: {
@@ -74,8 +78,8 @@ export default {
         const res = await api.getProfile()
         this.form.nickname = res.nickname || ''
         this.form.avatar_url = res.avatar_url || ''
-      } catch (e) {
-        // 新用户保持空表单即可继续填写。
+      } catch (error) {
+        if (error.status !== 401) console.warn('[profile] 个人资料加载失败', error.message || error)
       } finally {
         this.loadingProfile = false
       }

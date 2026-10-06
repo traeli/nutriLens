@@ -113,39 +113,37 @@
 | `visibility` | varchar(16) | private/public |
 | `publish_status` | varchar(32) | draft/detecting/pending_review/published/rejected/reported/hidden/deleted |
 | `risk_level` | varchar(16) | low/medium/high/critical |
-| `current_version_id` | bigint nullable | 当前展示版本 |
+| `current_version_id` | bigint nullable | 仅旧库兼容，新代码不再读写 |
 | `submitted_at` | timestamptz nullable | 提交公开时间 |
 | `published_at` | timestamptz nullable | 审核通过时间 |
 | `last_confirmed_at` | timestamptz nullable | 用户确认信息仍有效时间 |
 | `helpful_count` | int | 冗余统计 |
 | `outdated_count` | int | 冗余统计 |
 | `report_count` | int | 冗余统计 |
+| `version_no` | int | 当前编辑序号，不保留独立历史版本 |
+| `visit_date` / `consumer_type` / `conclusion` | date / varchar / varchar | 到店日期、消费类型和总体感受 |
+| `price_min` / `price_max` / `average_cost` | numeric | 消费金额 |
+| `wait_minutes` / `meal_period` | int / varchar | 等待时间和用餐时段 |
+| `dishes` / `content` / `change_summary` | jsonb / text / text | 菜品、正文和修改摘要 |
+| `tag_ids` | jsonb | 标签 ID 数组 |
+| `media` | jsonb | 图片元数据数组，文件内容仍在对象存储 |
+| `evidences` | jsonb | 私有消费凭证元数据数组 |
 | `created_at` / `updated_at` / `deleted_at` | timestamptz | 时间戳和软删除 |
 
 关键索引：`(user_id, created_at desc)`、`(place_id, publish_status, published_at desc)`、`(visibility, publish_status, published_at desc)`。
 
-### 3.4 `visit_record_versions`（MVP）
+足迹的正文、标签、媒体和凭证都属于同一聚合，统一保存在这张表。更新直接覆盖当前值；公开评论创建时仍复制独立快照，因此之后修改私人足迹不会改变已提交评论。
 
-每次保存或修改足迹都生成新版本。已创建的餐厅评论持有独立快照，之后修改足迹不会静默改变已提交评论。
-
-核心字段：
-
-- `id`、`record_id`、`version_no`、`editor_user_id`；
-- `visit_date`、`consumer_type`、`conclusion`；
-- `price_min`、`price_max`、`average_cost`、`wait_minutes`、`meal_period`；
-- `dishes` jsonb、`content` text、`visibility`；
-- `change_summary`、`created_at`。
-
-约束：`UNIQUE(record_id, version_no)`；正文长度由服务端校验 20～500 字。
+历史库中的 `visit_record_versions`、`visit_record_tag_links`、`record_media` 和 `record_evidences` 会在服务启动时幂等回填到本表，验证完成后再单独下线旧表。
 
 ### 3.5 `restaurant_reviews` 与评论快照（MVP）
 
-公开餐厅评论使用四张独立表：
+公开餐厅评论保存独立快照：
 
 - `restaurant_reviews`：评论主记录，关联 `user_id`、`place_id` 和来源 `visit_record_id`；每次足迹最多一条评论，状态为 `pending/published/rejected`。
 - `restaurant_review_versions`：评论内容快照，保存到店日期、结论、消费、排队、菜品和正文。
 - `restaurant_review_tag_links`：评论版本与标签的关系。
-- `restaurant_review_media`：评论与已上传媒体的关系。
+- 媒体快照保存在 `restaurant_reviews.media` JSONB 字段；旧库的 `restaurant_review_media` 仅保留用于回滚。
 
 评论 ID 与来源足迹 ID 在兼容期保持一致，使已有体验详情、投票、举报和申诉外键能够平滑迁移。一个用户可以通过多次到店足迹对同一餐厅提交多条评论。发现流、餐厅平均值和“我的评论”只能查询这些评论表，不能读取饮食记录或私人足迹。
 
@@ -154,26 +152,6 @@
 标签字典。核心字段：`id`、`code` 唯一、`name`、`group_name`、`enabled`、`sort_order`。
 
 首批数据：`taste` 口味、`price` 价格、`service` 服务、`queue` 排队、`hygiene_observation` 卫生观感、`promotion_mismatch` 宣传不符、`other` 其他。
-
-### 3.7 `visit_record_tag_links`（MVP）
-
-字段：`record_version_id`、`tag_id`，联合主键。标签绑定具体版本，避免编辑后丢失历史。
-
-### 3.8 `record_media`（MVP）
-
-公开内容图片。
-
-核心字段：`id`、`record_id`、`record_version_id`、`object_key`、`public_url`、`media_type`、`width`、`height`、`sort_order`、`safety_status`、`desensitize_status`、`processed_object_key`、`face_detected`、`created_at`。
-
-公开页面只能返回已检测、已脱敏的 `processed_object_key`。
-
-### 3.9 `record_evidences`（MVP）
-
-消费凭证，仅审核可见。
-
-核心字段：`id`、`record_id`、`user_id`、`evidence_type`、`original_object_key`、`masked_object_key`、`verify_status`、`verified_by`、`verified_at`、`retention_until`、`created_at`。
-
-禁止在普通详情接口中返回原始路径。
 
 ### 3.10 `nutrition_records`（MVP）
 

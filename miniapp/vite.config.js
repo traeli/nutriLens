@@ -42,7 +42,16 @@ function localArtworkPlugin(assetBaseURL) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, 'VITE_')
+  const apiBaseURL = (process.env.VITE_BASE_URL || env.VITE_BASE_URL || '').trim()
   const assetBaseURL = (process.env.VITE_ASSET_BASE_URL || env.VITE_ASSET_BASE_URL || '').trim()
+  if (mode === 'production') {
+    let parsed
+    try { parsed = new URL(apiBaseURL) } catch { throw new Error('生产构建的 VITE_BASE_URL 必须是有效的 HTTPS 后端地址') }
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1'])
+    if (parsed.protocol !== 'https:' || localHosts.has(parsed.hostname) || parsed.hostname.endsWith('.localhost') || parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new Error('生产构建的 VITE_BASE_URL 必须使用非本机的 HTTPS 后端地址，且不能包含凭据、查询参数或片段')
+    }
+  }
   if (assetBaseURL) {
     let parsed
     try { parsed = new URL(assetBaseURL) } catch { throw new Error('VITE_ASSET_BASE_URL 必须是有效的 HTTPS 资源根地址') }

@@ -66,7 +66,7 @@ func (s *AccountService) Login(ctx context.Context, code string) (*LoginResult, 
 	} else if err != nil {
 		return nil, err
 	}
-	if user.AccountStatus != "" && user.AccountStatus != "active" {
+	if user.AccountStatus != "active" {
 		return nil, ErrForbidden
 	}
 	if err := s.ensureAccountState(user.ID); err != nil {
@@ -123,11 +123,21 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			return ErrNotFound
 		}
 
+		var records []model.VisitRecord
 		var recordIDs, versionIDs, reviewVersionIDs, appealIDs, moderationTaskIDs []uint
-		if err := tx.Table("visit_records").Where("user_id = ?", userID).Pluck("id", &recordIDs).Error; err != nil {
+		if err := tx.Where("user_id = ?", userID).Find(&records).Error; err != nil {
 			return err
 		}
-		if len(recordIDs) > 0 {
+		for _, record := range records {
+			recordIDs = append(recordIDs, record.ID)
+			for _, media := range record.Media {
+				storedObjects = append(storedObjects, media.ObjectKey, media.ProcessedObjectKey)
+			}
+			for _, evidence := range record.Evidences {
+				storedObjects = append(storedObjects, evidence.OriginalObjectKey, evidence.MaskedObjectKey)
+			}
+		}
+		if len(recordIDs) > 0 && tx.Migrator().HasTable("visit_record_versions") {
 			if err := tx.Table("visit_record_versions").Where("record_id IN ?", recordIDs).Pluck("id", &versionIDs).Error; err != nil {
 				return err
 			}
@@ -222,8 +232,10 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			if err := tx.Exec("DELETE FROM content_reports WHERE target_type IN ? AND target_id IN ?", []string{"record", "visit_record", "restaurant_review"}, recordIDs).Error; err != nil {
 				return err
 			}
-			if err := tx.Exec("DELETE FROM restaurant_review_media WHERE review_id IN ?", recordIDs).Error; err != nil {
-				return err
+			if tx.Migrator().HasTable("restaurant_review_media") {
+				if err := tx.Exec("DELETE FROM restaurant_review_media WHERE review_id IN ?", recordIDs).Error; err != nil {
+					return err
+				}
 			}
 			if len(reviewVersionIDs) > 0 {
 				if err := tx.Exec("DELETE FROM restaurant_review_tag_links WHERE review_version_id IN ?", reviewVersionIDs).Error; err != nil {
@@ -239,16 +251,23 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			if err := tx.Exec("DELETE FROM restaurant_reviews WHERE id IN ?", recordIDs).Error; err != nil {
 				return err
 			}
-			for _, table := range []string{"helpful_votes", "outdated_signals", "record_media", "record_evidences"} {
+			for _, table := range []string{"helpful_votes", "outdated_signals"} {
 				if err := tx.Exec("DELETE FROM "+table+" WHERE record_id IN ?", recordIDs).Error; err != nil {
 					return err
 				}
 			}
-			if err := tx.Exec("UPDATE visit_records SET current_version_id = NULL WHERE id IN ?", recordIDs).Error; err != nil {
-				return err
-			}
-			if err := tx.Exec("DELETE FROM visit_record_versions WHERE record_id IN ?", recordIDs).Error; err != nil {
-				return err
+			if tx.Migrator().HasTable("visit_record_versions") {
+				for _, table := range []string{"record_media", "record_evidences"} {
+					if err := tx.Exec("DELETE FROM "+table+" WHERE record_id IN ?", recordIDs).Error; err != nil {
+						return err
+					}
+				}
+				if err := tx.Exec("UPDATE visit_records SET current_version_id = NULL WHERE id IN ?", recordIDs).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM visit_record_versions WHERE record_id IN ?", recordIDs).Error; err != nil {
+					return err
+				}
 			}
 			if err := tx.Exec("DELETE FROM visit_records WHERE id IN ?", recordIDs).Error; err != nil {
 				return err

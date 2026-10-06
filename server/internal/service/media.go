@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type MediaService struct {
@@ -41,8 +42,23 @@ func (s *MediaService) AddRecordMedia(userID, recordID uint, header *multipart.F
 	if err != nil {
 		return nil, err
 	}
-	item := &model.RecordMedia{RecordID: recordID, RecordVersionID: view.Version.ID, ObjectKey: objectKey, PublicURL: publicURL, MediaType: mediaType, SafetyStatus: "pending", DesensitizeStatus: "pending"}
-	if err := s.db.Create(item).Error; err != nil {
+	item := &model.RecordMedia{RecordID: recordID, RecordVersionID: view.Version.ID, ObjectKey: objectKey, PublicURL: publicURL, MediaType: mediaType, SafetyStatus: "pending", DesensitizeStatus: "pending", CreatedAt: time.Now()}
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var record model.VisitRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", recordID, userID).First(&record).Error; err != nil {
+			return mapNotFound(err)
+		}
+		for _, media := range record.Media {
+			if media.ID >= item.ID {
+				item.ID = media.ID + 1
+			}
+		}
+		if item.ID == 0 {
+			item.ID = 1
+		}
+		record.Media = append(record.Media, *item)
+		return tx.Model(&record).Update("media", record.Media).Error
+	}); err != nil {
 		_ = os.Remove(filepath.Join(s.root, filepath.FromSlash(objectKey)))
 		return nil, err
 	}
@@ -61,8 +77,23 @@ func (s *MediaService) AddEvidence(userID, recordID uint, header *multipart.File
 		return nil, err
 	}
 	retention := time.Now().AddDate(0, 6, 0)
-	item := &model.RecordEvidence{RecordID: recordID, UserID: userID, EvidenceType: evidenceType, OriginalObjectKey: objectKey, VerifyStatus: "pending", RetentionUntil: &retention}
-	if err := s.db.Create(item).Error; err != nil {
+	item := &model.RecordEvidence{RecordID: recordID, UserID: userID, EvidenceType: evidenceType, OriginalObjectKey: objectKey, VerifyStatus: "pending", RetentionUntil: &retention, CreatedAt: time.Now()}
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var record model.VisitRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", recordID, userID).First(&record).Error; err != nil {
+			return mapNotFound(err)
+		}
+		for _, evidence := range record.Evidences {
+			if evidence.ID >= item.ID {
+				item.ID = evidence.ID + 1
+			}
+		}
+		if item.ID == 0 {
+			item.ID = 1
+		}
+		record.Evidences = append(record.Evidences, *item)
+		return tx.Model(&record).Update("evidences", record.Evidences).Error
+	}); err != nil {
 		_ = os.Remove(filepath.Join(s.root, filepath.FromSlash(objectKey)))
 		return nil, err
 	}
@@ -70,14 +101,28 @@ func (s *MediaService) AddEvidence(userID, recordID uint, header *multipart.File
 }
 
 func (s *MediaService) DeleteRecordMedia(userID, recordID, mediaID uint) error {
-	if _, err := NewRecordService(s.db).GetOwned(userID, recordID); err != nil {
-		return err
-	}
 	var item model.RecordMedia
-	if err := s.db.Where("id = ? AND record_id = ?", mediaID, recordID).First(&item).Error; err != nil {
-		return mapNotFound(err)
-	}
-	if err := s.db.Delete(&item).Error; err != nil {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var record model.VisitRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", recordID, userID).First(&record).Error; err != nil {
+			return mapNotFound(err)
+		}
+		media := make(model.JSONList[model.RecordMedia], 0, len(record.Media))
+		found := false
+		for _, candidate := range record.Media {
+			if candidate.ID == mediaID {
+				item = candidate
+				found = true
+				continue
+			}
+			media = append(media, candidate)
+		}
+		if !found {
+			return ErrNotFound
+		}
+		return tx.Model(&record).Update("media", media).Error
+	})
+	if err != nil {
 		return err
 	}
 	if err := os.Remove(filepath.Join(s.root, filepath.FromSlash(item.ObjectKey))); err != nil && !os.IsNotExist(err) {

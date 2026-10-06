@@ -89,22 +89,18 @@ func (s *RecordService) Create(userID uint, input RecordInput, requestKey string
 			return err
 		}
 		input.PlaceID = placeID
-		created = model.VisitRecord{UserID: userID, PlaceID: input.PlaceID, Visibility: input.Visibility, PublishStatus: "draft", RiskLevel: "low"}
+		tagIDs, err := resolveTagIDs(tx, input.TagCodes)
+		if err != nil {
+			return err
+		}
+		created = recordFromInput(userID, input, tagIDs)
 		if requestKey != "" {
 			created.CreateRequestKey = &requestKey
 		}
 		if err := tx.Create(&created).Error; err != nil {
 			return err
 		}
-		version := versionFromInput(created.ID, userID, 1, input)
-		if err := tx.Create(&version).Error; err != nil {
-			return err
-		}
-		if err := replaceVersionTags(tx, version.ID, input.TagCodes); err != nil {
-			return err
-		}
-		created.CurrentVersionID = &version.ID
-		return tx.Model(&created).Update("current_version_id", version.ID).Error
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -135,22 +131,16 @@ func (s *RecordService) Update(userID, recordID uint, input RecordInput) (*Recor
 			return err
 		}
 		input.PlaceID = placeID
-		var latest int
-		if err := tx.Model(&model.VisitRecordVersion{}).Where("record_id = ?", record.ID).Select("COALESCE(MAX(version_no), 0)").Scan(&latest).Error; err != nil {
-			return err
-		}
-		version := versionFromInput(record.ID, userID, latest+1, input)
-		if err := tx.Create(&version).Error; err != nil {
-			return err
-		}
-		if err := replaceVersionTags(tx, version.ID, input.TagCodes); err != nil {
+		tagIDs, err := resolveTagIDs(tx, input.TagCodes)
+		if err != nil {
 			return err
 		}
 		record.PlaceID = input.PlaceID
 		record.Visibility = input.Visibility
 		record.PublishStatus = "draft"
-		record.CurrentVersionID = &version.ID
-		return tx.Model(&record).Updates(map[string]any{"place_id": input.PlaceID, "visibility": input.Visibility, "publish_status": "draft", "current_version_id": version.ID, "submitted_at": nil}).Error
+		record.VersionNo++
+		applyRecordInput(&record, input, tagIDs)
+		return tx.Save(&record).Error
 	})
 	if err != nil {
 		return nil, err
@@ -227,31 +217,25 @@ func (s *RecordService) FootprintSummary(userID uint) (*FootprintSummary, error)
 func (s *RecordService) FootprintMap(userID uint) ([]FootprintPoint, error) {
 	var points []FootprintPoint
 	err := s.db.Table("visit_records").
-		Select("places.id AS place_id, places.name AS place_name, places.city_code, places.business_area, places.longitude, places.latitude, COUNT(visit_records.id) AS record_count, MAX(visit_record_versions.visit_date)::text AS last_visit_at").
+		Select("places.id AS place_id, places.name AS place_name, places.city_code, places.business_area, places.longitude, places.latitude, COUNT(visit_records.id) AS record_count, MAX(visit_records.visit_date)::text AS last_visit_at").
 		Joins("JOIN places ON places.id = visit_records.place_id").
-		Joins("JOIN visit_record_versions ON visit_record_versions.id = visit_records.current_version_id").
 		Where("visit_records.user_id = ? AND visit_records.deleted_at IS NULL", userID).
 		Group("places.id, places.name, places.city_code, places.business_area, places.longitude, places.latitude").
-		Order("MAX(visit_record_versions.visit_date) DESC").Scan(&points).Error
+		Order("MAX(visit_records.visit_date) DESC").Scan(&points).Error
 	return points, err
 }
 
 func (s *RecordService) loadView(record model.VisitRecord) (*RecordView, error) {
-	if record.CurrentVersionID == nil {
-		return nil, ErrNotFound
-	}
-	view := &RecordView{Record: record}
-	if err := s.db.First(&view.Version, *record.CurrentVersionID).Error; err != nil {
-		return nil, mapNotFound(err)
-	}
+	versionID := record.ID
+	record.CurrentVersionID = &versionID
+	view := &RecordView{Record: record, Version: versionFromRecord(record), Media: []model.RecordMedia(record.Media)}
 	if err := s.db.First(&view.Place, record.PlaceID).Error; err != nil {
 		return nil, mapNotFound(err)
 	}
-	if err := s.db.Table("tags").Joins("JOIN visit_record_tag_links l ON l.tag_id = tags.id").Where("l.record_version_id = ?", view.Version.ID).Order("tags.sort_order, tags.id").Find(&view.Tags).Error; err != nil {
-		return nil, err
-	}
-	if err := s.db.Where("record_version_id = ?", view.Version.ID).Order("sort_order, id").Find(&view.Media).Error; err != nil {
-		return nil, err
+	if len(record.TagIDs) > 0 {
+		if err := s.db.Where("id IN ?", []uint(record.TagIDs)).Order("sort_order, id").Find(&view.Tags).Error; err != nil {
+			return nil, err
+		}
 	}
 	return view, nil
 }
@@ -398,17 +382,44 @@ func distanceMeters(latitudeA, longitudeA, latitudeB, longitudeB float64) float6
 	return earthRadius * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
-func versionFromInput(recordID, userID uint, versionNo int, input RecordInput) model.VisitRecordVersion {
-	visibility := input.Visibility
-	if visibility == "" {
-		visibility = "private"
+func recordFromInput(userID uint, input RecordInput, tagIDs []uint) model.VisitRecord {
+	record := model.VisitRecord{
+		UserID: userID, PlaceID: input.PlaceID, Visibility: "private", PublishStatus: "draft",
+		RiskLevel: "low", VersionNo: 1, Media: model.JSONList[model.RecordMedia]{}, Evidences: model.JSONList[model.RecordEvidence]{},
 	}
-	return model.VisitRecordVersion{RecordID: recordID, VersionNo: versionNo, EditorUserID: userID, VisitDate: input.VisitDate, ConsumerType: strings.TrimSpace(input.ConsumerType), Conclusion: input.Conclusion, PriceMin: input.PriceMin, PriceMax: input.PriceMax, AverageCost: input.AverageCost, WaitMinutes: input.WaitMinutes, MealPeriod: strings.TrimSpace(input.MealPeriod), Dishes: input.Dishes, Content: strings.TrimSpace(input.Content), Visibility: visibility, ChangeSummary: strings.TrimSpace(input.ChangeSummary)}
+	applyRecordInput(&record, input, tagIDs)
+	return record
 }
 
-func replaceVersionTags(tx *gorm.DB, versionID uint, codes []string) error {
+func applyRecordInput(record *model.VisitRecord, input RecordInput, tagIDs []uint) {
+	record.PlaceID = input.PlaceID
+	record.VisitDate = input.VisitDate
+	record.ConsumerType = strings.TrimSpace(input.ConsumerType)
+	record.Conclusion = input.Conclusion
+	record.PriceMin = input.PriceMin
+	record.PriceMax = input.PriceMax
+	record.AverageCost = input.AverageCost
+	record.WaitMinutes = input.WaitMinutes
+	record.MealPeriod = strings.TrimSpace(input.MealPeriod)
+	record.Dishes = input.Dishes
+	record.Content = strings.TrimSpace(input.Content)
+	record.ChangeSummary = strings.TrimSpace(input.ChangeSummary)
+	record.TagIDs = model.JSONList[uint](tagIDs)
+}
+
+func versionFromRecord(record model.VisitRecord) model.VisitRecordVersion {
+	return model.VisitRecordVersion{
+		ID: record.ID, RecordID: record.ID, VersionNo: record.VersionNo, EditorUserID: record.UserID,
+		VisitDate: record.VisitDate, ConsumerType: record.ConsumerType, Conclusion: record.Conclusion,
+		PriceMin: record.PriceMin, PriceMax: record.PriceMax, AverageCost: record.AverageCost,
+		WaitMinutes: record.WaitMinutes, MealPeriod: record.MealPeriod, Dishes: record.Dishes,
+		Content: record.Content, Visibility: "private", ChangeSummary: record.ChangeSummary, CreatedAt: record.UpdatedAt,
+	}
+}
+
+func resolveTagIDs(tx *gorm.DB, codes []string) ([]uint, error) {
 	if len(codes) == 0 {
-		return nil
+		return []uint{}, nil
 	}
 	clean := make([]string, 0, len(codes))
 	seen := make(map[string]bool)
@@ -421,16 +432,16 @@ func replaceVersionTags(tx *gorm.DB, versionID uint, codes []string) error {
 	}
 	var tags []model.Tag
 	if err := tx.Where("code IN ? AND enabled = ?", clean, true).Find(&tags).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if len(tags) != len(clean) {
-		return ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
-	links := make([]model.VisitRecordTagLink, 0, len(tags))
+	tagIDs := make([]uint, 0, len(tags))
 	for _, tag := range tags {
-		links = append(links, model.VisitRecordTagLink{RecordVersionID: versionID, TagID: tag.ID})
+		tagIDs = append(tagIDs, tag.ID)
 	}
-	return tx.Create(&links).Error
+	return tagIDs, nil
 }
 
 func mapNotFound(err error) error {

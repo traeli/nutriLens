@@ -150,15 +150,21 @@ export default {
         }
       }, 1000)
     },
-    checkLogin() {
+    async checkLogin() {
       const token = uni.getStorageSync('token')
-      if (token) {
-        const hasProfile = uni.getStorageSync('has_profile')
+      if (!token) return
+      try {
+        const profile = await api.getProfile()
+        const hasProfile = Boolean(profile && String(profile.nickname || '').trim())
+        uni.setStorageSync('has_profile', hasProfile)
+        if (hasProfile) uni.setStorageSync('nickname', profile.nickname)
         if (!hasProfile) {
           uni.redirectTo({ url: '/pages/profile/profile' })
         } else {
           uni.switchTab({ url: '/pages/home/home' })
         }
+      } catch (error) {
+        if (error.status !== 401) console.warn('[login] 登录状态校验失败', error.message || error)
       }
     },
     agreePrivacy() {
@@ -187,6 +193,8 @@ export default {
               console.log('agree privacy api failed', e)
             }
 
+            // 协议请求若确认会话失效，统一请求层已清理凭据并返回登录页。
+            if (!uni.getStorageSync('token')) return
             if (!res.has_profile) {
               uni.redirectTo({ url: '/pages/profile/profile' })
             } else {

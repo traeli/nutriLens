@@ -7,23 +7,38 @@ import (
 )
 
 type VisitRecord struct {
-	ID               uint           `gorm:"primaryKey;comment:足迹编号" json:"id"`
-	UserID           uint           `gorm:"not null;index;comment:用户编号" json:"-"`
-	PlaceID          uint           `gorm:"not null;index;comment:地点编号" json:"place_id"`
-	Visibility       string         `gorm:"size:16;not null;default:'private';comment:可见范围" json:"visibility"`
-	PublishStatus    string         `gorm:"size:32;not null;default:'draft';index;comment:兼容用发布状态" json:"publish_status"`
-	RiskLevel        string         `gorm:"size:16;not null;default:'low';comment:兼容用风险等级" json:"risk_level"`
-	CurrentVersionID *uint          `gorm:"index;comment:当前版本编号" json:"current_version_id,omitempty"`
-	SubmittedAt      *time.Time     `gorm:"comment:兼容用提交时间" json:"submitted_at,omitempty"`
-	PublishedAt      *time.Time     `gorm:"index;comment:兼容用发布时间" json:"published_at,omitempty"`
-	LastConfirmedAt  *time.Time     `gorm:"comment:最后确认有效时间" json:"last_confirmed_at,omitempty"`
-	HelpfulCount     int            `gorm:"not null;default:0;comment:兼容用有帮助数量" json:"helpful_count"`
-	OutdatedCount    int            `gorm:"not null;default:0;comment:兼容用过时反馈数量" json:"outdated_count"`
-	ReportCount      int            `gorm:"not null;default:0;comment:兼容用举报数量" json:"report_count"`
-	CreateRequestKey *string        `gorm:"size:128;index;comment:创建请求幂等键" json:"-"`
-	CreatedAt        time.Time      `gorm:"comment:创建时间" json:"created_at"`
-	UpdatedAt        time.Time      `gorm:"comment:更新时间" json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index;comment:软删除时间" json:"-"`
+	ID               uint                     `gorm:"primaryKey;comment:足迹编号" json:"id"`
+	UserID           uint                     `gorm:"not null;index;comment:用户编号" json:"-"`
+	PlaceID          uint                     `gorm:"not null;index;comment:地点编号" json:"place_id"`
+	Visibility       string                   `gorm:"size:16;not null;default:'private';comment:可见范围" json:"visibility"`
+	PublishStatus    string                   `gorm:"size:32;not null;default:'draft';index;comment:兼容用发布状态" json:"publish_status"`
+	RiskLevel        string                   `gorm:"size:16;not null;default:'low';comment:兼容用风险等级" json:"risk_level"`
+	CurrentVersionID *uint                    `gorm:"-;comment:兼容响应当前版本编号" json:"current_version_id,omitempty"`
+	SubmittedAt      *time.Time               `gorm:"comment:兼容用提交时间" json:"submitted_at,omitempty"`
+	PublishedAt      *time.Time               `gorm:"index;comment:兼容用发布时间" json:"published_at,omitempty"`
+	LastConfirmedAt  *time.Time               `gorm:"comment:最后确认有效时间" json:"last_confirmed_at,omitempty"`
+	HelpfulCount     int                      `gorm:"not null;default:0;comment:兼容用有帮助数量" json:"helpful_count"`
+	OutdatedCount    int                      `gorm:"not null;default:0;comment:兼容用过时反馈数量" json:"outdated_count"`
+	ReportCount      int                      `gorm:"not null;default:0;comment:兼容用举报数量" json:"report_count"`
+	CreateRequestKey *string                  `gorm:"size:128;index;comment:创建请求幂等键" json:"-"`
+	VersionNo        int                      `gorm:"not null;default:1;comment:记录版本序号" json:"-"`
+	VisitDate        time.Time                `gorm:"type:date;comment:到店日期" json:"-"`
+	ConsumerType     string                   `gorm:"size:32;comment:消费类型" json:"-"`
+	Conclusion       string                   `gorm:"size:32;comment:总体感受" json:"-"`
+	PriceMin         *float64                 `gorm:"type:numeric(10,2);comment:最低消费金额" json:"-"`
+	PriceMax         *float64                 `gorm:"type:numeric(10,2);comment:最高消费金额" json:"-"`
+	AverageCost      *float64                 `gorm:"type:numeric(10,2);comment:人均消费金额" json:"-"`
+	WaitMinutes      *int                     `gorm:"comment:等待分钟数" json:"-"`
+	MealPeriod       string                   `gorm:"size:24;comment:用餐时段" json:"-"`
+	Dishes           JSONDocument             `gorm:"type:jsonb;comment:菜品列表" json:"-"`
+	Content          string                   `gorm:"type:text;comment:体验正文" json:"-"`
+	ChangeSummary    string                   `gorm:"type:text;comment:修改摘要" json:"-"`
+	TagIDs           JSONList[uint]           `gorm:"type:jsonb;not null;default:'[]';comment:标签编号列表" json:"-"`
+	Media            JSONList[RecordMedia]    `gorm:"type:jsonb;not null;default:'[]';comment:媒体文件列表" json:"-"`
+	Evidences        JSONList[RecordEvidence] `gorm:"type:jsonb;not null;default:'[]';comment:消费凭证列表" json:"-"`
+	CreatedAt        time.Time                `gorm:"comment:创建时间" json:"created_at"`
+	UpdatedAt        time.Time                `gorm:"comment:更新时间" json:"updated_at"`
+	DeletedAt        gorm.DeletedAt           `gorm:"index;comment:软删除时间" json:"-"`
 }
 
 func (VisitRecord) TableName() string { return "visit_records" }
@@ -48,15 +63,6 @@ type VisitRecordVersion struct {
 	CreatedAt     time.Time    `gorm:"comment:创建时间" json:"created_at"`
 }
 
-func (VisitRecordVersion) TableName() string { return "visit_record_versions" }
-
-type VisitRecordTagLink struct {
-	RecordVersionID uint `gorm:"primaryKey;comment:足迹版本编号" json:"record_version_id"`
-	TagID           uint `gorm:"primaryKey;comment:标签编号" json:"tag_id"`
-}
-
-func (VisitRecordTagLink) TableName() string { return "visit_record_tag_links" }
-
 type RecordMedia struct {
 	ID                 uint      `gorm:"primaryKey;comment:媒体编号" json:"id"`
 	RecordID           uint      `gorm:"not null;index;comment:足迹编号" json:"record_id"`
@@ -74,8 +80,6 @@ type RecordMedia struct {
 	CreatedAt          time.Time `gorm:"comment:创建时间" json:"created_at"`
 }
 
-func (RecordMedia) TableName() string { return "record_media" }
-
 type RecordEvidence struct {
 	ID                uint       `gorm:"primaryKey;comment:消费凭证编号" json:"id"`
 	RecordID          uint       `gorm:"not null;index;comment:足迹编号" json:"record_id"`
@@ -89,5 +93,3 @@ type RecordEvidence struct {
 	RetentionUntil    *time.Time `gorm:"comment:保留截止时间" json:"retention_until,omitempty"`
 	CreatedAt         time.Time  `gorm:"comment:创建时间" json:"created_at"`
 }
-
-func (RecordEvidence) TableName() string { return "record_evidences" }

@@ -92,13 +92,13 @@ MVP 优先复用手机输入法的语音转文字能力，将最终文本交给�
 - 完整历史查看、按用餐时段筛选和单条删除能力。
 - “仅自己可见，不参与餐厅评价”的数据边界提示。
 
-完成后可以提供“加入到店记录”，但只复制菜品名称等客观字段到 `visit_record_versions.dishes`，不复制营养结论为餐厅结论，也不建立公开展示依赖。
+完成后可以提供“加入到店记录”，但只复制菜品名称等客观字段到 `visit_records.dishes`，不复制营养结论为餐厅结论，也不建立公开展示依赖。
 
 ## 5. 数据边界
 
 | 业务 | 主数据 | 默认可见性 | 是否可以公开 |
 |---|---|---|---|
-| 到店足迹 | `visit_records`、`visit_record_versions` | private | 否 |
+| 到店足迹 | `visit_records` | private | 否 |
 | 餐厅评论 | `restaurant_reviews`、`restaurant_review_versions` | pending | 审核通过后可以 |
 | 饮食记录 | `nutrition_records` | private | 否 |
 

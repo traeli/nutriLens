@@ -556,16 +556,17 @@ func (s *DiscoveryService) GetPlace(id uint) (*PlaceDetailView, error) {
 	detail.ExperienceCount = stats.ExperienceCount
 	detail.RecommendCount = stats.RecommendCount
 	detail.AverageCost = stats.AverageCost
-	var media model.RecordMedia
-	if err := s.db.Table("record_media AS media").
-		Select("media.*").
-		Joins("JOIN restaurant_review_media AS links ON links.media_id = media.id").
-		Joins("JOIN restaurant_reviews AS reviews ON reviews.id = links.review_id").
-		Where("reviews.place_id = ? AND reviews.status = ? AND reviews.deleted_at IS NULL AND media.safety_status = ? AND media.desensitize_status = ?", id, "published", "passed", "completed").
-		Order("reviews.id DESC, media.sort_order, media.id").First(&media).Error; err == nil {
-		detail.ImageURL = media.PublicURL
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	var reviews []model.RestaurantReview
+	if err := s.db.Where("place_id = ? AND status = ? AND deleted_at IS NULL", id, "published").Order("id DESC").Find(&reviews).Error; err != nil {
 		return nil, err
+	}
+	for _, review := range reviews {
+		for _, media := range review.Media {
+			if media.SafetyStatus == "passed" && media.DesensitizeStatus == "completed" {
+				detail.ImageURL = media.PublicURL
+				return detail, nil
+			}
+		}
 	}
 	return detail, nil
 }
@@ -652,20 +653,24 @@ func (s *DiscoveryService) loadExperienceViews(records []model.RestaurantReview)
 		if err := s.db.Select("nickname", "avatar_url").First(&user, record.UserID).Error; err == nil {
 			view.Author = AuthorSummary{Nickname: user.Nickname, AvatarURL: user.AvatarURL}
 		}
-		if err := s.db.Table("record_media AS media").
-			Joins("JOIN restaurant_review_media AS links ON links.media_id = media.id").
-			Where("links.review_id = ? AND media.safety_status = ? AND media.desensitize_status = ?", record.ID, "passed", "completed").
-			Order("media.sort_order, media.id").Find(&view.Media).Error; err != nil {
-			return nil, err
+		for _, media := range record.Media {
+			if media.SafetyStatus == "passed" && media.DesensitizeStatus == "completed" {
+				view.Media = append(view.Media, media)
+			}
 		}
 		if err := s.db.Table("tags").Joins("JOIN restaurant_review_tag_links links ON links.tag_id = tags.id").Where("links.review_version_id = ?", view.Version.ID).Order("tags.sort_order").Find(&view.Tags).Error; err != nil {
 			return nil, err
 		}
-		var verifiedCount int64
-		if err := s.db.Model(&model.RecordEvidence{}).Where("record_id = ? AND verify_status = ?", record.VisitRecordID, "verified").Count(&verifiedCount).Error; err != nil {
+		var source model.VisitRecord
+		if err := s.db.Select("evidences").First(&source, record.VisitRecordID).Error; err != nil {
 			return nil, err
 		}
-		view.EvidenceVerified = verifiedCount > 0
+		for _, evidence := range source.Evidences {
+			if evidence.VerifyStatus == "verified" {
+				view.EvidenceVerified = true
+				break
+			}
+		}
 		views = append(views, view)
 	}
 	return views, nil

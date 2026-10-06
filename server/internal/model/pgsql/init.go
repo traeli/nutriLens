@@ -34,6 +34,10 @@ func Init() error {
 		_ = closeDB(db)
 		return fmt.Errorf("database migration: %w", err)
 	}
+	if err := migrateLegacyAccountStatuses(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("account status compatibility migration: %w", err)
+	}
 	if err := applyTableComments(db); err != nil {
 		_ = closeDB(db)
 		return fmt.Errorf("database table comments: %w", err)
@@ -41,6 +45,10 @@ func Init() error {
 	if err := migrateLegacyRestaurantReviews(db); err != nil {
 		_ = closeDB(db)
 		return fmt.Errorf("database compatibility migration: %w", err)
+	}
+	if err := migrateLegacyVisitRecords(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("visit record consolidation migration: %w", err)
 	}
 	if err := Seed(db); err != nil {
 		_ = closeDB(db)
@@ -50,15 +58,22 @@ func Init() error {
 	return nil
 }
 
+// migrateLegacyAccountStatuses 将旧版本允许登录的空账号状态统一为 active，
+// 避免登录成功后又被认证中间件判定为不可用。已软删除账号不参与回填。
+func migrateLegacyAccountStatuses(tx *gorm.DB) error {
+	return tx.Exec(`UPDATE nutrilens_users
+		SET account_status = 'active', updated_at = NOW()
+		WHERE deleted_at IS NULL AND BTRIM(COALESCE(account_status, '')) = ''`).Error
+}
+
 // autoMigrateModels 集中声明由应用管理的持久化模型，便于迁移和结构测试共用同一份清单。
 func autoMigrateModels() []any {
 	return []any{
 		&User{}, &PrivacyAgreement{},
 		&City{}, &CityPosterTheme{}, &Place{}, &Tag{},
 		&CityRoute{}, &CityRouteStop{},
-		&VisitRecord{}, &VisitRecordVersion{}, &VisitRecordTagLink{},
-		&RecordMedia{}, &RecordEvidence{},
-		&RestaurantReview{}, &RestaurantReviewVersion{}, &RestaurantReviewTagLink{}, &RestaurantReviewMedia{},
+		&VisitRecord{},
+		&RestaurantReview{}, &RestaurantReviewVersion{}, &RestaurantReviewTagLink{},
 		&UserTrustProfile{}, &ContributionAccount{}, &Badge{}, &UserBadge{},
 		&PublisherVerification{}, &ContentSafetyCheck{}, &ModerationTask{}, &FeatureFlag{},
 		&PlaceFavorite{}, &HelpfulVote{}, &OutdatedSignal{},
@@ -79,14 +94,9 @@ func applyTableComments(tx *gorm.DB) error {
 		`COMMENT ON TABLE city_routes IS '城市餐饮路线'`,
 		`COMMENT ON TABLE city_route_stops IS '城市餐饮路线站点'`,
 		`COMMENT ON TABLE visit_records IS '用户私人到店足迹'`,
-		`COMMENT ON TABLE visit_record_versions IS '到店足迹版本'`,
-		`COMMENT ON TABLE visit_record_tag_links IS '到店足迹版本与标签关联'`,
-		`COMMENT ON TABLE record_media IS '到店足迹媒体文件'`,
-		`COMMENT ON TABLE record_evidences IS '到店足迹凭证'`,
 		`COMMENT ON TABLE restaurant_reviews IS '用户公开餐厅评论'`,
 		`COMMENT ON TABLE restaurant_review_versions IS '餐厅评论版本'`,
 		`COMMENT ON TABLE restaurant_review_tag_links IS '餐厅评论版本与标签关联'`,
-		`COMMENT ON TABLE restaurant_review_media IS '餐厅评论与媒体文件关联'`,
 		`COMMENT ON TABLE user_trust_profiles IS '用户可信度档案'`,
 		`COMMENT ON TABLE contribution_accounts IS '用户贡献账户'`,
 		`COMMENT ON TABLE badges IS '贡献徽章定义'`,
@@ -114,6 +124,9 @@ func applyTableComments(tx *gorm.DB) error {
 
 // migrateLegacyRestaurantReviews 将旧公开到店记录迁入评论域，再把来源记录恢复为私人足迹。
 func migrateLegacyRestaurantReviews(tx *gorm.DB) error {
+	if !tx.Migrator().HasTable("visit_record_versions") {
+		return nil
+	}
 	statements := []string{
 		`INSERT INTO restaurant_reviews (id, user_id, place_id, visit_record_id, status, risk_level, submitted_at, published_at, helpful_count, outdated_count, report_count, created_at, updated_at, deleted_at)
 		 SELECT records.id, records.user_id, records.place_id, records.id,
@@ -139,10 +152,6 @@ func migrateLegacyRestaurantReviews(tx *gorm.DB) error {
 		 SELECT links.record_version_id, links.tag_id FROM visit_record_tag_links AS links
 		 JOIN restaurant_review_versions AS versions ON versions.id = links.record_version_id
 		 ON CONFLICT DO NOTHING`,
-		`INSERT INTO restaurant_review_media(review_id, media_id)
-		 SELECT reviews.id, media.id FROM restaurant_reviews AS reviews
-		 JOIN record_media AS media ON media.record_id = reviews.visit_record_id
-		 ON CONFLICT DO NOTHING`,
 		`UPDATE moderation_tasks AS tasks
 		 SET target_type = 'restaurant_review', target_id = reviews.id, review_version_id = reviews.current_version_id
 		 FROM restaurant_reviews AS reviews
@@ -154,11 +163,64 @@ func migrateLegacyRestaurantReviews(tx *gorm.DB) error {
 		 SET visibility = 'private', publish_status = 'draft', risk_level = 'low', submitted_at = NULL, published_at = NULL
 		 FROM restaurant_reviews AS reviews
 		 WHERE records.id = reviews.visit_record_id`,
+		`UPDATE restaurant_reviews AS reviews
+		 SET media = COALESCE((
+			 SELECT jsonb_agg(to_jsonb(media) ORDER BY media.sort_order, media.id)
+			 FROM record_media AS media WHERE media.record_id = reviews.visit_record_id
+		 ), '[]'::jsonb)
+		 WHERE reviews.media = '[]'::jsonb`,
+		`SELECT setval(
+			pg_get_serial_sequence('restaurant_review_versions', 'id'),
+			GREATEST(COALESCE((SELECT MAX(id) FROM restaurant_review_versions), 0), 1),
+			EXISTS (SELECT 1 FROM restaurant_review_versions)
+		)`,
 	}
 	for _, statement := range statements {
 		if err := tx.Exec(statement).Error; err != nil {
 			return fmt.Errorf("migrate legacy restaurant reviews: %w", err)
 		}
+	}
+	return nil
+}
+
+// migrateLegacyVisitRecords 把旧版本表、标签关系、媒体和凭证一次性回填到足迹主表。
+// 迁移是幂等的；旧表暂时保留用于回滚，但业务代码不再读写它们。
+func migrateLegacyVisitRecords(tx *gorm.DB) error {
+	if !tx.Migrator().HasTable("visit_record_versions") {
+		return nil
+	}
+	statement := `UPDATE visit_records AS records
+		SET version_no = versions.version_no,
+			visit_date = versions.visit_date,
+			consumer_type = versions.consumer_type,
+			conclusion = versions.conclusion,
+			price_min = versions.price_min,
+			price_max = versions.price_max,
+			average_cost = versions.average_cost,
+			wait_minutes = versions.wait_minutes,
+			meal_period = versions.meal_period,
+			dishes = versions.dishes,
+			content = versions.content,
+			change_summary = versions.change_summary,
+			tag_ids = COALESCE((
+				SELECT jsonb_agg(links.tag_id ORDER BY tags.sort_order, links.tag_id)
+				FROM visit_record_tag_links AS links
+				JOIN tags ON tags.id = links.tag_id
+				WHERE links.record_version_id = versions.id
+			), '[]'::jsonb),
+			media = COALESCE((
+				SELECT jsonb_agg(to_jsonb(media) ORDER BY media.sort_order, media.id)
+				FROM record_media AS media WHERE media.record_id = records.id
+			), '[]'::jsonb),
+			evidences = COALESCE((
+				SELECT jsonb_agg(to_jsonb(evidence) ORDER BY evidence.id)
+				FROM record_evidences AS evidence WHERE evidence.record_id = records.id
+			), '[]'::jsonb)
+		FROM visit_record_versions AS versions
+		WHERE versions.id = records.current_version_id
+			AND records.visit_date IS NULL`
+	if err := tx.Exec(statement).Error; err != nil {
+		return fmt.Errorf("consolidate legacy visit records: %w", err)
 	}
 	return nil
 }
