@@ -23,6 +23,8 @@ go run ./cmd/api
 
 数据库包完成连接自检后，会在 `internal/model/pgsql/init.go` 调用 `AutoMigrate` 自动补齐当前业务表、字段、索引和兼容数据迁移，然后由 `internal/model/pgsql/seed.go` 写入城市、初始地点、海报主题、体验标签、城市路线和功能开关。任一步失败都会关闭连接并停止启动。种子写入使用幂等策略，不覆盖运营人员已经维护的数据。
 
+首页场景与路线图标数据升级属于向前兼容的增量变更：启动时新增 `discovery_scenarios`，并为 `city_route_stops` 增加 `recommended_food`、`food_category_code`、`icon_key`。已有路线站点和主键不会重建；仅对内置“曹家渡的四站早餐”中仍为空的新字段进行幂等回填。旧版本服务可以继续读取升级后的表，因此新容器健康检查失败并恢复旧容器时不需要回退数据库字段。
+
 `migrations/` 中原有 SQL 仅作为历史结构参考，不再为新功能增加 SQL 文件，也不再作为启动前置步骤。新增模型应注册到 `pgsql.AutoMigrate`，新增基础数据应写入 `pgsql.Seed`。数据库本身仍需预先创建，连接账号需要建表和修改结构权限。
 
 迁移也不会清理旧业务遗留表。是否归档或删除旧营养业务数据，应在确认备份与保留期限后通过单独的数据迁移处理。
@@ -94,6 +96,15 @@ gofmt -w ./cmd ./config ./internal
 go test ./...
 go build ./...
 ```
+
+发布前可使用一次性 PostgreSQL 16 数据库演练旧表原地升级。测试强制要求数据库名为 `nutrilens_migration_test`，避免误连开发库或正式库：
+
+```bash
+NUTRILENS_MIGRATION_TEST_DSN='host=127.0.0.1 port=5432 user=nutrilens password=CHANGE_ME dbname=nutrilens_migration_test sslmode=disable' \
+  go test ./internal/model/pgsql -run '^TestProductionSchemaUpgrade$' -count=1 -v
+```
+
+正式发布顺序为：先发布后端并等待 `/health` 成功，再上传使用新 `scenario_filters` 和 `icon_key` 的小程序包。后端接口为增量字段，旧小程序在后端升级后仍可继续运行。
 
 
 ### 初始化与登录会话

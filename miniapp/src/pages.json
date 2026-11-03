@@ -1,6 +1,6 @@
 {
   "pages": [
-    { "path": "pages/home/home", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/home/home", "style": { "navigationStyle": "custom", "backgroundColor": "#FFFBF3" } },
     { "path": "pages/record/record", "style": { "navigationStyle": "custom" } },
     { "path": "pages/nutrition/nutrition", "style": { "navigationBarTitleText": "饮食记录", "navigationBarBackgroundColor": "#F5FAEC" } },
     { "path": "pages/footprints/footprints", "style": { "navigationStyle": "custom" } },
@@ -22,15 +22,15 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "饭友记",
-    "navigationBarBackgroundColor": "#F5FAEC",
-    "backgroundColor": "#F5FAEC"
+    "navigationBarBackgroundColor": "#FFFBF3",
+    "backgroundColor": "#FFFBF3"
   },
   "tabBar": {
     "custom": true,
-    "color": "#78746E",
-    "selectedColor": "#C7FF35",
+    "color": "#A79E8A",
+    "selectedColor": "#2F7D58",
     "borderStyle": "white",
-    "backgroundColor": "#10110F",
+    "backgroundColor": "#FFFDF6",
     "list": [
       { "pagePath": "pages/home/home", "text": "发现", "iconPath": "static/tab-home.png", "selectedIconPath": "static/tab-home-active.png" },
       { "pagePath": "pages/record/record", "text": "记录", "iconPath": "static/tab-record.png", "selectedIconPath": "static/tab-record-active.png" },

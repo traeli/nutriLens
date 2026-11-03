@@ -1,59 +1,94 @@
 <template>
   <view class="record-page">
+    <!-- 入口 hub -->
     <view v-if="!recordMode" class="entry-page" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-      <image class="entry-art" :src="entryArt" mode="aspectFill" />
-
       <view class="entry-content">
         <view class="entry-heading">
-          <text class="entry-kicker">饭友记 · 好好吃饭</text>
-          <text class="entry-title">记录这一餐</text>
+          <view class="entry-title-row">
+            <view class="entry-title-ic" :style="dz('pen', '#3E9B6F', 38)"></view>
+            <text class="entry-title">新建记录</text>
+          </view>
+          <text class="entry-sub">先选择记录类型，两条流程会分别保存草稿</text>
         </view>
 
         <view class="nutrition-entry" @tap="openNutrition">
-          <view><text>02</text><text>识别餐食营养</text></view>
-          <text>私人小工具 · 不参与餐厅评价</text>
-          <text>进入 ›</text>
+          <view class="nut-medal" :style="dzBg('blob-white')"><view class="nut-ic" :style="dz('mifan', '#332E26', 40)"></view></view>
+          <view class="nut-copy">
+            <view class="nut-title-row"><text class="card-num">02</text><text class="nut-title">识别餐食营养</text></view>
+            <text class="nut-note">拍菜品估算营养，不要拍账单 · 仅自己可见</text>
+          </view>
+          <text class="nut-arrow">›</text>
         </view>
 
         <view class="visit-entry">
+          <view class="visit-cover">
+            <text class="cover-sticker">好好吃饭</text>
+            <view class="cover-burst" :style="dz('burst', '#FFC64B', 56)"></view>
+            <view class="cover-stop" :style="dzBg('blob-white')"><view class="stop-ic" :style="dz('bowl', '#332E26', 50)"></view></view>
+            <view class="cover-squig" :style="dz('squiggle', '#D8CCB0', 38)"></view>
+            <view class="cover-stop two" :style="dzBg('blob-white')"><view class="stop-ic" :style="dz('chuaner', '#332E26', 50)"></view></view>
+            <view class="cover-squig" :style="dz('squiggle', '#D8CCB0', 38)"></view>
+            <view class="cover-stop three" :style="dzBg('blob-white')"><view class="stop-ic" :style="dz('coffee', '#332E26', 50)"></view></view>
+          </view>
           <view class="visit-entry-head">
-            <view><text>01</text><text>到店体验</text></view>
-            <text>{{ city }}</text>
+            <view class="visit-name-row"><text class="card-num">01</text><text class="visit-name">到店体验</text></view>
+            <text class="visit-city">{{ city }}</text>
           </view>
 
           <view class="direct-entry" @tap="startVisit('manual')">
-            <view class="direct-brush"></view>
-            <view><text>直接记一笔</text><text>输入餐厅，再选一个真实感受</text></view>
-            <text>→</text>
-            <image class="direct-photo" :src="images.noodles" mode="aspectFill" />
+            <view class="direct-ic" :style="dz('noodle', '#FFFFFF', 56)"></view>
+            <view class="direct-copy">
+              <text class="direct-title">记录一次到店体验</text>
+              <text class="direct-note">选店铺、写结论，再补照片或消费凭证</text>
+            </view>
+            <view class="direct-arrow" :style="dz('arrow', '#FFFFFF', 28)"></view>
           </view>
 
           <view class="capture-grid">
-            <view class="capture-entry voice-entry" @tap="openVoicePanel">
-              <view class="voice-symbol"><view></view><view></view><view></view><view></view><view></view></view>
-              <text>说说体验</text>
-              <text>语音整理后再确认</text>
+            <view class="capture-entry" @tap="openVoicePanel">
+              <view class="capture-medal" :style="dzBg('blob-white')"><view class="capture-ic" :style="dz('quote', '#332E26', 34)"></view></view>
+              <text class="capture-title">说说体验</text>
+              <text class="capture-note">语音整理后再确认</text>
             </view>
-            <view class="capture-entry receipt-entry" @tap="captureReceipt">
-              <view class="receipt-symbol"><view></view><view></view><view></view></view>
-              <text>拍消费单</text>
-              <text>识别店名与消费信息</text>
+            <view class="capture-entry" @tap="captureReceipt">
+              <view class="capture-medal flip" :style="dzBg('blob-white')"><view class="capture-ic" :style="dz('stamp', '#332E26', 34)"></view></view>
+              <text class="capture-title">拍消费单</text>
+              <text class="capture-note">识别店名与消费信息</text>
             </view>
           </view>
         </view>
 
         <view class="recent-submissions">
-          <view class="recent-submissions-head">
-            <view><text>最近评论</text><text>提交后，可以马上在这里看到审核进度</text></view>
-            <text @tap="openMyRecords">全部 ›</text>
+          <view class="sec">
+            <view class="sec-ic" :style="dz('check', '#3E9B6F', 34)"></view>
+            <view class="sec-title">
+              <text class="sec-h">最近评论</text>
+              <view class="sec-scribble" :style="dz('scribble', '#3E9B6F', 52)"></view>
+            </view>
+            <text class="sec-p">提交后马上能看审核进度</text>
+            <text class="sec-link" @tap="openMyRecords">全部 ›</text>
           </view>
-          <view v-if="recentLoading" class="recent-submit-empty">正在整理评论…</view>
-          <view v-else-if="!recentRecords.length" class="recent-submit-empty">还没有餐厅评论，认真记下第一餐吧。</view>
-          <view v-for="item in recentRecords" :key="item.id" class="recent-submit-row" @tap="openSubmittedRecord(item)">
-            <view class="recent-submit-mark">{{ item.place.slice(0, 1) }}</view>
-            <view class="recent-submit-copy"><text>{{ item.place }}</text><text>{{ item.date }} · {{ item.conclusion }}</text></view>
-            <text class="record-status" :class="`status-${item.status}`">{{ item.statusLabel }}</text>
-            <text class="recent-submit-arrow">›</text>
+          <view class="recent-card">
+            <view v-if="recentLoading" class="recent-empty">正在整理评论…</view>
+            <view v-else-if="!recentRecords.length" class="recent-empty">
+              <view class="empty-trail">
+                <view class="trail-stop" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('bowl', '#332E26', 38)"></view></view>
+                <view class="trail-squig" :style="dz('squiggle', '#D8CCB0', 34)"></view>
+                <view class="trail-stop flip" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('noodle', '#332E26', 38)"></view></view>
+                <view class="trail-squig" :style="dz('squiggle', '#D8CCB0', 34)"></view>
+                <view class="trail-stop" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('coffee', '#332E26', 38)"></view></view>
+              </view>
+              <text class="empty-note">还没有餐厅评论，认真记下第一餐吧。</text>
+            </view>
+            <view v-for="item in recentRecords" :key="item.id" class="recent-row" @tap="openSubmittedRecord(item)">
+              <view class="recent-mark">{{ item.place.slice(0, 1) }}</view>
+              <view class="recent-copy">
+                <text class="recent-place">{{ item.place }}</text>
+                <text class="recent-meta">{{ item.date }} · {{ item.conclusion }}</text>
+              </view>
+              <text class="record-status" :class="`status-${item.status}`">{{ item.statusLabel }}</text>
+              <text class="recent-arrow">›</text>
+            </view>
           </view>
         </view>
       </view>
@@ -71,22 +106,25 @@
       </view>
     </view>
 
+    <!-- 评分表单 -->
     <view v-else class="rating-page">
       <view class="rating-nav" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-        <view class="mode-back" @tap="backToModes"><text>‹</text><text>返回</text></view>
+        <view class="mode-back" @tap="backToModes"><text class="back-mark">‹</text><text>返回</text></view>
         <text class="rating-nav-title">记一餐</text>
         <view class="switch-method" @tap="backToModes">换个方式</view>
       </view>
 
       <scroll-view class="rating-scroll" scroll-y scroll-with-animation :scroll-into-view="formScrollTarget">
         <view class="rating-canvas">
-          <view id="restaurantField" class="restaurant-writing" :class="{ 'field-error': placeError }">
-            <view class="writing-topline">
-              <view><text>01</text><text>到店记录</text></view>
-              <text>{{ city }}</text>
+          <view id="restaurantField" class="field-card" :class="{ 'field-error': placeError }">
+            <view class="tape"></view>
+            <view class="field-topline">
+              <view class="field-name-row"><text class="card-num">01</text><text class="field-name">到店记录</text></view>
+              <text class="field-city">{{ city }}</text>
             </view>
             <text class="writing-label">这次去了哪家店？</text>
             <input
+              class="place-input"
               v-model="place"
               :focus="restaurantInputFocus"
               maxlength="160"
@@ -96,62 +134,92 @@
               @input="onPlaceInput"
               @focus="onPlaceFocus"
             />
-            <view class="input-foot"><text :class="{ error: placeError }">{{ placeError || placeSelectionHint }}</text><text>{{ place.length }}/160</text></view>
+            <view class="input-foot">
+              <text class="foot-hint" :class="{ error: placeError }">{{ placeError || placeSelectionHint }}</text>
+              <text class="foot-counter">{{ place.length }}/160</text>
+            </view>
 
             <view v-if="showPlaceSuggestions" class="place-suggestions">
               <view v-if="placeSearching" class="suggestion-state">正在搜索餐厅…</view>
               <view v-for="item in placeSuggestions" :key="item.id" class="suggestion-row" @tap="choosePlaceSuggestion(item)">
-                <view><text>{{ item.name }}</text><text>{{ placeSuggestionMeta(item) }}</text></view><text>选择</text>
+                <view class="suggestion-copy">
+                  <text class="suggestion-name">{{ item.name }}</text>
+                  <text class="suggestion-meta">{{ placeSuggestionMeta(item) }}</text>
+                </view>
+                <text class="suggestion-pick">选择</text>
               </view>
               <view v-if="place.trim() && !placeSearching" class="suggestion-create" @tap="choosePlaceOnMap">
-                <view class="plus">⌖</view><view><text>在微信地图选择这家店</text><text>自动获取准确地址和坐标</text></view>
+                <view class="create-ic" :style="dz('plus', '#2F7D58', 26)"></view>
+                <view class="create-copy">
+                  <text class="create-title">在微信地图选择这家店</text>
+                  <text class="create-note">自动获取准确地址和坐标</text>
+                </view>
               </view>
             </view>
 
             <view v-if="selectedPlaceLocation" class="selected-place-location">
-              <view><text>{{ selectedPlaceLocation.name }}</text><text>{{ selectedPlaceLocation.address }}</text></view>
-              <text @tap="choosePlaceOnMap">重选</text>
+              <view class="selected-copy">
+                <text class="selected-name">{{ selectedPlaceLocation.name }}</text>
+                <text class="selected-meta">{{ selectedPlaceLocation.address }}</text>
+              </view>
+              <text class="selected-repick" @tap="choosePlaceOnMap">重选</text>
             </view>
-            <button v-else-if="!placeId" class="choose-location-button" @tap="choosePlaceOnMap">⌖ 从微信地图选择餐厅位置</button>
+            <button v-else-if="!placeId" class="choose-location-button" @tap="choosePlaceOnMap">
+              <view class="locate-ic" :style="dz('pin', '#3E9B6F', 26)"></view>
+              <text>从微信地图选择餐厅位置</text>
+            </button>
           </view>
 
-          <view id="feelingField" class="feeling-section" :class="{ 'field-error': conclusionError }">
-            <view class="section-title-row"><text class="section-number">02</text><text class="feeling-title">这一顿，感觉如何？</text></view>
+          <view id="feelingField" class="field-card" :class="{ 'field-error': conclusionError }">
+            <view class="field-topline">
+              <view class="field-name-row"><text class="card-num">02</text><text class="field-name">这一顿，感觉如何？</text></view>
+            </view>
             <view class="feeling-picker" :class="{ selected: selectedConclusion }" @tap="openFeelingSheet">
               <view v-if="selectedConclusion" class="feeling-selected">
                 <view class="feeling-dot" :class="selectedConclusion.value"></view>
-                <view><text>{{ selectedConclusion.label }}</text><text>{{ selectedConclusion.desc }}</text></view>
+                <view class="feeling-copy">
+                  <text class="feeling-label">{{ selectedConclusion.label }}</text>
+                  <text class="feeling-desc">{{ selectedConclusion.desc }}</text>
+                </view>
               </view>
-              <view v-else class="feeling-placeholder"><text>选择本次感受</text><text>{{ conclusionError || '请选择最接近真实体验的一项' }}</text></view>
-              <text class="picker-arrow">⌄</text>
+              <view v-else class="feeling-placeholder">
+                <text class="feeling-label placeholder">选择本次感受</text>
+                <text class="feeling-desc">{{ conclusionError || '请选择最接近真实体验的一项' }}</text>
+              </view>
+              <view class="picker-caret" :style="dz('caret', '#8B8271', 20)"></view>
             </view>
           </view>
 
           <view class="story-entry" :class="{ expanded: detailsExpanded }">
             <view class="story-trigger" @tap="detailsExpanded = !detailsExpanded">
-              <view><text>再多记一点（选填）</text><text>简单记两句，或直接提交审核</text></view>
-              <text>{{ detailsExpanded ? '−' : '＋' }}</text>
+              <view class="story-trigger-copy">
+                <text class="story-trigger-title">再多记一点（选填）</text>
+                <text class="story-trigger-note">简单记两句，或直接提交审核</text>
+              </view>
+              <text class="story-toggle">{{ detailsExpanded ? '−' : '＋' }}</text>
             </view>
 
             <view v-if="detailsExpanded" class="story-content">
               <textarea v-model="content" maxlength="500" :placeholder="experiencePlaceholder" />
 
               <view class="record-tags">
-                <text>体验标签（选填）</text>
-                <view><text v-for="tag in availableTags" :key="tag.code" :class="{ active: selectedTags.includes(tag.code) }" @tap="toggleTag(tag.code)">{{ tag.name }}</text></view>
+                <text class="tags-label">体验标签（选填）</text>
+                <view class="tags-row">
+                  <text v-for="tag in availableTags" :key="tag.code" class="tag-chip" :class="{ active: selectedTags.includes(tag.code) }" @tap="toggleTag(tag.code)">{{ tag.name }}</text>
+                </view>
               </view>
 
               <view class="detail-tools">
-                <text :class="{ active: showCost }" @tap="showCost = !showCost">＋ 人均消费</text>
-                <text :class="{ active: showWait }" @tap="showWait = !showWait">＋ 排队时间</text>
-                <text :class="{ active: showDish }" @tap="showDish = !showDish">＋ 推荐菜</text>
-                <text @tap="chooseExperiencePhotos">＋ 添加照片</text>
+                <text class="tool-chip" :class="{ active: showCost }" @tap="showCost = !showCost">＋ 人均消费</text>
+                <text class="tool-chip" :class="{ active: showWait }" @tap="showWait = !showWait">＋ 排队时间</text>
+                <text class="tool-chip" :class="{ active: showDish }" @tap="showDish = !showDish">＋ 推荐菜</text>
+                <text class="tool-chip" @tap="chooseExperiencePhotos">＋ 添加照片</text>
               </view>
 
               <view v-if="showCost || showWait || showDish" class="detail-fields">
-                <view v-if="showCost"><text>人均</text><input v-model="averageCost" type="digit" placeholder="0" /><text>元</text></view>
-                <view v-if="showWait"><text>排队</text><input v-model="waitMinutes" type="number" placeholder="0" /><text>分钟</text></view>
-                <view v-if="showDish"><text>推荐菜</text><input v-model="recommendedDish" placeholder="写下菜名" /></view>
+                <view v-if="showCost" class="detail-field"><text class="detail-field-label">人均</text><input class="detail-field-input" v-model="averageCost" type="digit" placeholder="0" /><text class="detail-field-unit">元</text></view>
+                <view v-if="showWait" class="detail-field"><text class="detail-field-label">排队</text><input class="detail-field-input" v-model="waitMinutes" type="number" placeholder="0" /><text class="detail-field-unit">分钟</text></view>
+                <view v-if="showDish" class="detail-field"><text class="detail-field-label">推荐菜</text><input class="detail-field-input detail-field-text" v-model="recommendedDish" placeholder="写下菜名" /></view>
               </view>
 
               <scroll-view v-if="allPhotos.length" class="photo-scroll" scroll-x>
@@ -165,7 +233,8 @@
           <text v-if="!canRecord" class="submit-hint">{{ missingPrompt }}</text>
           <text class="review-hint">提交后进入后台审核，通过后才会公开</text>
           <button class="stamp-button" :class="{ ready: canRecord }" :disabled="submitting" :loading="submitting" @tap="finishRecord">
-            <text>{{ submitting ? '正在提交' : '提交' }}</text><text>→</text>
+            <text>{{ submitting ? '正在提交' : '盖个章，完成记录' }}</text>
+            <view class="stamp-arrow" :style="dz('arrow', canRecord ? '#332E26' : '#8B8271', 28)"></view>
           </button>
         </view>
       </scroll-view>
@@ -178,8 +247,12 @@
           <view class="feeling-sheet-options">
             <view v-for="item in conclusions" :key="item.value" class="feeling-sheet-option" :class="{ active: conclusion === item.value }" @tap="selectConclusion(item.value)">
               <view class="feeling-dot" :class="item.value"></view>
-              <view><text>{{ item.label }}</text><text>{{ item.desc }}</text></view>
-              <text>{{ conclusion === item.value ? '✓' : '›' }}</text>
+              <view class="feeling-copy">
+                <text class="feeling-label">{{ item.label }}</text>
+                <text class="feeling-desc">{{ item.desc }}</text>
+              </view>
+              <view v-if="conclusion === item.value" class="option-check" :style="dz('check', '#2F7D58', 28)"></view>
+              <text v-else class="option-arrow">›</text>
             </view>
           </view>
         </view>
@@ -194,23 +267,14 @@ import { assetUrl } from '@/utils/assets.js'
 import { diningImages } from '@/mock/city-dining.js'
 import { getSelectedCity, refreshCityOptions } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
-
-function getNavLayout() {
-  const info = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : uni.getSystemInfoSync()
-  const statusBarHeight = Number(info.statusBarHeight || 20)
-  let menu = null
-  try { menu = uni.getMenuButtonBoundingClientRect() } catch (error) { menu = null }
-  const menuTop = menu && Number(menu.top) > 0 ? Number(menu.top) : statusBarHeight + 6
-  const menuHeight = menu && Number(menu.height) > 0 ? Number(menu.height) : 32
-  const menuBottom = menu && Number(menu.bottom) > menuTop ? Number(menu.bottom) : menuTop + menuHeight
-  return { contentTop: Math.max(statusBarHeight, menuBottom) + 14 }
-}
+import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
+import { doodleBg, doodleStyle } from '@/utils/doodles.js'
 
 export default {
   data() {
     const selectedCity = getSelectedCity()
     return {
-      navLayout: getNavLayout(),
+      navLayout: getPrimaryNavLayout(),
       entryArt: assetUrl('/static/dining/visit-rating-art-v2.jpg'),
       recordMode: '',
       entrySource: 'manual',
@@ -296,7 +360,7 @@ export default {
     this.setupRecorder()
   },
   onShow() {
-    this.navLayout = getNavLayout()
+    this.navLayout = getPrimaryNavLayout()
     syncCustomTabBar(this, 1)
     const selectedCity = getSelectedCity()
     this.city = selectedCity.name
@@ -312,6 +376,8 @@ export default {
     }
   },
   methods: {
+    dz(key, color, size) { return doodleStyle(key, color, size) },
+    dzBg(key) { return doodleBg(key) },
     setupRecorder() {
       // #ifdef MP-WEIXIN
       this.recorderManager = uni.getRecorderManager()
@@ -633,1753 +699,340 @@ export default {
 </script>
 
 <style scoped>
-.record-tags { margin-top: 20rpx; }
-.record-tags > text { display: block; margin-bottom: 12rpx; color: #655f57; font-size: 22rpx; }
-.record-tags > view { display: flex; flex-wrap: wrap; gap: 12rpx; }
-.record-tags > view > text { padding: 10rpx 18rpx; border: 1rpx solid #c9c0b4; border-radius: 999rpx; color: #59544e; font-size: 21rpx; }
-.record-tags > view > text.active { border-color: #365743; background: #365743; color: #fff; }
-.nutrition-entry { position: relative; display: flex; align-items: center; margin: 22rpx 0; padding: 24rpx; border: 1rpx solid #d4c6b1; border-radius: 22rpx; background: rgba(255,255,255,.7); }
-.nutrition-entry > view { display: flex; flex: 1; gap: 12rpx; font-weight: 700; }.nutrition-entry > text:nth-child(2) { color: #756d62; font-size: 19rpx; }.nutrition-entry > text:last-child { margin-left: 18rpx; font-weight: 700; }
-.review-hint { display: block; margin: 24rpx 0; color: #5f5a52; font-size: 22rpx; text-align: center; }
+/* —— V6 贴纸手帐：token 同 home.vue —— */
 .record-page {
   min-height: 100vh;
-  padding-bottom: calc(108rpx + env(safe-area-inset-bottom));
-  background: #F2E8D7;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%);
+  color: #332E26;
+  font-family: "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
 }
 
-.entry-page,
-.rating-page {
-  position: relative;
-  min-height: calc(100vh - 108rpx - env(safe-area-inset-bottom));
-  overflow: hidden;
-  background: #F1E6D2;
-}
+/* ===== 入口 hub ===== */
+.entry-page { padding: 0 32rpx calc(108rpx + env(safe-area-inset-bottom)); overflow: hidden; }
+.entry-content { display: flex; flex-direction: column; }
+.entry-heading { order: 1; padding: 8rpx 4rpx 0; }
+.entry-title-row { display: flex; align-items: center; gap: 14rpx; }
+.entry-title-ic { flex: none; }
+.entry-title { font-size: 40rpx; font-weight: 900; letter-spacing: 2rpx; line-height: 1; }
+.entry-sub { display: block; margin-top: 12rpx; font-size: 24rpx; color: #8B8271; }
+.card-num { color: #3E9B6F; font-size: 22rpx; font-weight: 800; letter-spacing: 2rpx; }
 
-.entry-art,
-.rating-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+/* 营养速记（奶油卡，次入口） */
+.nutrition-entry {
+  order: 3;
+  display: flex; align-items: center; gap: 20rpx; margin-top: 28rpx;
+  padding: 24rpx 28rpx; border-radius: 36rpx;
+  background: #FFF4DF; border: 3rpx solid #EADFC2;
 }
-
-.entry-art {
-  opacity: .22;
+.nut-medal {
+  flex: none; width: 92rpx; height: 92rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; transform: rotate(-4deg);
 }
+.nut-ic { flex: none; }
+.nut-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+.nut-title-row { display: flex; align-items: center; gap: 10rpx; }
+.nut-title { font-size: 28rpx; font-weight: 800; }
+.nut-note { font-size: 21rpx; color: #8B8271; }
+.nut-arrow { flex: none; font-size: 32rpx; font-weight: 700; color: #C9BFA8; }
 
-.entry-content {
-  position: relative;
-  z-index: 1;
-  padding: calc(env(safe-area-inset-top) + 40rpx) 30rpx 64rpx;
-}
-
-.entry-heading {
-  display: flex;
-  flex-direction: column;
-  padding: 0 5rpx 30rpx;
-}
-
-.entry-kicker {
-  color: #9B523E;
-  font-size: 16rpx;
-  font-weight: 700;
-  letter-spacing: 5rpx;
-}
-
-.entry-title {
-  margin-top: 7rpx;
-  color: #20241F;
-  font-family: "STKaiti", "KaiTi", "Songti SC", serif;
-  font-size: 58rpx;
-  font-weight: 700;
-}
-
+/* 到店体验大卡 */
 .visit-entry {
-  padding: 29rpx;
-  border: 2rpx solid rgba(255, 255, 255, .2);
-  border-radius: 32rpx 25rpx 36rpx 27rpx;
-  background: #2F3D34;
-  box-shadow: 0 18rpx 45rpx rgba(39, 43, 36, .16);
-  color: #FFFFFF;
+  order: 2;
+  margin-top: 24rpx; padding: 28rpx 28rpx 32rpx;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 44rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
 }
-
-.visit-entry-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.recent-submissions { order: 4; }
+.visit-cover {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 14rpx;
+  height: 176rpx; border-radius: 30rpx; box-sizing: border-box;
+  background: #FFF4DF; border: 3rpx solid #EADFC2;
 }
-
-.visit-entry-head > view {
-  display: flex;
-  align-items: center;
-  gap: 13rpx;
+.cover-stop {
+  width: 108rpx; height: 108rpx; box-sizing: border-box; transform: rotate(-6deg);
+  display: flex; align-items: center; justify-content: center;
 }
-
-.visit-entry-head view text:first-child {
-  width: 46rpx;
-  height: 46rpx;
-  border: 1rpx solid rgba(255, 255, 255, .45);
-  border-radius: 50%;
-  font-size: 16rpx;
-  line-height: 44rpx;
-  text-align: center;
+.cover-stop.two { transform: rotate(4deg) scaleX(-1); }
+.cover-stop.two .stop-ic { transform: scaleX(-1); }
+.cover-stop.three { transform: rotate(-3deg); }
+.stop-ic { flex: none; }
+.cover-squig { flex: none; }
+.cover-burst {
+  position: absolute; left: -8rpx; bottom: -12rpx; transform: rotate(-12deg); opacity: .95;
 }
-
-.visit-entry-head view text:last-child {
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 30rpx;
-  font-weight: 700;
+.cover-sticker {
+  position: absolute; top: -14rpx; right: 22rpx; transform: rotate(3deg);
+  padding: 6rpx 16rpx; border-radius: 14rpx;
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%); box-shadow: 0 3rpx 0 #E0A62F;
+  font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 22rpx; letter-spacing: 2rpx;
 }
-
-.visit-entry-head > text {
-  color: #B8C8BB;
-  font-size: 19rpx;
-}
-
+.visit-entry-head { display: flex; align-items: center; justify-content: space-between; margin-top: 24rpx; }
+.visit-name-row { display: flex; align-items: center; gap: 10rpx; }
+.visit-name { font-size: 30rpx; font-weight: 900; }
+.visit-city { font-size: 22rpx; color: #8B8271; }
 .direct-entry {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  margin-top: 25rpx;
-  padding: 30rpx 24rpx;
-  border-radius: 23rpx 18rpx 25rpx 20rpx;
-  background: #F0C66E;
-  color: #252B25;
+  display: flex; align-items: center; gap: 18rpx; margin-top: 20rpx;
+  height: 108rpx; padding: 0 30rpx; border-radius: 999rpx;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%); box-shadow: 0 6rpx 0 #2F7D58;
 }
-
-.direct-brush {
-  position: absolute;
-  right: -30rpx;
-  bottom: -42rpx;
-  width: 230rpx;
-  height: 100rpx;
-  border-radius: 50%;
-  background: rgba(192, 70, 45, .18);
-  transform: rotate(-11deg);
-}
-
-.direct-entry > view:nth-child(2) {
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-}
-
-.direct-entry view text:first-child {
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 32rpx;
-  font-weight: 700;
-}
-
-.direct-entry view text:last-child {
-  margin-top: 5rpx;
-  color: rgba(37, 43, 37, .65);
-  font-size: 18rpx;
-}
-
-.direct-entry > text {
-  position: relative;
-  font-size: 34rpx;
-}
-
-.capture-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 13rpx;
-  margin-top: 14rpx;
-}
-
+.direct-ic { flex: none; }
+.direct-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.direct-title { color: #FFFFFF; font-size: 30rpx; font-weight: 800; }
+.direct-note { color: rgba(255, 255, 255, .82); font-size: 21rpx; }
+.direct-arrow { flex: none; margin-left: auto; }
+.capture-grid { display: flex; gap: 20rpx; margin-top: 20rpx; }
 .capture-entry {
-  min-height: 190rpx;
-  display: flex;
-  flex-direction: column;
-  padding: 23rpx;
-  border: 1rpx solid rgba(255, 255, 255, .12);
-  border-radius: 21rpx 18rpx 23rpx 19rpx;
-  background: rgba(255, 255, 255, .075);
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx;
+  padding: 24rpx 16rpx; border-radius: 28rpx;
+  background: #FDF7E9; border: 3rpx solid #F1E7CE;
 }
-
-.capture-entry > text:nth-child(2) {
-  margin-top: auto;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 25rpx;
-  font-weight: 700;
+.capture-medal {
+  width: 88rpx; height: 88rpx; margin-bottom: 4rpx; box-sizing: border-box; transform: rotate(-4deg);
+  display: flex; align-items: center; justify-content: center;
 }
+.capture-medal.flip { transform: rotate(5deg) scaleX(-1); }
+.capture-medal.flip .capture-ic { transform: scaleX(-1); }
+.capture-ic { flex: none; }
+.capture-title { font-size: 25rpx; font-weight: 800; }
+.capture-note { font-size: 20rpx; color: #8B8271; text-align: center; }
 
-.capture-entry > text:last-child {
-  margin-top: 4rpx;
-  color: rgba(255, 255, 255, .46);
-  font-size: 16rpx;
+/* 最近评论 */
+.sec { display: flex; align-items: center; gap: 16rpx; margin: 40rpx 4rpx 20rpx; }
+.sec-ic { flex: none; }
+.sec-title { position: relative; }
+.sec-h { font-size: 30rpx; font-weight: 900; letter-spacing: 1rpx; white-space: nowrap; }
+.sec-scribble { position: absolute; left: -4rpx; bottom: -12rpx; }
+.sec-p { font-size: 21rpx; color: #8B8271; padding-top: 5rpx; white-space: nowrap; }
+.sec-link { margin-left: auto; font-size: 22rpx; font-weight: 700; color: #3E9B6F; white-space: nowrap; }
+.recent-card {
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
 }
-
-.voice-symbol {
-  height: 54rpx;
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
+.recent-empty { display: flex; flex-direction: column; align-items: center; gap: 18rpx; padding: 40rpx 28rpx; }
+.empty-note { font-size: 22rpx; color: #8B8271; text-align: center; }
+.empty-trail { display: flex; align-items: center; gap: 10rpx; }
+.trail-stop {
+  width: 92rpx; height: 92rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
 }
-
-.voice-symbol > view {
-  width: 5rpx;
-  border-radius: 5rpx;
-  background: #E6C573;
+.trail-stop.flip { transform: rotate(5deg) scaleX(-1); }
+.trail-stop.flip .trail-ic { transform: scaleX(-1); }
+.trail-ic { flex: none; }
+.trail-squig { flex: none; }
+.recent-row { display: flex; align-items: center; gap: 18rpx; padding: 22rpx 24rpx; border-bottom: 2rpx solid #F5EEDF; }
+.recent-row:last-child { border-bottom: 0; }
+.recent-mark {
+  flex: none; width: 56rpx; height: 56rpx; border-radius: 50%; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  background: #FFF4DF; border: 2rpx solid #EADFC2;
+  font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 26rpx; font-weight: 800;
 }
+.recent-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.recent-place { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 25rpx; font-weight: 800; }
+.recent-meta { font-size: 20rpx; color: #8B8271; }
+.record-status { flex: none; padding: 6rpx 14rpx; border-radius: 999rpx; font-size: 19rpx; font-weight: 700; }
+.status-pending { background: #FFF4DF; color: #8A661C; }
+.status-published { background: #E5F3EA; color: #2F7D58; }
+.status-rejected { background: #FDEAE4; color: #C43D2D; }
+.recent-arrow { flex: none; font-size: 30rpx; font-weight: 700; color: #C9BFA8; }
 
-.voice-symbol > view:nth-child(1),
-.voice-symbol > view:nth-child(5) { height: 17rpx; }
-.voice-symbol > view:nth-child(2),
-.voice-symbol > view:nth-child(4) { height: 34rpx; }
-.voice-symbol > view:nth-child(3) { height: 49rpx; }
-
-.receipt-symbol {
-  width: 49rpx;
-  height: 57rpx;
-  padding: 12rpx 9rpx;
-  border-radius: 4rpx 4rpx 11rpx 11rpx;
-  background: #D67A5D;
-}
-
-.receipt-symbol view {
-  height: 3rpx;
-  margin-bottom: 7rpx;
-  background: rgba(255, 255, 255, .8);
-}
-
-.capture-mask {
-  position: fixed;
-  inset: 0 0 calc(108rpx + env(safe-area-inset-bottom));
-  z-index: 20;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(28, 31, 27, .5);
-}
-
+/* 语音 bottom-sheet */
+.capture-mask { position: fixed; inset: 0; z-index: 60; background: rgba(51, 46, 38, .45); }
 .voice-panel {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 18rpx 30rpx 44rpx;
-  border-radius: 38rpx 38rpx 0 0;
-  background: #F6EEDC;
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
+  background: #FFFBF3; border-radius: 44rpx 44rpx 0 0;
 }
-
-.panel-handle {
-  width: 72rpx;
-  height: 7rpx;
-  border-radius: 5rpx;
-  background: #C9BFAF;
-}
-
-.voice-panel-title {
-  margin-top: 31rpx;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 35rpx;
-  font-weight: 700;
-}
-
+.panel-handle { width: 72rpx; height: 8rpx; border-radius: 999rpx; background: #EFE5D0; }
+.voice-panel-title { margin-top: 28rpx; font-size: 32rpx; font-weight: 900; }
 .voice-orbit {
-  width: 190rpx;
-  height: 190rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 30rpx;
-  border: 2rpx solid rgba(73, 98, 83, .18);
-  border-radius: 45% 55% 49% 51%;
-  background: rgba(73, 98, 83, .09);
+  width: 168rpx; height: 168rpx; margin-top: 40rpx; border-radius: 50%; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  background: #FFF4DF; border: 4rpx solid #EADFC2;
 }
-
-.voice-orbit.recording {
-  animation: voice-pulse 1.1s ease-in-out infinite alternate;
-}
-
+.voice-orbit.recording { border-color: #3E9B6F; animation: pulse-soft 1.2s infinite alternate; }
 .voice-core {
-  width: 118rpx;
-  height: 118rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 54% 46% 57% 43%;
-  background: #C65036;
-  transform: rotate(-7deg);
+  width: 104rpx; height: 104rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%);
 }
+.voice-core > view { width: 24rpx; height: 24rpx; border-radius: 50%; background: #FFFFFF; }
+.voice-time { margin-top: 30rpx; font-size: 26rpx; color: #8B8271; }
+.voice-cancel { margin-top: 28rpx; padding: 12rpx 40rpx; font-size: 25rpx; font-weight: 700; color: #8B8271; }
 
-.voice-core view {
-  width: 29rpx;
-  height: 48rpx;
-  border: 5rpx solid #FFFFFF;
-  border-radius: 18rpx;
-}
-
-.voice-time {
-  margin-top: 21rpx;
-  color: #5F625C;
-  font-size: 21rpx;
-}
-
-.voice-cancel {
-  margin-top: 30rpx;
-  padding: 14rpx 40rpx;
-  color: #8A8378;
-  font-size: 21rpx;
-}
-
-.rating-scroll {
-  position: relative;
-  z-index: 1;
-  height: calc(100vh - 108rpx - env(safe-area-inset-bottom));
-}
-
-.rating-art {
-  opacity: .92;
-}
-
+/* ===== 评分表单 ===== */
+.rating-page { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%); }
 .rating-nav {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: calc(env(safe-area-inset-top) + 11rpx) 27rpx 9rpx;
-}
-
-.mode-back {
-  display: flex;
-  align-items: center;
-  justify-self: start;
-  padding: 14rpx 16rpx 14rpx 0;
-  color: #323A33;
-}
-
-.mode-back text:first-child {
-  margin-right: 6rpx;
-  font-size: 42rpx;
-  line-height: 30rpx;
-}
-
-.mode-back text:last-child {
-  font-size: 20rpx;
-  font-weight: 650;
-}
-
-.rating-nav-title {
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 30rpx;
-  font-weight: 700;
-}
-
-.city-stamp {
-  justify-self: end;
-  padding: 8rpx 12rpx;
-  border: 2rpx solid #A4503A;
-  color: #914531;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 18rpx;
-  transform: rotate(3deg);
-}
-
-.rating-canvas {
-  min-height: 1200rpx;
-  padding: 80rpx 42rpx 420rpx;
-}
-
-.restaurant-writing {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.writing-prefix {
-  color: #6C665C;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 23rpx;
-}
-
-.restaurant-writing input {
-  width: 100%;
-  height: 88rpx;
-  margin-top: 8rpx;
-  background: transparent;
-  color: #252A24;
-  font-family: "STKaiti", "KaiTi", "Songti SC", serif;
-  font-size: 47rpx;
-  font-weight: 700;
-  letter-spacing: 3rpx;
-  text-align: center;
-}
-
-.writing-placeholder {
-  color: rgba(74, 72, 65, .38);
-  font-weight: 500;
-}
-
-.brush-underline {
-  position: relative;
-  width: 78%;
-  height: 15rpx;
-  overflow: hidden;
-  transform: rotate(-1deg);
-}
-
-.brush-underline::before,
-.brush-underline view {
-  content: '';
-  position: absolute;
-  left: 0;
-  width: 100%;
-  border-radius: 50%;
-  background: #425649;
-}
-
-.brush-underline::before {
-  top: 4rpx;
-  height: 5rpx;
-  opacity: .72;
-}
-
-.brush-underline view {
-  top: 9rpx;
-  left: 12%;
-  width: 80%;
-  height: 2rpx;
-  opacity: .4;
-}
-
-.feeling-section {
-  margin-top: 78rpx;
-}
-
-.feeling-title {
-  display: block;
-  color: #30352F;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 31rpx;
-  font-weight: 700;
-  text-align: center;
-}
-
-.rating-options {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 7rpx;
-  margin-top: 27rpx;
-}
-
-.rating-option {
-  position: relative;
-  height: 118rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #3E443E;
-}
-
-.paint-blob {
-  position: absolute;
-  width: 92rpx;
-  height: 92rpx;
-  border: 2rpx solid rgba(54, 59, 52, .2);
-  background: rgba(247, 237, 218, .72);
-  transition: transform .2s, background .2s;
-}
-
-.shape-1 .paint-blob { border-radius: 47% 53% 42% 58%; transform: rotate(-8deg); }
-.shape-2 .paint-blob { border-radius: 55% 45% 57% 43%; transform: rotate(5deg); }
-.shape-3 .paint-blob { border-radius: 43% 57% 51% 49%; transform: rotate(-4deg); }
-.shape-4 .paint-blob { border-radius: 58% 42% 45% 55%; transform: rotate(7deg); }
-
-.rating-option text {
-  position: relative;
-  z-index: 1;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 25rpx;
-  font-weight: 700;
-}
-
-.rating-option.active .paint-blob {
-  border-color: transparent;
-  background: #405649;
-  box-shadow: 0 8rpx 20rpx rgba(51, 68, 57, .2);
-  transform: rotate(-5deg) scale(1.13);
-}
-
-.rating-option.hot.active .paint-blob { background: #B94B31; }
-.rating-option.caution.active .paint-blob { background: #4A4842; }
-.rating-option.neutral.active .paint-blob { background: #A88549; }
-.rating-option.active text { color: #FFFFFF; }
-
-.story-entry {
-  margin-top: 58rpx;
-  padding: 0 5rpx;
-  border-top: 2rpx solid rgba(74, 72, 64, .2);
-}
-
-.story-entry.expanded {
-  padding: 0 24rpx 25rpx;
-  border: 1rpx solid rgba(81, 76, 65, .17);
-  border-radius: 25rpx 19rpx 28rpx 21rpx;
-  background: rgba(255, 248, 233, .82);
-}
-
-.story-trigger {
-  min-height: 104rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.story-trigger > view {
-  display: flex;
-  flex-direction: column;
-}
-
-.story-trigger view text:first-child {
-  color: #383C36;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.story-trigger view text:last-child {
-  margin-top: 5rpx;
-  color: #817A6F;
-  font-size: 17rpx;
-}
-
-.story-trigger > text {
-  color: #9A4D38;
-  font-size: 35rpx;
-}
-
-.story-content textarea {
-  width: 100%;
-  height: 230rpx;
-  padding: 18rpx 4rpx;
-  border-bottom: 3rpx solid rgba(69, 83, 72, .32);
-  background: transparent;
-  color: #333730;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 27rpx;
-  line-height: 1.65;
-}
-
-.detail-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 11rpx;
-  margin-top: 22rpx;
-}
-
-.detail-tools text {
-  padding: 12rpx 17rpx;
-  border: 1rpx solid rgba(61, 78, 66, .25);
-  border-radius: 48% 52% 46% 54%;
-  color: #4C5D51;
-  font-size: 18rpx;
-}
-
-.detail-tools text.active {
-  background: #DDE5DB;
-}
-
-.detail-fields {
-  margin-top: 20rpx;
-  padding: 4rpx 18rpx;
-  border-left: 5rpx solid #BE684C;
-}
-
-.detail-fields > view {
-  min-height: 74rpx;
-  display: flex;
-  align-items: center;
-  gap: 9rpx;
-  border-bottom: 1rpx dashed rgba(75, 72, 64, .2);
-  color: #6C665C;
-  font-size: 20rpx;
-}
-
-.detail-fields input {
-  min-width: 0;
-  height: 64rpx;
-  flex: 1;
-  color: #2F342E;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 26rpx;
-}
-
-.photo-scroll {
-  width: 100%;
-  margin-top: 20rpx;
-  white-space: nowrap;
-}
-
-.photo-row {
-  display: inline-flex;
-  gap: 12rpx;
-}
-
-.photo-row image {
-  width: 146rpx;
-  height: 146rpx;
-  border: 5rpx solid #FFF9EC;
-  border-radius: 12rpx 18rpx 10rpx 16rpx;
-  transform: rotate(-2deg);
-}
-
-.stamp-button {
-  position: relative;
-  width: 142rpx;
-  height: 142rpx;
-  margin: 54rpx 0 0 auto;
-  padding: 0;
-  border: 5rpx double #A9A092;
-  border-radius: 47% 53% 45% 55%;
-  background: rgba(240, 230, 211, .72);
-  color: #91877A;
-  line-height: 132rpx;
-  transform: rotate(-7deg);
-}
-
-.stamp-button::after {
-  border: 0;
-}
-
-.stamp-button text {
-  position: relative;
-  z-index: 1;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 31rpx;
-  font-weight: 750;
-  letter-spacing: 3rpx;
-}
-
-.stamp-button view {
-  position: absolute;
-  right: 13rpx;
-  bottom: 15rpx;
-  left: 15rpx;
-  height: 4rpx;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: .45;
-}
-
-.stamp-button.ready {
-  border-color: #A94631;
-  background: rgba(185, 69, 45, .93);
-  color: #FFF7E7;
-  box-shadow: 0 9rpx 25rpx rgba(157, 60, 40, .2);
-}
-
-.stamp-button[disabled] {
-  opacity: 1;
-}
-
-@keyframes voice-pulse {
-  from { transform: scale(.96) rotate(-2deg); }
-  to { transform: scale(1.05) rotate(2deg); }
-}
-
-/* 精细化编辑手账主题。 */
-.record-page {
-  background: #F4F0E7;
-  color: #20231F;
-}
-
-.entry-page,
-.rating-page {
-  background: #F4F0E7;
-}
-
-.entry-art {
-  top: auto;
-  height: 62%;
-  opacity: .1;
-  object-position: center bottom;
-}
-
-.entry-content {
-  padding-right: 32rpx;
-  padding-left: 32rpx;
-}
-
-.entry-heading {
-  padding-bottom: 38rpx;
-}
-
-.entry-kicker {
-  color: #8B6B55;
-  letter-spacing: 4rpx;
-}
-
-.entry-title {
-  margin-top: 10rpx;
-  color: #1F2822;
-  font-family: "Songti SC", STSong, serif;
-  font-size: 62rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-}
-
-.visit-entry {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: #20251F;
-}
-
-.visit-entry-head {
-  padding: 0 2rpx 18rpx;
-  border-bottom: 1rpx solid #D7D0C4;
-}
-
-.visit-entry-head view text:first-child {
-  border-color: #9D5B46;
-  color: #9D4D36;
-}
-
-.visit-entry-head view text:last-child {
-  color: #222923;
-  font-family: "Songti SC", STSong, serif;
-  font-size: 31rpx;
-}
-
-.visit-entry-head > text {
-  color: #817B72;
-}
-
-.direct-entry {
-  min-height: 164rpx;
-  margin-top: 18rpx;
-  padding: 30rpx;
-  border-radius: 22rpx;
-  background: #293A31;
-  box-shadow: 0 12rpx 30rpx rgba(35, 51, 42, .13);
-  color: #FFFFFF;
-}
-
-.direct-brush {
-  right: -45rpx;
-  bottom: -62rpx;
-  width: 280rpx;
-  height: 140rpx;
-  background: rgba(203, 125, 79, .22);
-}
-
-.direct-entry view text:first-child {
-  color: #FFFFFF;
-  font-family: "Songti SC", STSong, serif;
-  font-size: 32rpx;
-}
-
-.direct-entry view text:last-child {
-  color: rgba(255, 255, 255, .55);
-}
-
-.capture-grid {
-  gap: 14rpx;
-  margin-top: 14rpx;
-}
-
-.capture-entry {
-  min-height: 188rpx;
-  padding: 24rpx;
-  border: 1rpx solid #DDD6CA;
-  border-radius: 20rpx;
-  background: rgba(255, 254, 250, .92);
-  box-shadow: 0 7rpx 20rpx rgba(55, 49, 39, .045);
-  color: #252A25;
-}
-
-.capture-entry > text:nth-child(2) {
-  font-family: "Songti SC", STSong, serif;
-  font-size: 25rpx;
-}
-
-.capture-entry > text:last-child {
-  color: #8A847B;
-}
-
-.voice-symbol > view {
-  background: #55705E;
-}
-
-.receipt-symbol {
-  background: #B85C43;
-}
-
-.rating-art {
-  top: auto;
-  height: 47%;
-  opacity: .13;
-  object-position: center bottom;
-}
-
-.rating-nav {
-  min-height: 94rpx;
-  padding-right: 25rpx;
-  padding-left: 25rpx;
-  border-bottom: 1rpx solid rgba(204, 197, 185, .82);
-  background: rgba(247, 244, 237, .97);
-}
-
-.mode-back {
-  min-width: 120rpx;
-  color: #253029;
-}
-
-.mode-back text:first-child {
-  width: 38rpx;
-  height: 38rpx;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8rpx;
-  border: 1rpx solid #BDB6AA;
-  border-radius: 50%;
-  background: #FFFFFF;
-  font-size: 32rpx;
-}
-
-.mode-back text:last-child {
-  font-size: 22rpx;
-}
-
-.rating-nav-title {
-  font-family: "Songti SC", STSong, serif;
-  font-size: 29rpx;
-}
-
-.switch-method {
-  justify-self: end;
-  padding: 13rpx 0 13rpx 18rpx;
-  color: #A14B35;
-  font-size: 21rpx;
-  font-weight: 650;
-}
-
-.rating-canvas {
-  min-height: 1260rpx;
-  padding: 72rpx 38rpx 370rpx;
-}
-
-.restaurant-writing {
-  align-items: stretch;
-  padding: 0 8rpx;
-}
-
-.writing-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.writing-meta text:first-child {
-  color: #787168;
-  font-size: 20rpx;
-  font-weight: 650;
-  letter-spacing: 2rpx;
-}
-
-.writing-meta text:last-child {
-  padding: 6rpx 11rpx;
-  border: 1rpx solid #B85A42;
-  color: #9D4833;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 17rpx;
-  transform: rotate(2deg);
-}
-
-.restaurant-writing input {
-  height: 104rpx;
-  margin-top: 6rpx;
-  color: #1F2822;
-  font-family: "Songti SC", STSong, serif;
-  font-size: 48rpx;
-  font-weight: 700;
-  letter-spacing: 1rpx;
-  text-align: left;
-}
-
-.writing-placeholder {
-  color: #A9A196;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 40rpx;
-  font-weight: 400;
-}
-
-.brush-underline {
-  width: 100%;
-  height: 10rpx;
-  transform: none;
-}
-
-.brush-underline::before {
-  height: 3rpx;
-  background: #344D3E;
-  opacity: .8;
-}
-
-.brush-underline view {
-  display: none;
-}
-
-.feeling-section {
-  margin-top: 66rpx;
-}
-
-.feeling-title {
-  color: #252C26;
-  font-family: "Songti SC", STSong, serif;
-  font-size: 30rpx;
-  text-align: left;
-}
-
-.rating-options {
-  grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
-  margin-top: 22rpx;
-}
-
-.rating-option {
-  height: 102rpx;
-  justify-content: flex-start;
-  gap: 17rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid #D6CFC3;
-  border-radius: 16rpx;
-  background: rgba(255, 254, 250, .86);
-  transition: background .18s, border-color .18s;
-}
-
-.paint-blob {
-  position: relative;
-  width: 34rpx;
-  height: 34rpx;
-  flex: none;
-  border: 0;
-  border-radius: 50%;
-  background: #BBB4A8;
-}
-
-.shape-1 .paint-blob,
-.shape-2 .paint-blob,
-.shape-3 .paint-blob,
-.shape-4 .paint-blob {
-  border-radius: 50%;
-  transform: none;
-}
-
-.rating-option.caution .paint-blob { background: #65635D; }
-.rating-option.neutral .paint-blob { background: #B2945C; }
-.rating-option.recommend .paint-blob { background: #54705E; }
-.rating-option.hot .paint-blob { background: #B95038; }
-
-.rating-option text {
-  color: #383D38;
-  font-family: "STKaiti", "KaiTi", serif;
-  font-size: 27rpx;
-}
-
-.rating-option.active,
-.rating-option.hot.active,
-.rating-option.caution.active,
-.rating-option.neutral.active {
-  border-color: #334A3D;
-  background: #334A3D;
-  box-shadow: none;
-}
-
-.rating-option.active .paint-blob {
-  width: 34rpx;
-  height: 34rpx;
-  border: 4rpx solid rgba(255, 255, 255, .72);
-  box-shadow: none;
-  transform: none;
-}
-
-.story-entry {
-  margin-top: 44rpx;
-  padding: 0;
-  border-top: 1rpx solid #D4CDC1;
-  border-bottom: 1rpx solid #D4CDC1;
-}
-
-.story-entry.expanded {
-  padding: 0 24rpx 26rpx;
-  border: 1rpx solid #D8D0C3;
-  border-radius: 18rpx;
-  background: rgba(255, 253, 247, .9);
-}
-
-.story-trigger {
-  min-height: 100rpx;
-}
-
-.story-trigger view text:first-child {
-  font-family: "Songti SC", STSong, serif;
-  font-size: 25rpx;
-}
-
-.story-trigger view text:last-child {
-  color: #8A8379;
-}
-
-.story-trigger > text {
-  color: #A14B35;
-}
-
-.story-content textarea {
-  border-bottom: 1rpx solid #AFA89D;
-  font-family: "STKaiti", "KaiTi", serif;
-}
-
-.detail-tools text {
-  border-color: #CBC3B7;
-  border-radius: 14rpx;
-  background: #FAF7F0;
-}
-
-.detail-tools text.active {
-  background: #E4EAE3;
-}
-
-.stamp-button {
-  width: 100%;
-  height: 96rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 40rpx 0 0;
-  padding: 0 30rpx;
-  border: 0;
-  border-radius: 17rpx;
-  background: #D7D1C6;
-  color: #918A80;
-  line-height: 96rpx;
-  transform: none;
-}
-
-.stamp-button text:first-child {
-  font-family: "Songti SC", STSong, serif;
-  font-size: 28rpx;
-  letter-spacing: 1rpx;
-}
-
-.stamp-button text:last-child {
-  font-size: 31rpx;
-}
-
-.stamp-button.ready {
-  border: 0;
-  background: #A94B35;
-  color: #FFFFFF;
-  box-shadow: 0 9rpx 22rpx rgba(151, 65, 44, .15);
-}
-
-.voice-panel {
-  background: #F7F3EB;
-}
-
-.voice-panel-title {
-  font-family: "Songti SC", STSong, serif;
-}
-
-.voice-orbit {
-  border-radius: 50%;
-}
-
-.voice-core {
-  border-radius: 50%;
-  transform: none;
-}
-
-.record-page, .entry-page, .rating-page { background: #F3F3EF; }
-.direct-entry { background: #1B1B19; }
-.voice-symbol > view { background: #426A54; }
-.writing-meta text:last-child, .switch-method, .story-trigger > text { border-color: #D64B32; color: #D64B32; }
-.brush-underline::before { background: #426A54; }
-.rating-option.recommend .paint-blob { background: #426A54; }
-.rating-option.hot .paint-blob { background: #D64B32; }
-.rating-option.active, .rating-option.hot.active, .rating-option.caution.active, .rating-option.neutral.active { border-color: #426A54; background: #426A54; }
-.rating-option.hot.active { border-color: #D64B32; background: #D64B32; }
-.stamp-button.ready { background: #D64B32; }
-
-.record-page, .entry-page, .rating-page { background: #f5faec; }
-.entry-page { min-height: 100vh; padding: calc(env(safe-area-inset-top) + 28rpx) 24rpx calc(145rpx + env(safe-area-inset-bottom)); }
-.entry-art { display: none; }
-.entry-content { position: static; padding: 0; }
-.entry-heading { display: flex; flex-direction: column; padding: 8rpx 8rpx 22rpx; }
-.entry-kicker { color: #747a73; font-size: 21rpx; font-weight: 600; letter-spacing: 0; }
-.entry-title { margin-top: 28rpx; font-family: "Kaiti SC", STKaiti, cursive; font-size: 70rpx; font-weight: 900; line-height: 1; letter-spacing: -3rpx; }
-.visit-entry { margin: 0; padding: 0; border: 0; background: transparent; }
-.visit-entry-head { display: none; }
-.direct-entry { position: relative; min-height: 300rpx; overflow: hidden; margin-top: 8rpx; padding: 30rpx; border-radius: 38rpx; background: #11120f; }
-.direct-photo { position: absolute; right: -50rpx; top: -30rpx; width: 330rpx; height: 360rpx; border-radius: 48% 0 0 48%; clip-path: polygon(29% 0,100% 0,100% 100%,0 100%,26% 70%,12% 45%); }
-.direct-entry > view:nth-child(2) { position: relative; z-index: 2; width: 55%; margin: 0; }
-.direct-entry view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 42rpx; font-weight: 900; }
-.direct-entry view text:last-child { margin-top: 15rpx; color: rgba(255,255,255,.7); font-size: 22rpx; line-height: 1.45; }
-.direct-entry > text { position: absolute; left: 32rpx; bottom: 28rpx; z-index: 3; width: 62rpx; height: 62rpx; border-radius: 50%; background: #c7ff35; color: #111; font-size: 39rpx; line-height: 58rpx; }
-.direct-brush { display: none; }
-.capture-grid { gap: 14rpx; margin-top: 16rpx; }
-.capture-entry { min-height: 178rpx; padding: 24rpx; border: 0; border-radius: 30rpx; background: #fff; }
-.capture-entry > text:nth-child(2) { font-family: "Kaiti SC", STKaiti, cursive; font-size: 31rpx; font-weight: 900; }
-.capture-entry > text:last-child { color: #7c827a; font-size: 19rpx; }
-.voice-symbol > view { background: #111; }
-.receipt-symbol { color: #111; }
-.recent-submissions { margin-top: 35rpx; }
-.recent-submissions-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 0 5rpx 15rpx; }
-.recent-submissions-head > view { display: flex; flex-direction: column; }
-.recent-submissions-head view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 36rpx; font-weight: 900; }
-.recent-submissions-head view text:last-child { margin-top: 4rpx; color: #7c8379; font-size: 18rpx; }
-.recent-submissions-head > text { padding: 8rpx 0 4rpx 18rpx; color: #5b902f; font-size: 20rpx; font-weight: 800; }
-.recent-submit-empty { padding: 36rpx 22rpx; border-radius: 28rpx; background: #fff; color: #747b72; text-align: center; font-size: 20rpx; }
-.recent-submit-row { min-height: 112rpx; display: flex; align-items: center; gap: 15rpx; padding: 17rpx 19rpx; border-radius: 27rpx; background: #fff; }
-.recent-submit-row + .recent-submit-row { margin-top: 10rpx; }
-.recent-submit-mark { width: 64rpx; height: 64rpx; flex: none; border-radius: 20rpx; background: #11120f; color: #c7ff35; font-family: "Kaiti SC", STKaiti, cursive; font-size: 29rpx; font-weight: 900; line-height: 64rpx; text-align: center; }
-.recent-submit-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; }
-.recent-submit-copy text:first-child { overflow: hidden; font-size: 23rpx; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
-.recent-submit-copy text:last-child { margin-top: 6rpx; color: #7e857b; font-size: 17rpx; }
-.record-status { flex: none; padding: 8rpx 13rpx; border-radius: 18rpx; font-size: 17rpx; font-weight: 800; }
-.status-pending { background: #fff0c6; color: #8a6411; }
-.status-published { background: #e1f6d8; color: #387425; }
-.status-rejected { background: #f9e1dc; color: #b23e2b; }
-.recent-submit-arrow { color: #8a9187; font-size: 34rpx; }
-.rating-page { color: #111; }
-.rating-nav { background: rgba(245,250,236,.95); }
-.rating-nav-title, .feeling-title, .story-trigger view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-weight: 900; }
-.stamp-button.ready { border-radius: 48rpx; background: #111; }
-
-/* 到店表单：与黑色、青柠色和柔和卡片的产品语言保持一致。 */
-.rating-page {
-  min-height: 100vh;
-  background: #f5faec;
-}
-
-.rating-nav {
-  min-height: 76rpx;
-  padding-right: 24rpx;
-  padding-bottom: 18rpx;
-  padding-left: 24rpx;
-  border-bottom: 0;
-  background: #f5faec;
-}
-
-.mode-back {
-  min-width: 112rpx;
-  padding: 8rpx 0;
-  color: #171914;
-}
-
-.mode-back text:first-child {
-  width: 50rpx;
-  height: 50rpx;
-  margin-right: 9rpx;
-  border: 0;
-  background: #ffffff;
-  font-size: 38rpx;
-  line-height: 48rpx;
-}
-
-.mode-back text:last-child {
-  font-size: 21rpx;
-  font-weight: 750;
-}
-
-.rating-nav-title {
-  font-size: 33rpx;
-  line-height: 1;
-}
-
-.switch-method {
-  padding: 11rpx 17rpx;
-  border-radius: 24rpx;
-  background: #e7ecdf;
-  color: #4f574c;
-  font-size: 19rpx;
-  font-weight: 750;
-}
-
-.rating-scroll {
-  height: calc(100vh - 108rpx - env(safe-area-inset-bottom));
-}
-
-.rating-canvas {
-  min-height: 0;
-  padding: 8rpx 24rpx 190rpx;
-}
-
-.restaurant-writing {
-  align-items: stretch;
-  padding: 29rpx;
-  border-radius: 38rpx;
-  background: #11120f;
-  box-shadow: 0 18rpx 40rpx rgba(20, 24, 17, .14);
-  color: #ffffff;
-}
-
-.writing-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.writing-topline > view {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.writing-topline view text:first-child,
-.section-number {
-  width: 43rpx;
-  height: 43rpx;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #c7ff35;
-  color: #11120f;
-  font-size: 16rpx;
-  font-weight: 900;
-}
-
-.writing-topline view text:last-child {
-  color: rgba(255, 255, 255, .68);
-  font-size: 19rpx;
-  font-weight: 750;
-  letter-spacing: 1rpx;
-}
-
-.writing-topline > text {
-  padding: 9rpx 16rpx;
-  border: 1rpx solid rgba(255, 255, 255, .2);
-  border-radius: 24rpx;
-  color: #c7ff35;
-  font-size: 18rpx;
-  font-weight: 750;
-}
-
-.writing-label {
-  margin-top: 34rpx;
-  font-family: "Kaiti SC", STKaiti, cursive;
-  font-size: 36rpx;
-  font-weight: 900;
-}
-
-.restaurant-writing input {
+  flex: none; display: flex; align-items: center; gap: 16rpx;
+  padding: 12rpx 32rpx 16rpx; border-bottom: 3rpx solid #EFE5D0; background: #FFFBF3;
+}
+.mode-back { flex: none; display: flex; align-items: center; gap: 6rpx; font-size: 25rpx; font-weight: 700; }
+.back-mark { font-size: 38rpx; line-height: 1; margin-top: -4rpx; }
+.rating-nav-title { flex: 1; text-align: center; font-size: 32rpx; font-weight: 900; }
+.switch-method { flex: none; font-size: 24rpx; font-weight: 700; color: #3E9B6F; }
+.rating-scroll { flex: 1; min-height: 0; }
+.rating-canvas { padding: 8rpx 32rpx calc(48rpx + env(safe-area-inset-bottom)); }
+
+/* 字段卡 */
+.field-card {
+  position: relative; margin-top: 24rpx; padding: 26rpx 28rpx 30rpx;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.tape {
+  position: absolute; top: -16rpx; left: 50%; width: 128rpx; height: 36rpx;
+  transform: translateX(-50%) rotate(-2deg); border-radius: 6rpx;
+  background: rgba(62, 155, 111, .16); border: 2rpx solid rgba(62, 155, 111, .22);
   box-sizing: border-box;
-  width: 100%;
-  height: 96rpx;
-  margin-top: 19rpx;
-  padding: 0 22rpx;
-  border: 2rpx solid rgba(255, 255, 255, .12);
-  border-radius: 23rpx;
-  background: rgba(255, 255, 255, .08);
-  color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 29rpx;
-  font-weight: 750;
-  letter-spacing: 0;
-  text-align: left;
 }
-
-.writing-placeholder {
-  color: rgba(255, 255, 255, .38);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 27rpx;
-  font-weight: 500;
+.field-card.field-error { border-color: #FF6D4D; }
+.field-topline { display: flex; align-items: center; justify-content: space-between; }
+.field-name-row { display: flex; align-items: center; gap: 10rpx; }
+.field-name { font-size: 26rpx; font-weight: 800; }
+.field-city { font-size: 21rpx; color: #8B8271; }
+.writing-label { display: block; margin-top: 22rpx; font-size: 30rpx; font-weight: 800; }
+.place-input {
+  height: 92rpx; margin-top: 18rpx; padding: 0 26rpx; box-sizing: border-box;
+  background: #FDF7E9; border: 3rpx solid #F1E7CE; border-radius: 22rpx;
+  font-size: 28rpx; color: #332E26;
 }
+.writing-placeholder { color: #C9BFA8; }
+.input-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12rpx; }
+.foot-hint { font-size: 20rpx; color: #8B8271; }
+.foot-hint.error { color: #FF6D4D; font-weight: 700; }
+.foot-counter { font-size: 19rpx; color: #C9BFA8; }
 
-.input-foot {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 13rpx;
-  color: rgba(255, 255, 255, .42);
-  font-size: 16rpx;
-}
+/* 建议列表 */
+.place-suggestions { margin-top: 18rpx; overflow: hidden; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 24rpx; }
+.suggestion-state { padding: 22rpx 24rpx; font-size: 21rpx; color: #8B8271; }
+.suggestion-row { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; border-bottom: 2rpx solid #F5EEDF; }
+.suggestion-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.suggestion-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26rpx; font-weight: 700; }
+.suggestion-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 20rpx; color: #8B8271; }
+.suggestion-pick { flex: none; font-size: 22rpx; font-weight: 700; color: #3E9B6F; }
+.suggestion-create { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; }
+.create-ic { flex: none; }
+.create-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.create-title { font-size: 24rpx; font-weight: 700; color: #2F7D58; }
+.create-note { font-size: 20rpx; color: #8B8271; }
 
-.feeling-section {
-  margin-top: 17rpx;
-  padding: 28rpx;
-  border-radius: 34rpx;
-  background: #ffffff;
-}
-
-.section-title-row {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-
-.feeling-title {
-  color: #171914;
-  font-size: 31rpx;
-  text-align: left;
-}
-
-.rating-options {
-  grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
-  margin-top: 23rpx;
-}
-
-.rating-option {
-  height: 92rpx;
-  padding: 0 20rpx;
-  border: 0;
-  border-radius: 25rpx;
-  background: #f0f4eb;
-}
-
-.paint-blob {
-  width: 28rpx;
-  height: 28rpx;
-}
-
-.rating-option text {
-  color: #30352f;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 23rpx;
-  font-weight: 750;
-}
-
-.rating-option.active,
-.rating-option.hot.active,
-.rating-option.caution.active,
-.rating-option.neutral.active {
-  border: 0;
-  background: #c7ff35;
-  box-shadow: inset 0 0 0 2rpx #11120f;
-}
-
-.rating-option.active .paint-blob {
-  width: 28rpx;
-  height: 28rpx;
-  border: 7rpx solid #11120f;
-  background: #c7ff35;
-}
-
-.rating-option.active text {
-  color: #11120f;
-}
-
-.story-entry,
-.story-entry.expanded {
-  margin-top: 17rpx;
-  padding: 0 27rpx;
-  border: 0;
-  border-radius: 34rpx;
-  background: #ffffff;
-}
-
-.story-entry.expanded {
-  padding-bottom: 27rpx;
-}
-
-.story-trigger {
-  min-height: 116rpx;
-}
-
-.story-trigger view text:first-child {
-  color: #171914;
-  font-size: 29rpx;
-}
-
-.story-trigger view text:last-child {
-  margin-top: 7rpx;
-  color: #7d8478;
-  font-size: 18rpx;
-}
-
-.story-trigger > text {
-  width: 52rpx;
-  height: 52rpx;
-  border-radius: 50%;
-  background: #11120f;
-  color: #c7ff35;
-  font-size: 32rpx;
-  line-height: 48rpx;
-  text-align: center;
-}
-
-.story-content textarea {
-  box-sizing: border-box;
-  height: 220rpx;
-  padding: 21rpx;
-  border: 0;
-  border-radius: 23rpx;
-  background: #f1f4ed;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-
-.detail-tools text {
-  border: 0;
-  border-radius: 22rpx;
-  background: #edf1e8;
-  color: #485144;
-}
-
-.detail-tools text.active {
-  background: #dff7a7;
-  color: #26320f;
-}
-
-.detail-fields {
-  border-left-color: #c7ff35;
-}
-
-.stamp-button {
-  width: 100%;
-  height: 98rpx;
-  margin: 18rpx 0 0;
-  padding: 0 31rpx;
-  border-radius: 49rpx;
-  background: #e0e4dc;
-  color: #979d94;
-  line-height: 98rpx;
-}
-
-.stamp-button text:first-child {
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  font-size: 26rpx;
-  font-weight: 850;
-}
-
-.stamp-button.ready {
-  border-radius: 49rpx;
-  background: #11120f;
-  color: #c7ff35;
-  box-shadow: 0 13rpx 28rpx rgba(17, 18, 15, .16);
-}
-
-.restaurant-writing,
-.feeling-section {
-  transition: box-shadow .18s, transform .18s;
-}
-
-.restaurant-writing.field-error {
-  box-shadow: 0 0 0 5rpx rgba(229, 82, 55, .9), 0 18rpx 40rpx rgba(20, 24, 17, .14);
-}
-
-.input-foot .error {
-  color: #ff9b87;
-  font-weight: 750;
-}
-
-.place-suggestions {
-  overflow: hidden;
-  margin-top: 17rpx;
-  border: 1rpx solid rgba(255, 255, 255, .12);
-  border-radius: 24rpx;
-  background: #20231e;
-}
-
-.suggestion-state {
-  padding: 25rpx 21rpx;
-  color: rgba(255, 255, 255, .5);
-  font-size: 19rpx;
-}
-
-.suggestion-row,
-.suggestion-create {
-  min-height: 91rpx;
-  display: flex;
-  align-items: center;
-  gap: 15rpx;
-  padding: 16rpx 19rpx;
-  border-bottom: 1rpx solid rgba(255, 255, 255, .09);
-}
-
-.suggestion-row > view,
-.suggestion-create > view:last-child {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-}
-
-.suggestion-row view text:first-child,
-.suggestion-create view text:first-child {
-  overflow: hidden;
-  color: #ffffff;
-  font-size: 22rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.suggestion-row view text:last-child,
-.suggestion-create view text:last-child {
-  margin-top: 5rpx;
-  overflow: hidden;
-  color: rgba(255, 255, 255, .46);
-  font-size: 16rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.suggestion-row > text {
-  flex: none;
-  padding: 8rpx 13rpx;
-  border-radius: 18rpx;
-  background: rgba(199, 255, 53, .13);
-  color: #c7ff35;
-  font-size: 17rpx;
-  font-weight: 800;
-}
-
-.suggestion-create {
-  border-bottom: 0;
-  background: rgba(199, 255, 53, .07);
-}
-
-.suggestion-create .plus {
-  width: 48rpx;
-  height: 48rpx;
-  flex: none;
-  border-radius: 15rpx;
-  background: #c7ff35;
-  color: #11120f;
-  font-size: 31rpx;
-  line-height: 45rpx;
-  text-align: center;
-}
-
-.choose-location-button {
-  width: 100%;
-  height: 82rpx;
-  margin-top: 17rpx;
-  border: 1rpx solid rgba(199, 255, 53, .5);
-  border-radius: 22rpx;
-  background: rgba(199, 255, 53, .08);
-  color: #c7ff35;
-  font-size: 22rpx;
-  font-weight: 800;
-  line-height: 80rpx;
-}
-
+/* 已选位置 / 地图按钮 */
 .selected-place-location {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  margin-top: 17rpx;
-  padding: 18rpx 20rpx;
-  border: 1rpx solid rgba(199, 255, 53, .34);
-  border-radius: 22rpx;
-  background: rgba(199, 255, 53, .08);
+  display: flex; align-items: center; gap: 16rpx; margin-top: 18rpx;
+  padding: 20rpx 24rpx; border-radius: 22rpx;
+  background: #E5F3EA; border: 3rpx solid #CBE5D6;
 }
-
-.selected-place-location > view {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+.selected-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.selected-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 25rpx; font-weight: 800; color: #2F7D58; }
+.selected-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 20rpx; color: #8B8271; }
+.selected-repick { flex: none; font-size: 22rpx; font-weight: 700; color: #3E9B6F; }
+.choose-location-button {
+  display: flex; align-items: center; justify-content: center; gap: 10rpx;
+  width: 100%; height: 80rpx; margin-top: 18rpx; padding: 0; box-sizing: border-box;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0; border-radius: 999rpx;
+  color: #332E26; font-size: 24rpx; font-weight: 700; line-height: 1;
 }
+.choose-location-button::after { border: none; }
+.locate-ic { flex: none; }
 
-.selected-place-location view text:first-child {
-  color: #fff;
-  font-size: 21rpx;
-  font-weight: 800;
-}
-
-.selected-place-location view text:last-child {
-  margin-top: 5rpx;
-  overflow: hidden;
-  color: rgba(255, 255, 255, .5);
-  font-size: 17rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selected-place-location > text {
-  flex: none;
-  color: #c7ff35;
-  font-size: 19rpx;
-  font-weight: 800;
-}
-
-.feeling-section.field-error {
-  box-shadow: 0 0 0 4rpx rgba(229, 82, 55, .78);
-}
-
+/* 感受选择 */
 .feeling-picker {
-  min-height: 105rpx;
-  display: flex;
-  align-items: center;
-  gap: 15rpx;
-  margin-top: 22rpx;
-  padding: 18rpx 21rpx;
-  border: 2rpx solid #dce2d7;
-  border-radius: 25rpx;
-  background: #f1f5ed;
+  display: flex; align-items: center; gap: 14rpx; margin-top: 18rpx;
+  min-height: 96rpx; padding: 16rpx 24rpx; box-sizing: border-box;
+  background: #FDF7E9; border: 3rpx solid #F1E7CE; border-radius: 22rpx;
 }
+.feeling-picker.selected { background: #E5F3EA; border-color: #CBE5D6; }
+.feeling-selected { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14rpx; }
+.feeling-placeholder { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.feeling-copy { display: flex; flex-direction: column; gap: 4rpx; min-width: 0; }
+.feeling-label { font-size: 27rpx; font-weight: 800; }
+.feeling-label.placeholder { color: #8B8271; }
+.feeling-desc { font-size: 21rpx; color: #8B8271; }
+.picker-caret { flex: none; margin-left: auto; }
+.feeling-dot { flex: none; width: 22rpx; height: 22rpx; border-radius: 50%; }
+.feeling-dot.hot { background: #FF6D4D; }
+.feeling-dot.recommend { background: #3E9B6F; }
+.feeling-dot.neutral { background: #E0A62F; }
+.feeling-dot.caution { background: #8B8271; }
 
-.feeling-picker.selected {
-  border-color: #c7ff35;
-  background: #efffca;
+/* 故事折叠卡 */
+.story-entry {
+  margin-top: 24rpx; overflow: hidden;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
 }
-
-.feeling-placeholder,
-.feeling-selected > view:last-child {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
+.story-trigger { display: flex; align-items: center; gap: 16rpx; padding: 26rpx 28rpx; }
+.story-trigger-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.story-trigger-title { font-size: 27rpx; font-weight: 800; }
+.story-trigger-note { font-size: 21rpx; color: #8B8271; }
+.story-toggle { flex: none; width: 52rpx; height: 52rpx; border-radius: 50%; background: #FFF4DF; color: #8B8271; font-size: 34rpx; font-weight: 700; line-height: 52rpx; text-align: center; }
+.story-content { padding: 4rpx 28rpx 28rpx; border-top: 2rpx solid #F5EEDF; }
+.story-entry .story-textarea,
+.story-content textarea {
+  width: 100%; min-height: 200rpx; margin-top: 22rpx; padding: 20rpx 24rpx; box-sizing: border-box;
+  background: #FDF7E9; border: 3rpx solid #F1E7CE; border-radius: 22rpx;
+  font-size: 26rpx; line-height: 1.6; color: #332E26;
 }
-
-.feeling-placeholder text:first-child,
-.feeling-selected view text:first-child {
-  color: #20241f;
-  font-size: 24rpx;
-  font-weight: 850;
+.record-tags { margin-top: 24rpx; }
+.tags-label { font-size: 21rpx; color: #8B8271; }
+.tags-row { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 14rpx; }
+.tag-chip {
+  padding: 10rpx 24rpx; border-radius: 999rpx;
+  background: #F6EFDF; color: #6E6553; font-size: 23rpx; font-weight: 700;
 }
-
-.feeling-placeholder text:last-child,
-.feeling-selected view text:last-child {
-  margin-top: 6rpx;
-  color: #7a8277;
-  font-size: 17rpx;
+.tag-chip.active { background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%); color: #332E26; box-shadow: 0 3rpx 0 #E0A62F; }
+.detail-tools { display: flex; flex-wrap: wrap; gap: 14rpx; margin-top: 24rpx; }
+.tool-chip {
+  padding: 10rpx 20rpx; border-radius: 999rpx; box-sizing: border-box;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; color: #6E6553; font-size: 22rpx; font-weight: 700;
 }
+.tool-chip.active { background: #E5F3EA; border-color: #CBE5D6; color: #2F7D58; }
+.detail-fields { margin-top: 20rpx; }
+.detail-field { display: flex; align-items: center; gap: 14rpx; margin-top: 14rpx; }
+.detail-field-label { flex: none; font-size: 24rpx; font-weight: 700; }
+.detail-field-input { flex: 1; min-width: 0; height: 76rpx; padding: 0 20rpx; box-sizing: border-box; background: #FDF7E9; border: 3rpx solid #F1E7CE; border-radius: 18rpx; font-size: 26rpx; }
+.detail-field-text { flex: 1; }
+.detail-field-unit { flex: none; font-size: 22rpx; color: #8B8271; }
+.photo-scroll { width: 100%; margin-top: 20rpx; }
+.photo-row { display: flex; gap: 14rpx; }
+.photo-row image { flex: none; width: 160rpx; height: 160rpx; border-radius: 20rpx; background: #FFF4DF; }
 
-.field-error .feeling-placeholder text:last-child {
-  color: #c94831;
-  font-weight: 750;
+/* 提交区 */
+.submit-hint { display: block; margin-top: 26rpx; text-align: center; font-size: 22rpx; color: #FF6D4D; font-weight: 700; }
+.review-hint { display: block; margin-top: 10rpx; text-align: center; font-size: 20rpx; color: #8B8271; }
+.stamp-button {
+  display: flex; align-items: center; justify-content: center; gap: 12rpx;
+  width: 100%; height: 96rpx; margin-top: 24rpx; padding: 0; box-sizing: border-box;
+  border: none; border-radius: 999rpx;
+  background: #F6EFDF; color: #8B8271;
+  font-size: 30rpx; font-weight: 800; line-height: 1;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
 }
+.stamp-button::after { border: none; }
+.stamp-button.ready { background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%); color: #332E26; box-shadow: 0 5rpx 0 #E0A62F; }
+.stamp-button[disabled] { opacity: .75; }
+.stamp-arrow { flex: none; }
 
-.feeling-selected {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.feeling-dot {
-  width: 31rpx;
-  height: 31rpx;
-  flex: none;
-  border-radius: 50%;
-  background: #777a73;
-}
-
-.feeling-dot.hot { background: #e05036; }
-.feeling-dot.recommend { background: #4e7b5f; }
-.feeling-dot.neutral { background: #b69352; }
-.feeling-dot.caution { background: #65645e; }
-
-.picker-arrow {
-  flex: none;
-  color: #454b43;
-  font-size: 34rpx;
-}
-
-.submit-hint {
-  display: block;
-  margin: 22rpx 8rpx -5rpx;
-  color: #9a5d25;
-  font-size: 18rpx;
-  font-weight: 750;
-}
-
-.feeling-mask {
-  position: fixed;
-  inset: 0 0 calc(108rpx + env(safe-area-inset-bottom));
-  z-index: 40;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(11, 13, 10, .56);
-}
-
+/* 感受 bottom-sheet */
+.feeling-mask { position: fixed; inset: 0; z-index: 60; background: rgba(51, 46, 38, .45); }
 .feeling-sheet {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 18rpx 24rpx 34rpx;
-  border-radius: 40rpx 40rpx 0 0;
-  background: #f5faec;
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 20rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
+  background: #FFFBF3; border-radius: 44rpx 44rpx 0 0;
 }
-
-.feeling-sheet .panel-handle {
-  margin: 0 auto;
-}
-
-.feeling-sheet-title {
-  display: block;
-  margin-top: 28rpx;
-  font-family: "Kaiti SC", STKaiti, cursive;
-  font-size: 39rpx;
-  font-weight: 900;
-  text-align: center;
-}
-
-.feeling-sheet-desc {
-  display: block;
-  margin-top: 7rpx;
-  color: #747b71;
-  font-size: 19rpx;
-  text-align: center;
-}
-
-.feeling-sheet-options {
-  margin-top: 25rpx;
-}
-
+.feeling-sheet-title { display: block; margin-top: 26rpx; font-size: 32rpx; font-weight: 900; }
+.feeling-sheet-desc { display: block; margin-top: 8rpx; font-size: 22rpx; color: #8B8271; }
+.feeling-sheet-options { margin-top: 20rpx; }
 .feeling-sheet-option {
-  min-height: 103rpx;
-  display: flex;
-  align-items: center;
-  gap: 17rpx;
-  padding: 15rpx 21rpx;
-  border-radius: 25rpx;
-  background: #ffffff;
+  display: flex; align-items: center; gap: 16rpx; margin-top: 14rpx;
+  padding: 24rpx 22rpx; border-radius: 24rpx; box-sizing: border-box;
+  border: 3rpx solid transparent; background: #FFFFFF;
 }
+.feeling-sheet-option.active { background: #E5F3EA; border-color: #CBE5D6; }
+.feeling-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.option-check { flex: none; }
+.option-arrow { flex: none; font-size: 30rpx; font-weight: 700; color: #C9BFA8; }
 
-.feeling-sheet-option + .feeling-sheet-option {
-  margin-top: 10rpx;
-}
-
-.feeling-sheet-option.active {
-  background: #c7ff35;
-  box-shadow: inset 0 0 0 2rpx #11120f;
-}
-
-.feeling-sheet-option > view:nth-child(2) {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-}
-
-.feeling-sheet-option view text:first-child {
-  font-size: 24rpx;
-  font-weight: 850;
-}
-
-.feeling-sheet-option view text:last-child {
-  margin-top: 5rpx;
-  color: #747b71;
-  font-size: 17rpx;
-}
-
-.feeling-sheet-option > text {
-  width: 43rpx;
-  height: 43rpx;
-  border-radius: 50%;
-  background: #eef2e9;
-  color: #50564e;
-  font-size: 25rpx;
-  line-height: 41rpx;
-  text-align: center;
-}
-
-.feeling-sheet-option.active > text {
-  background: #11120f;
-  color: #c7ff35;
-}
+@keyframes pulse-soft { to { transform: scale(1.05); } }
 </style>

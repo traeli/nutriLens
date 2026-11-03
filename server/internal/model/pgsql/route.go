@@ -26,13 +26,16 @@ func (CityRoute) TableName() string { return "city_routes" }
 // CityRouteStop 将攻略路线保存为有序的标准地点列表。经纬度和地址统一保存在 Place 中，
 // 修正地点信息后，所有引用该地点的路线都会同步生效。
 type CityRouteStop struct {
-	ID        uint      `gorm:"primaryKey;comment:路线站点编号" json:"-"`
-	RouteID   uint      `gorm:"not null;index;comment:路线编号" json:"-"`
-	PlaceID   uint      `gorm:"not null;index;comment:地点编号" json:"place_id"`
-	SortOrder int       `gorm:"not null;default:0;comment:站点顺序" json:"index"`
-	Note      string    `gorm:"size:240;not null;default:'';comment:站点说明" json:"note"`
-	CreatedAt time.Time `gorm:"comment:创建时间" json:"-"`
-	UpdatedAt time.Time `gorm:"comment:更新时间" json:"-"`
+	ID               uint      `gorm:"primaryKey;comment:路线站点编号" json:"-"`
+	RouteID          uint      `gorm:"not null;index;comment:路线编号" json:"-"`
+	PlaceID          uint      `gorm:"not null;index;comment:地点编号" json:"place_id"`
+	SortOrder        int       `gorm:"not null;default:0;comment:站点顺序" json:"index"`
+	RecommendedFood  string    `gorm:"size:80;not null;default:'';comment:该路线在本站推荐的食物" json:"recommended_food"`
+	FoodCategoryCode string    `gorm:"size:48;not null;default:'';comment:推荐食物分类编码" json:"food_category_code"`
+	IconKey          string    `gorm:"size:48;not null;default:'bowl';comment:客户端本地图标键" json:"icon_key"`
+	Note             string    `gorm:"size:240;not null;default:'';comment:站点说明" json:"note"`
+	CreatedAt        time.Time `gorm:"comment:创建时间" json:"-"`
+	UpdatedAt        time.Time `gorm:"comment:更新时间" json:"-"`
 }
 
 func (CityRouteStop) TableName() string { return "city_route_stops" }

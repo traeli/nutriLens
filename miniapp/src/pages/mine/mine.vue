@@ -1,45 +1,117 @@
 <template>
   <view class="mine-page">
     <view class="mine-head" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-      <view class="state-title">
-        <text>健康概览</text>
-        <view class="profile-inline" @tap="goProfile">
-          <text>{{ profile.nickname || '城市记录者' }}</text>
-          <image v-if="profile.avatar_url" class="avatar" :src="profile.avatar_url" mode="aspectFill" />
-          <view v-else class="avatar avatar-text">{{ avatarText }}</view>
-          <text class="settings" @tap.stop="showSettings">⚙</text>
+      <view class="head-row">
+        <view class="page-title">
+          <view class="title-ic" :style="dz('face', '#3E9B6F', 38)"></view>
+          <text class="title-h">我的</text>
+          <text class="title-p">认真吃饭的人</text>
+        </view>
+        <view class="profile-inline">
+          <view class="profile-chip" @tap="goProfile">
+            <image v-if="profile.avatar_url" class="avatar" :src="profile.avatar_url" mode="aspectFill" />
+            <view v-else class="avatar avatar-text">{{ avatarText }}</view>
+            <text class="profile-name">{{ profile.nickname || '城市记录者' }}</text>
+            <view class="profile-caret" :style="dz('caret', '#8B8271', 18)"></view>
+          </view>
+          <view class="settings-btn" @tap="showSettings">
+            <view class="settings-ic" :style="dz('pen', '#332E26', 28)"></view>
+          </view>
         </view>
       </view>
     </view>
 
-    <view class="body">
-      <view class="status-grid">
-        <view class="score-card">
-          <text>本月贡献</text>
-          <view><text>{{ contribution.month_points }}</text><view class="score-ring"><view></view></view></view>
-          <text>{{ nextLevelCopy }}</text>
+    <view class="resume-card" @tap="startRecord">
+      <view class="resume-copy">
+        <text class="resume-eyebrow">继续最近行为</text>
+        <text class="resume-title">记录今天吃过的一家店</text>
+        <text class="resume-note">草稿会留在到店记录流程中，完成后形成个人足迹</text>
+      </view>
+      <text class="resume-arrow">›</text>
+    </view>
+
+    <view class="status-grid">
+      <view class="score-card">
+        <view class="tape"></view>
+        <view class="card-top">
+          <text class="card-label">本月贡献</text>
+          <view class="card-medal" :style="dzBg('blob-cream')"><view class="card-medal-ic" :style="dz('stamp', '#E0A62F', 32)"></view></view>
         </view>
-        <view class="streak-card">
-          <text>累计记录</text><text>{{ metrics.records }}</text><text>条</text><text>认真记录每一店</text>
+        <text class="score-num">{{ contribution.month_points }}</text>
+        <view class="progress"><view class="progress-fill" :style="{ width: progressPercent + '%' }"></view></view>
+        <text class="card-note">{{ nextLevelCopy }}</text>
+      </view>
+      <view class="streak-card">
+        <view class="card-top">
+          <text class="card-label">累计记录</text>
+          <view class="card-medal" :style="dzBg('blob-white')"><view class="card-medal-ic" :style="dz('pen', '#3E9B6F', 32)"></view></view>
         </view>
-      </view>
-
-      <view class="mini-stats">
-        <view><text>♜</text><text>{{ metrics.records }}</text><text>到店足迹</text></view>
-        <view><text>♨</text><text>{{ metrics.helpful }}</text><text>有用投票</text></view>
-        <view><text>ϟ</text><text>{{ unlockedBadges.length }}</text><text>已解锁徽章</text></view>
-      </view>
-
-      <view class="quick-grid">
-        <view v-for="item in quickActions" :key="item.label" class="quick-item" @tap="openAction(item)">
-          <view class="quick-icon" :class="item.tone">{{ item.icon }}</view><text>{{ item.label }}</text><text>{{ item.desc }}</text>
+        <view class="streak-num-row">
+          <text class="score-num">{{ metrics.records }}</text>
+          <text class="streak-unit">条</text>
         </view>
+        <text class="card-note">认真记录每一店</text>
       </view>
+    </view>
 
-      <view class="account-menu surface">
-        <view v-for="item in accountActions" :key="item.label" @tap="openAction(item)"><text class="menu-mark">{{ item.icon }}</text><view><text>{{ item.label }}</text><text>{{ item.desc }}</text></view><text class="arrow">›</text></view>
+    <view class="mini-stats">
+      <view class="stat-col">
+        <view class="stat-medal" :style="dzBg('blob-cream')"><view class="stat-ic" :style="dz('pin', '#3E9B6F', 34)"></view></view>
+        <text class="stat-num">{{ metrics.records }}</text>
+        <text class="stat-label">到店足迹</text>
       </view>
+      <view class="stat-col">
+        <view class="stat-medal" :style="dzBg('blob-cream')"><view class="stat-ic" :style="dz('check', '#2F7D58', 34)"></view></view>
+        <text class="stat-num">{{ metrics.helpful }}</text>
+        <text class="stat-label">有用投票</text>
+      </view>
+      <view class="stat-col">
+        <view class="stat-medal" :style="dzBg('blob-cream')"><view class="stat-ic" :style="dz('flag', '#E0A62F', 34)"></view></view>
+        <text class="stat-num">{{ unlockedBadges.length }}</text>
+        <text class="stat-label">已解锁徽章</text>
+      </view>
+    </view>
 
+    <view class="sec content-section">
+      <view class="sec-ic" :style="dz('compass', '#3E9B6F', 38)"></view>
+      <view class="sec-title">
+        <text class="sec-h">我的内容</text>
+        <view class="sec-scribble" :style="dz('scribble', '#3E9B6F', 56)"></view>
+      </view>
+    </view>
+    <view class="list-card content-list">
+      <view v-for="item in quickActions" :key="item.label" class="list-row" @tap="openAction(item)">
+        <view class="row-medal" :style="dzBg('blob-cream')"><view class="row-ic" :style="dz(quickIcon(item), '#332E26', 32)"></view></view>
+        <view class="row-copy">
+          <text class="row-label">{{ item.label }}</text>
+          <text class="row-desc">{{ item.desc }}</text>
+        </view>
+        <text class="row-arrow">›</text>
+      </view>
+    </view>
+
+    <view class="sec account-section">
+      <view class="sec-ic" :style="dz('stamp', '#3E9B6F', 38)"></view>
+      <view class="sec-title">
+        <text class="sec-h">账号与规范</text>
+        <view class="sec-scribble" :style="dz('scribble', '#3E9B6F', 56)"></view>
+      </view>
+    </view>
+    <view class="list-card account-list">
+      <view v-for="item in accountActions" :key="item.label" class="list-row" @tap="openAction(item)">
+        <view class="row-medal" :style="dzBg('blob-white')"><view class="row-ic" :style="dz(accountIcon(item), '#332E26', 32)"></view></view>
+        <view class="row-copy">
+          <text class="row-label">{{ item.label }}</text>
+          <text class="row-desc">{{ item.desc }}</text>
+        </view>
+        <text class="row-arrow">›</text>
+      </view>
+    </view>
+
+    <view class="page-quote">
+      <view class="quote-swirl" :style="dz('swirl', '#C9BFA8', 34)"></view>
+      <text>认真吃饭的人，值得被认真对待</text>
+      <view class="quote-swirl flip" :style="dz('swirl', '#C9BFA8', 34)"></view>
     </view>
   </view>
 </template>
@@ -48,6 +120,8 @@
 import { api, clearSession } from '@/api/request.js'
 import { getSelectedCity } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
+import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
+import { doodleBg, doodleStyle } from '@/utils/doodles.js'
 
 const previewBadges = [
   { code: 'first_note', name: '初次落笔', unlocked_at: null },
@@ -55,33 +129,22 @@ const previewBadges = [
   { code: 'trusted_voice', name: '可靠声音', unlocked_at: null },
 ]
 
-function getNavLayout() {
-  const info = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : uni.getSystemInfoSync()
-  const statusBarHeight = Number(info.statusBarHeight || 20)
-  let menu = null
-  try { menu = uni.getMenuButtonBoundingClientRect() } catch (error) { menu = null }
-
-  const menuTop = menu && Number(menu.top) > 0 ? Number(menu.top) : statusBarHeight + 6
-  const menuHeight = menu && Number(menu.height) > 0 ? Number(menu.height) : 32
-  const menuBottom = menu && Number(menu.bottom) > menuTop ? Number(menu.bottom) : menuTop + menuHeight
-
-  // 内容需要同时避开系统状态区域（包括灵动岛）和微信胶囊，并额外留出手写字体上沿空间。
-  return { contentTop: Math.max(statusBarHeight, menuBottom) + 16 }
-}
-
 export default {
   data() {
     return {
-      navLayout: getNavLayout(),
+      navLayout: getPrimaryNavLayout(),
       city: getSelectedCity(), profile: { nickname: uni.getStorageSync('nickname') || '林初', avatar_url: '' },
       contribution: { total_points: 0, month_points: 0 }, trust: { trust_level: 'new' }, badges: [],
       metrics: { records: 0, helpful: 0, badges: 0 },
       quickActions: [
-        { label: '我的评论', desc: '查看公开评论与审核状态', icon: '评', tone: 'red', action: 'records' },
-        { label: '饮食记录', desc: '查看私人饮食与营养数据', icon: '食', tone: 'green', action: 'diet' },
-        { label: '举报与申诉', desc: '处理进度', icon: '诉', tone: 'ink', action: 'cases' },
+        { label: '最近记录', desc: '查看公开记录与审核状态', action: 'records' },
+        { label: '我的足迹', desc: '查看已经点亮的城市与街区', action: 'footprints' },
+        { label: '收藏的店与路线', desc: '继续上次想去的地方', action: 'favorites' },
+        { label: '营养历史', desc: '查看私人饮食与营养数据', action: 'diet' },
       ],
       accountActions: [
+        { label: '贡献与徽章', desc: '查看内容贡献和成长反馈', action: 'contribution' },
+        { label: '举报与申诉', desc: '查看处理进度', action: 'cases' },
         { label: '隐私保护政策', desc: '了解信息如何被使用', icon: '隐', url: '/pages/privacy/privacy' },
         { label: '用户服务协议', desc: '平台规则与内容规范', icon: '约', url: '/pages/agreement/agreement' },
         { label: '社区内容规范', desc: '公开内容与审核规则', icon: '规', url: '/pages/community/community' },
@@ -98,8 +161,12 @@ export default {
     unlockedBadges() { return this.badges.filter(item => item.unlocked_at) },
     displayBadges() { return this.badges.length ? this.badges : previewBadges },
   },
-  onShow() { this.navLayout = getNavLayout(); syncCustomTabBar(this, 3); this.city = getSelectedCity(); this.loadMine() },
+  onShow() { this.navLayout = getPrimaryNavLayout(); syncCustomTabBar(this, 3); this.city = getSelectedCity(); this.loadMine() },
   methods: {
+    dz(key, color, size) { return doodleStyle(key, color, size) },
+    dzBg(key) { return doodleBg(key) },
+    quickIcon(item) { return ({ records: 'quote', footprints: 'pin', favorites: 'star-hand', diet: 'mifan', cases: 'stamp' })[item.action] || 'check' },
+    accountIcon(item) { return ({ settings: 'umbrella', '/pages/privacy/privacy': 'magnifier', '/pages/agreement/agreement': 'flag', '/pages/community/community': 'check' })[item.url || item.action] || 'check' },
     async loadMine() {
       if (!uni.getStorageSync('token')) return
       const results = await Promise.allSettled([api.getProfile(), api.getContribution(), api.getBadges(), api.getMyReviews({ limit: 20 }), api.getFootprintSummary()])
@@ -124,11 +191,15 @@ export default {
       if (failed) console.warn('[mine] some data use preview:', failed.reason && failed.reason.message ? failed.reason.message : failed.reason)
     },
     goProfile() { uni.navigateTo({ url: '/pages/profile/profile' }) },
+    startRecord() { uni.switchTab({ url: '/pages/record/record' }) },
     openAction(item) {
       if (item.url) return uni.navigateTo({ url: item.url })
       if (item.action === 'records') return uni.navigateTo({ url: '/pages/my-records/my-records' })
+      if (item.action === 'footprints') return uni.switchTab({ url: '/pages/footprints/footprints' })
+      if (item.action === 'favorites') return uni.showToast({ title: '收藏列表将在路线数据接入后展示', icon: 'none' })
       if (item.action === 'diet') return uni.navigateTo({ url: '/pages/nutrition/nutrition' })
       if (item.action === 'cases') return uni.navigateTo({ url: '/pages/cases/cases' })
+      if (item.action === 'contribution') return uni.showToast({ title: `${this.contribution.total_points || 0} 点贡献 · ${this.unlockedBadges.length} 枚徽章`, icon: 'none' })
       if (item.action === 'settings') return this.showSettings()
       uni.showToast({ title: `${item.label}将在数据接入后开放`, icon: 'none' })
     },
@@ -164,67 +235,131 @@ export default {
 </script>
 
 <style scoped>
-.mine-page { min-height: 100vh; padding-bottom: calc(128rpx + env(safe-area-inset-bottom)); background: #F3F0EA; }.hero { position: relative; overflow: hidden; padding: calc(env(safe-area-inset-top) + 30rpx) 32rpx 36rpx; border-radius: 0 0 42rpx 42rpx; background: #222A24; color: #fff; }.hero-orbit { position: absolute; border: 1rpx solid rgba(255,255,255,.08); border-radius: 50%; }.orbit-one { right: -180rpx; top: -230rpx; width: 570rpx; height: 570rpx; }.orbit-two { right: -40rpx; top: -80rpx; width: 310rpx; height: 310rpx; }.hero-head { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }.eyebrow { color: #B7CDBB; font-size: 17rpx; font-weight: 700; letter-spacing: 5rpx; }.settings { padding: 8rpx 4rpx 18rpx 24rpx; color: rgba(255,255,255,.75); font-size: 30rpx; letter-spacing: 4rpx; }.identity { position: relative; z-index: 1; display: flex; align-items: center; gap: 20rpx; margin-top: 28rpx; }.avatar { width: 106rpx; height: 106rpx; flex: none; border: 3rpx solid rgba(255,255,255,.7); border-radius: 50%; }.avatar-text { display: flex; align-items: center; justify-content: center; background: #C84B31; font-size: 38rpx; font-weight: 700; }.identity-copy { display: flex; flex: 1; flex-direction: column; }.nickname { font-size: 38rpx; font-weight: 720; }.identity-copy text:last-child { margin-top: 7rpx; color: rgba(255,255,255,.58); font-size: 21rpx; }.profile-link { color: rgba(255,255,255,.68); font-size: 20rpx; }.hero-metrics { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 40rpx; padding-top: 28rpx; border-top: 1rpx solid rgba(255,255,255,.12); }.hero-metrics view { display: flex; flex-direction: column; border-right: 1rpx solid rgba(255,255,255,.12); text-align: center; }.hero-metrics view:last-child { border: 0; }.hero-metrics view text:first-child { font-size: 37rpx; font-weight: 720; }.hero-metrics view text:last-child { margin-top: 5rpx; color: rgba(255,255,255,.52); font-size: 19rpx; }
-.body { padding-top: 24rpx; }.month-card { padding: 30rpx; border-radius: 26rpx; background: #C84B31; color: #fff; }.month-top { display: flex; align-items: center; justify-content: space-between; }.month-top > view:first-child { display: flex; flex-direction: column; }.section-kicker { color: rgba(255,255,255,.64); font-size: 17rpx; font-weight: 700; letter-spacing: 3rpx; }.month-points { margin-top: 5rpx; font-size: 54rpx; font-weight: 750; }.month-points text { font-size: 20rpx; font-weight: 500; }.level-seal { width: 90rpx; height: 90rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1rpx solid rgba(255,255,255,.5); border-radius: 50%; }.level-seal text:first-child { font-size: 27rpx; font-weight: 700; }.level-seal text:last-child { margin-top: 2rpx; font-size: 14rpx; }.progress { height: 7rpx; margin-top: 24rpx; overflow: hidden; border-radius: 5rpx; background: rgba(255,255,255,.23); }.progress view { height: 100%; border-radius: 5rpx; background: #fff; }.progress-copy { display: block; margin-top: 12rpx; color: rgba(255,255,255,.72); font-size: 19rpx; }
-.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin-top: 20rpx; }.quick-item { min-height: 178rpx; display: flex; flex-direction: column; padding: 22rpx; border: 1rpx solid #E0DBD3; border-radius: 22rpx; background: #FFFEFB; }.quick-icon { width: 54rpx; height: 54rpx; margin-bottom: 20rpx; border-radius: 15rpx; line-height: 54rpx; text-align: center; font-size: 21rpx; font-weight: 700; }.quick-icon.red { background: #F7E5DF; color: #B7462F; }.quick-icon.green { background: #E5EEE5; color: #4F6B57; }.quick-icon.sand { background: #F2EAD9; color: #8B682D; }.quick-icon.ink { background: #E8E8E5; color: #343633; }.quick-item > text:nth-child(2) { font-size: 27rpx; font-weight: 680; }.quick-item > text:last-child { margin-top: 6rpx; color: #8A847D; font-size: 19rpx; }
-.badges-section { margin-top: 38rpx; }.section-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 0 3rpx 16rpx; }.section-head > view { display: flex; flex-direction: column; }.section-head .section-kicker { color: #9A5A48; }.section-head view text:last-child { margin-top: 5rpx; font-size: 31rpx; font-weight: 700; }.section-head > text { color: #8B857E; font-size: 20rpx; }.badges-scroll { width: calc(100vw - 30rpx); }.badge-row { display: inline-flex; gap: 13rpx; padding-right: 30rpx; }.badge-card { width: 190rpx; display: flex; flex-direction: column; align-items: center; padding: 24rpx 14rpx; border: 1rpx solid #DCD7CF; border-radius: 21rpx; background: #FFFEFB; }.badge-mark { width: 72rpx; height: 72rpx; margin-bottom: 14rpx; border: 1rpx solid #C84B31; border-radius: 50%; color: #C84B31; line-height: 70rpx; text-align: center; font-size: 26rpx; font-weight: 700; }.badge-card > text:nth-child(2) { font-size: 23rpx; font-weight: 650; }.badge-card > text:last-child { margin-top: 5rpx; color: #928C84; font-size: 17rpx; }.badge-card.locked { opacity: .48; filter: grayscale(1); }
-.account-menu { margin-top: 32rpx; padding: 0 24rpx; }.account-menu > view { min-height: 106rpx; display: flex; align-items: center; gap: 18rpx; border-bottom: 1rpx solid #E3DED6; }.account-menu > view:last-child { border: 0; }.menu-mark { width: 50rpx; height: 50rpx; border-radius: 50%; background: #EFEBE5; color: #4E4A45; line-height: 50rpx; text-align: center; font-size: 18rpx; font-weight: 700; }.account-menu view view { display: flex; flex: 1; flex-direction: column; }.account-menu view view text:first-child { font-size: 25rpx; font-weight: 650; }.account-menu view view text:last-child { margin-top: 4rpx; color: #918B83; font-size: 18rpx; }.arrow { color: #938D85; font-size: 38rpx; }.footer-note { display: block; margin: 34rpx auto 10rpx; color: #9B958D; text-align: center; font-size: 18rpx; letter-spacing: 1rpx; }
+/* —— V6 贴纸手帐：token 同 home.vue —— */
+.mine-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 32rpx calc(150rpx + env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%);
+  color: #332E26;
+  font-family: "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
+}
+.mine-head { order: 1; }
+.resume-card { order: 2; display: flex; align-items: center; gap: 20rpx; margin-top: 28rpx; padding: 30rpx; border-radius: 28rpx; background: #2F7D58; color: #FFFFFF; }
+.resume-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.resume-eyebrow { color: #E5F3EA; font-size: 22rpx; font-weight: 700; }
+.resume-title { margin-top: 8rpx; font-size: 30rpx; font-weight: 850; }
+.resume-note { margin-top: 8rpx; color: rgba(255,255,255,.82); font-size: 23rpx; line-height: 1.5; }
+.resume-arrow { flex: none; font-size: 42rpx; }
+.content-section { order: 3; }
+.content-list { order: 4; }
+.status-grid { order: 5; }
+.mini-stats { order: 6; }
+.account-section { order: 7; }
+.account-list { order: 8; }
+.page-quote { order: 9; }
 
-.mine-page { position: relative; overflow: hidden; background: #F3F3EF; color: #1B1B19; }
-.mine-art { position: absolute; top: 560rpx; right: 0; width: 100%; height: 1180rpx; opacity: .075; }
-.hero, .body { position: relative; z-index: 1; }
-.hero { border-bottom: 1rpx solid #D7D5CF; border-radius: 0; background: rgba(248,248,244,.96); color: #1B1B19; }
-.hero-orbit { border-color: rgba(66,106,84,.09); }
-.eyebrow { color: #426A54; }
-.settings { color: #5F5E5A; }
-.avatar { border-color: #FFFFFF; box-shadow: 0 6rpx 18rpx rgba(25,24,21,.1); }
-.avatar-text { background: #DFDDD8; color: #57534E; }
-.identity-copy text:last-child { color: #666560; }
-.profile-link { color: #D64B32; font-weight: 650; }
-.hero-metrics { border-top-color: #D7D5CF; }
-.hero-metrics view { border-right-color: #D7D5CF; }
-.hero-metrics view text:last-child { color: #666560; }
-.month-card { background: #1B1B19; }
-.month-card .progress view { background: #D64B32; }
-.quick-item, .badge-card, .account-menu { border-color: #D7D5CF; background: #F8F8F4; }
-.quick-icon.red { background: #F4E3DE; color: #D64B32; }
-.quick-icon.green { background: #E3EAE2; color: #426A54; }
-.quick-icon.sand { background: #E7E0D4; color: #745F43; }
-.section-head .section-kicker { color: #426A54; }
-.badge-mark { border-color: #D64B32; color: #D64B32; }
-.menu-mark { background: #E3EAE2; color: #426A54; }
+/* 头部 */
+.mine-head { margin-bottom: 8rpx; }
+.head-row { display: flex; align-items: center; gap: 16rpx; }
+.page-title { min-width: 0; display: flex; align-items: center; gap: 14rpx; }
+.title-ic { flex: none; }
+.title-h { font-size: 34rpx; font-weight: 900; letter-spacing: 1rpx; }
+.title-p { font-size: 23rpx; color: #8B8271; padding-top: 6rpx; }
+.profile-inline { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 12rpx; }
+.profile-chip {
+  min-width: 0; display: flex; align-items: center; gap: 10rpx; height: 60rpx;
+  padding: 0 20rpx 0 8rpx; box-sizing: border-box;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0; border-radius: 999rpx;
+}
+.avatar { width: 44rpx; height: 44rpx; border-radius: 50%; background: #FFFFFF; }
+.avatar-text { display: flex; align-items: center; justify-content: center; font-size: 20rpx; font-weight: 800; }
+.profile-name { max-width: 140rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 22rpx; font-weight: 700; }
+.profile-caret { flex: none; margin-top: 2rpx; }
+.settings-btn {
+  flex: none; width: 60rpx; height: 60rpx; border-radius: 50%; box-sizing: border-box;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0;
+  display: flex; align-items: center; justify-content: center;
+}
 
-.mine-page { padding: 0 24rpx calc(145rpx + env(safe-area-inset-bottom)); background: #f3f8ef; }
-.mine-head { padding-right: 8rpx; padding-left: 8rpx; }
-.avatar { width: 62rpx; height: 62rpx; border: 6rpx solid #d9eed2; box-shadow: none; }
-.avatar-text { display: flex; align-items: center; justify-content: center; background: #b8e5ad; color: #111; font-size: 25rpx; font-weight: 850; }
-.settings { padding: 12rpx 0 12rpx 2rpx; color: #111; font-size: 28rpx; }
-.state-title { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
-.state-title > text:first-child { flex: none; font-family: "Kaiti SC", STKaiti, cursive; font-size: 57rpx; font-weight: 900; line-height: 1; }
-.profile-inline { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 11rpx; }
-.profile-inline > text:first-child { max-width: 150rpx; overflow: hidden; font-size: 21rpx; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.body { padding: 24rpx 0 0; }
-.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13rpx; }
-.score-card, .streak-card { min-height: 300rpx; display: flex; flex-direction: column; padding: 27rpx; border-radius: 34rpx; }
-.score-card { background: linear-gradient(145deg,#d9ff61,#b9f532); }
-.score-card > text:first-child, .streak-card > text:first-child { font-size: 24rpx; font-weight: 850; }
-.score-card > view { display: flex; align-items: center; justify-content: space-between; margin-top: 17rpx; }
-.score-card > view > text { font-size: 83rpx; font-weight: 950; line-height: 1; }
-.score-card > text:last-child { margin-top: auto; font-size: 18rpx; }
-.score-ring { position: relative; width: 82rpx; height: 82rpx; border: 13rpx solid rgba(255,255,255,.7); border-left-color: #5baa31; border-radius: 50%; transform: rotate(35deg); }
-.streak-card { position: relative; background: #11130f; color: #fff; }
-.streak-card > text:nth-child(2) { margin-top: 19rpx; font-size: 82rpx; font-weight: 950; line-height: 1; }
-.streak-card > text:nth-child(3) { position: absolute; left: 122rpx; top: 103rpx; font-size: 23rpx; }
-.streak-card > text:last-child { margin-top: auto; color: rgba(255,255,255,.6); font-size: 18rpx; }
-.mini-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 13rpx; margin-top: 14rpx; }
-.mini-stats > view { min-width: 0; height: 145rpx; display: flex; flex-direction: column; justify-content: center; padding: 19rpx; border-radius: 29rpx; background: #fff; }
-.mini-stats > view > text:first-child { color: #62ba37; font-size: 25rpx; }
-.mini-stats > view > text:nth-child(2) { margin-top: 7rpx; overflow: hidden; font-size: 31rpx; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
-.mini-stats > view > text:last-child { margin-top: 4rpx; color: #858a84; font-size: 16rpx; }
-.quick-grid { grid-template-columns: 1fr 1fr; gap: 13rpx; margin-top: 14rpx; }
-.quick-item { min-height: 135rpx; padding: 18rpx 20rpx; border: 0; border-radius: 27rpx; background: #fff; }
-.quick-icon { width: 44rpx; height: 44rpx; margin-bottom: 9rpx; border-radius: 13rpx; line-height: 44rpx; }
-.quick-item > text:nth-child(2) { font-size: 23rpx; }
-.quick-item > text:last-child { font-size: 17rpx; }
-.account-menu { margin-top: 25rpx; border: 0; border-radius: 28rpx; background: #fff; }
+/* 双状态卡 */
+.status-grid { display: flex; gap: 24rpx; margin-top: 24rpx; }
+.score-card, .streak-card {
+  position: relative; flex: 1; min-width: 0; min-height: 264rpx; display: flex; flex-direction: column;
+  padding: 26rpx 28rpx; border-radius: 36rpx; box-sizing: border-box;
+}
+.score-card { background: #FFFFFF; border: 3rpx solid #EFE5D0; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05); }
+.streak-card { background: #FFF4DF; border: 3rpx solid #EADFC2; }
+.tape {
+  position: absolute; top: -16rpx; left: 24rpx; width: 96rpx; height: 32rpx;
+  transform: rotate(-3deg); border-radius: 6rpx;
+  background: rgba(255, 196, 75, .5); border: 2rpx solid rgba(224, 166, 47, .35);
+  box-sizing: border-box;
+}
+.card-top { display: flex; align-items: center; gap: 12rpx; }
+.card-label { font-size: 24rpx; font-weight: 800; }
+.card-medal {
+  margin-left: auto; flex: none; width: 80rpx; height: 80rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; transform: rotate(-5deg);
+}
+.card-medal-ic { flex: none; }
+.score-num { margin-top: 18rpx; font-size: 76rpx; font-weight: 900; line-height: 1; }
+.streak-num-row { display: flex; align-items: baseline; gap: 8rpx; margin-top: 18rpx; }
+.streak-unit { font-size: 24rpx; font-weight: 700; color: #8B8271; }
+.progress { height: 12rpx; margin-top: 22rpx; border-radius: 999rpx; background: #F1E7CE; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999rpx; background: linear-gradient(90deg, #6FBF94 0%, #3E9B6F 60%, #2F7D58 100%); }
+.card-note { margin-top: auto; padding-top: 16rpx; font-size: 20rpx; color: #8B8271; line-height: 1.5; }
+
+/* 三列小数据 */
+.mini-stats {
+  display: flex; margin-top: 24rpx; padding: 28rpx 0;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.stat-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.stat-medal {
+  width: 96rpx; height: 96rpx; margin-bottom: 6rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.stat-col:nth-child(1) .stat-medal { transform: rotate(-5deg); }
+.stat-col:nth-child(3) .stat-medal { transform: rotate(5deg); }
+.stat-ic { flex: none; }
+.stat-num { font-size: 34rpx; font-weight: 900; line-height: 1; }
+.stat-label { font-size: 20rpx; color: #8B8271; }
+
+/* 区块头 */
+.sec { display: flex; align-items: center; gap: 16rpx; margin: 44rpx 4rpx 20rpx; }
+.sec-ic { flex: none; }
+.sec-title { position: relative; }
+.sec-h { font-size: 34rpx; font-weight: 900; letter-spacing: 1rpx; }
+.sec-scribble { position: absolute; left: -4rpx; bottom: -14rpx; }
+
+/* 列表卡 */
+.list-card {
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.list-row { display: flex; align-items: center; gap: 20rpx; padding: 22rpx 28rpx; border-bottom: 2rpx solid #F5EEDF; }
+.list-row:last-child { border-bottom: 0; }
+.row-medal {
+  flex: none; width: 80rpx; height: 80rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.list-row:nth-child(even) .row-medal { transform: rotate(4deg); }
+.row-ic { flex: none; }
+.row-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.row-label { font-size: 26rpx; font-weight: 800; }
+.row-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 21rpx; color: #8B8271; }
+.row-arrow { flex: none; font-size: 32rpx; font-weight: 700; color: #C9BFA8; }
+
+/* 页脚手写引言 */
+.page-quote {
+  display: flex; align-items: center; justify-content: center; gap: 16rpx;
+  margin-top: 48rpx; color: #8B8271;
+  font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 24rpx; letter-spacing: 2rpx;
+}
+.quote-swirl { flex: none; opacity: .7; }
+.quote-swirl.flip { transform: scaleX(-1); }
 </style>

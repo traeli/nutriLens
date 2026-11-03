@@ -1,48 +1,102 @@
 <template>
   <view class="footprints-page">
-    <view class="header" :style="{ paddingTop: `${navLayout.contentTop}px` }">
-      <view class="city-chip" @tap="backToCityPicker">{{ city.name || '选择城市' }}⌄</view>
-      <text class="sky-mark">✦</text>
-    </view>
-
-    <view class="page-heading">
-      <view class="page-title"><text>吃过的地方</text><view><view></view><view></view></view></view>
-      <text class="page-caption">一餐一饭，慢慢组成自己的生活</text>
-    </view>
-
-    <view class="summary-hero">
-      <view><text class="count">{{ summary.place_count }}</text><text> 家店</text></view>
-      <view><text class="count">{{ summary.business_area_count }}</text><text> 个街区</text></view>
-      <text class="summary-note">不画地图<br/>只收藏生活</text>
-    </view>
-
-    <view class="poster-entry" @tap="openPoster">
-      <image :src="fallbackBackground" mode="aspectFill" />
-      <view class="poster-shade"></view>
-      <view class="poster-copy">
-        <text class="poster-eyebrow">非地理示意 · 私人回忆</text>
-        <text class="poster-title">食光纪念海报</text>
-        <text class="poster-subtitle">把认真吃饭的日子，留成一张生活插画</text>
-      </view>
-      <view class="poster-action"><text>生成我的海报</text><text>↗</text></view>
-      <text class="poster-star star-a">✦</text><text class="poster-star star-b">·</text><text class="poster-star star-c">✦</text>
-    </view>
-
-    <view class="content">
-      <view class="records-head"><text>{{ city.name || '当前城市' }}的最近足迹</text><text>{{ records.length }} 条</text></view>
-      <view v-if="loading" class="state-card"><text class="loading-dot"></text><text>正在整理你的城市足迹</text></view>
-      <view v-if="!records.length && !loading" class="empty">
-        <text>还没有到店记录</text>
-        <text>完成第一条记录，开始收藏认真吃饭的日子。</text>
-        <button @tap="startRecord">开始记录</button>
-      </view>
-      <view v-for="(record, index) in records" :key="record.id" class="timeline-row" @tap="goRecord(record)">
-        <view class="timeline-date"><text>{{ record.date }}</text><view></view></view>
-        <image :src="record.image" mode="aspectFill" />
-        <view class="timeline-copy"><text>{{ record.place }}</text><text>{{ record.area }}</text><text>★ 4.{{ 6 - Math.min(index, 2) }} · {{ record.status }}</text></view>
-        <text class="arrow">›</text>
+    <view class="page-head" :style="{ paddingTop: `${navLayout.contentTop}px` }">
+      <view class="head-row">
+        <view class="page-title">
+          <view class="title-ic" :style="dz('pin', '#3E9B6F', 38)"></view>
+          <text class="title-h">吃过的地方</text>
+          <text class="title-p">一餐一饭，慢慢组成自己的生活</text>
+        </view>
+        <view class="city-pill" @tap="backToCityPicker">
+          <view class="city-dot"></view>
+          <text class="city-name">{{ city.name || '选择城市' }}</text>
+          <view class="city-caret" :style="dz('caret', '#8B8271', 18)"></view>
+        </view>
       </view>
     </view>
+
+    <view class="map-card">
+      <view class="map-card-head">
+        <view>
+          <text class="map-title">{{ city.name || '当前城市' }}点亮图</text>
+          <text class="map-note">每完成一次到店记录，就点亮一个去过的街区</text>
+        </view>
+        <text class="map-progress">{{ summary.business_area_count }} 个街区</text>
+      </view>
+      <view class="city-map" :class="{ empty: !mapAreas.length }">
+        <view v-for="(area, index) in displayAreas" :key="area.name" class="map-region" :class="{ lit: area.lit }" :style="{ '--region-index': index }">
+          <text>{{ area.name }}</text>
+        </view>
+      </view>
+      <text v-if="!mapAreas.length" class="map-empty-copy">地图还没有点亮。留下第一条记录，这里会长出你的城市食记。</text>
+    </view>
+
+    <view class="summary-card">
+      <view class="summary-medal" :style="dzBg('blob-green')"><view class="summary-medal-ic" :style="dz('compass', '#3E9B6F', 40)"></view></view>
+      <view class="summary-body">
+        <view class="summary-col">
+          <text class="summary-num">{{ summary.place_count }}</text>
+          <text class="summary-label">家店</text>
+        </view>
+        <view class="summary-divider"></view>
+        <view class="summary-col">
+          <text class="summary-num">{{ summary.business_area_count }}</text>
+          <text class="summary-label">个街区</text>
+        </view>
+      </view>
+      <text class="summary-sticker">足迹</text>
+    </view>
+
+    <view class="sec">
+      <view class="sec-ic" :style="dz('compass', '#3E9B6F', 38)"></view>
+      <view class="sec-title">
+        <text class="sec-h">{{ city.name || '当前城市' }}的最近足迹</text>
+        <view class="sec-scribble" :style="dz('scribble', '#3E9B6F', 56)"></view>
+      </view>
+      <text class="sec-p">{{ records.length }} 条</text>
+    </view>
+    <view v-if="loading" class="state-card">
+      <view class="loading-dot"></view>
+      <text>正在整理你的城市足迹</text>
+    </view>
+    <view v-if="!records.length && !loading" class="empty-card">
+      <view class="empty-trail">
+        <view class="trail-stop" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('bowl', '#332E26', 38)"></view></view>
+        <view class="trail-squig" :style="dz('squiggle', '#D8CCB0', 34)"></view>
+        <view class="trail-stop flip" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('noodle', '#332E26', 38)"></view></view>
+        <view class="trail-squig" :style="dz('squiggle', '#D8CCB0', 34)"></view>
+        <view class="trail-stop" :style="dzBg('blob-cream')"><view class="trail-ic" :style="dz('coffee', '#332E26', 38)"></view></view>
+      </view>
+      <text class="empty-title">还没有到店记录</text>
+      <text class="empty-note">完成第一条记录，开始收藏认真吃饭的日子。</text>
+      <view class="empty-cta" @tap="startRecord">开始记录</view>
+    </view>
+    <view v-if="records.length" class="timeline-card">
+      <view v-for="record in records" :key="record.id" class="timeline-row" @tap="goRecord(record)">
+        <view class="timeline-date">
+          <view class="tl-star" :style="dz('star-hand', '#3E9B6F', 30)"></view>
+          <text>{{ record.date }}</text>
+        </view>
+        <view class="tl-photo">
+          <image class="timeline-img" :src="record.image" mode="aspectFill" />
+        </view>
+        <view class="timeline-copy">
+          <text class="tl-place">{{ record.place }}</text>
+          <text class="tl-area">{{ record.area }}</text>
+          <text class="tl-status">{{ record.status }}</text>
+        </view>
+        <text class="row-arrow">›</text>
+      </view>
+    </view>
+
+    <view class="poster-compact" @tap="openPoster">
+      <view class="poster-compact-copy">
+        <text class="poster-compact-title">生成城市食记海报</text>
+        <text class="poster-compact-note">把已经点亮的足迹保存成一张图</text>
+      </view>
+      <text class="poster-compact-arrow">›</text>
+    </view>
+
     <canvas canvas-id="footprintPoster" class="poster-canvas"></canvas>
   </view>
 </template>
@@ -53,37 +107,36 @@ import { assetUrl } from '@/utils/assets.js'
 import { diningImages } from '@/mock/city-dining.js'
 import { getSelectedCity } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
+import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
+import { doodleBg, doodleStyle } from '@/utils/doodles.js'
 
 const FALLBACK_BACKGROUND = assetUrl('/static/posters/food-memory-night-v1.jpg')
-
-function getNavLayout() {
-  const info = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : uni.getSystemInfoSync()
-  const statusBarHeight = Number(info.statusBarHeight || 20)
-  let menu = null
-  try { menu = uni.getMenuButtonBoundingClientRect() } catch (error) { menu = null }
-  const menuTop = menu && Number(menu.top) > 0 ? Number(menu.top) : statusBarHeight + 6
-  const menuHeight = menu && Number(menu.height) > 0 ? Number(menu.height) : 32
-  const menuBottom = menu && Number(menu.bottom) > menuTop ? Number(menu.bottom) : menuTop + menuHeight
-  return { contentTop: Math.max(statusBarHeight, menuBottom) + 14 }
-}
 
 export default {
   data() {
     return {
-      navLayout: getNavLayout(), city: getSelectedCity(), loading: false, records: [],
+      navLayout: getPrimaryNavLayout(), city: getSelectedCity(), loading: false, records: [], mapAreas: [],
       fallbackBackground: FALLBACK_BACKGROUND,
       summary: { place_count: 0, business_area_count: 0 },
     }
   },
+  computed: {
+    displayAreas() {
+      if (this.mapAreas.length) return this.mapAreas.slice(0, 8).map(name => ({ name, lit: true }))
+      return ['待点亮', '待探索', '下一站', '新街区'].map(name => ({ name, lit: false }))
+    },
+  },
   onShow() {
-    this.navLayout = getNavLayout()
+    this.navLayout = getPrimaryNavLayout()
     this.city = getSelectedCity()
     syncCustomTabBar(this, 2)
     this.loadFootprints()
   },
   methods: {
+    dz(key, color, size) { return doodleStyle(key, color, size) },
+    dzBg(key) { return doodleBg(key) },
     async loadFootprints() {
-      if (!uni.getStorageSync('token')) { this.records = []; this.summary = { place_count: 0, business_area_count: 0 }; return }
+      if (!uni.getStorageSync('token')) { this.records = []; this.mapAreas = []; this.summary = { place_count: 0, business_area_count: 0 }; return }
       this.loading = true
       try {
         const [mapResult, recordPage] = await Promise.all([api.getFootprintMap(), api.getMyRecords({ limit: 50 })])
@@ -91,9 +144,10 @@ export default {
         const points = (mapResult.points || []).filter(point => !cityCode || String(point.city_code || '') === cityCode)
         const items = (recordPage.items || []).filter(item => !cityCode || String((item.place && item.place.city_code) || '') === cityCode)
         this.records = items.map(this.normalizeRecord)
-        this.summary = { place_count: points.length, business_area_count: new Set(points.map(point => point.business_area).filter(Boolean)).size }
+        this.mapAreas = [...new Set(points.map(point => point.business_area || point.district).filter(Boolean))]
+        this.summary = { place_count: points.length, business_area_count: this.mapAreas.length }
       } catch (error) {
-        this.records = []; this.summary = { place_count: 0, business_area_count: 0 }
+        this.records = []; this.mapAreas = []; this.summary = { place_count: 0, business_area_count: 0 }
         console.warn('[footprints] load failed:', error.message)
       } finally { this.loading = false }
     },
@@ -132,13 +186,174 @@ export default {
 </script>
 
 <style scoped>
-.footprints-page { min-height: 100vh; padding: 0 24rpx calc(145rpx + env(safe-area-inset-bottom)); background: #f5faec; color: #171914; }
+/* —— V6 贴纸手帐：token 同 home.vue —— */
+.footprints-page {
+  min-height: 100vh;
+  padding: 0 32rpx calc(150rpx + env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%);
+  color: #332E26;
+  font-family: "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
+}
+
+/* 海报 canvas 保持离屏，openPoster 依赖 */
 .poster-canvas { position: fixed; left: -2000px; top: 0; width: 650px; height: 920px; }
-.header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 22rpx) 4rpx 15rpx; }.city-chip { padding: 13rpx 24rpx; border-radius: 30rpx; background: #e8ece2; font-size: 23rpx; font-weight: 750; }.sky-mark { padding-right: 14rpx; font-size: 44rpx; }
-.page-heading { margin: 4rpx 4rpx 16rpx; }.page-title { position: relative; display: inline-flex; }.page-title > text { font-family: "Kaiti SC", STKaiti, cursive; font-size: 72rpx; font-weight: 900; line-height: 1.08; }.page-title > view { position: absolute; right: -70rpx; top: 38rpx; width: 70rpx; height: 60rpx; }.page-title > view > view { position: absolute; width: 10rpx; height: 40rpx; border-radius: 8rpx; background: #9cdd19; transform: rotate(28deg); }.page-title > view > view:last-child { left: 30rpx; top: 15rpx; transform: rotate(65deg); }.page-caption { display: block; margin-top: 9rpx; color: #72796c; font-size: 21rpx; }
-.summary-hero { position: relative; width: 54%; display: flex; flex-direction: column; margin: 0 4rpx 20rpx; padding: 17rpx 28rpx; border-radius: 54rpx 70rpx 54rpx 35rpx; background: #c7ff35; }.summary-hero > view { display: flex; align-items: baseline; font-size: 25rpx; font-weight: 800; line-height: 1.2; }.summary-hero .count { margin-right: 5rpx; font-size: 47rpx; font-weight: 900; }.summary-note { position: absolute; left: calc(100% + 38rpx); top: 31rpx; width: 210rpx; font-family: "Kaiti SC", STKaiti, cursive; font-size: 24rpx; font-weight: 700; line-height: 1.45; transform: rotate(-7deg); }
-.poster-entry { position: relative; height: 500rpx; overflow: hidden; border-radius: 38rpx; background: #070a08; box-shadow: 0 22rpx 46rpx rgba(14,17,11,.22); }.poster-entry > image { width: 100%; height: 100%; }.poster-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(2,4,3,.12), rgba(2,4,3,.34) 46%, rgba(2,4,3,.88)); }.poster-copy { position: absolute; left: 30rpx; right: 30rpx; top: 32rpx; display: flex; flex-direction: column; color: #f5f2e8; }.poster-eyebrow { color: #c7ff35; font-size: 17rpx; font-weight: 800; letter-spacing: 2rpx; }.poster-title { margin-top: 14rpx; font-family: "Kaiti SC", STKaiti, cursive; font-size: 54rpx; font-weight: 900; }.poster-subtitle { width: 72%; margin-top: 9rpx; color: #d2d1c5; font-size: 21rpx; line-height: 1.5; }.poster-action { position: absolute; left: 28rpx; right: 28rpx; bottom: 25rpx; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 23rpx; border-radius: 27rpx; background: #c7ff35; color: #11140f; font-size: 23rpx; font-weight: 850; }.poster-star { position: absolute; color: #efffd0; text-shadow: 0 0 18rpx #c7ff35; }.star-a { right: 70rpx; top: 72rpx; }.star-b { right: 160rpx; top: 210rpx; font-size: 44rpx; }.star-c { right: 55rpx; top: 290rpx; font-size: 20rpx; }
-.records-head { display: flex; align-items: center; justify-content: space-between; margin: 34rpx 3rpx 10rpx; }.records-head text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 34rpx; font-weight: 900; }.records-head text:last-child { color: #747b6e; font-size: 20rpx; }.state-card,.empty { display: flex; flex-direction: column; align-items: center; margin-top: 16rpx; padding: 42rpx 24rpx; border-radius: 30rpx; background: #fff; color: #747a70; }.loading-dot { width: 20rpx; height: 20rpx; margin-bottom: 14rpx; border-radius: 50%; background: #9cdd19; animation: pulse 1s infinite alternate; }.empty text:first-child { color: #292d25; font-size: 28rpx; font-weight: 800; }.empty text:nth-child(2) { margin-top: 11rpx; font-size: 20rpx; text-align: center; }.empty button { margin-top: 24rpx; padding: 0 34rpx; border-radius: 40rpx; background: #10130e; color: #fff; font-size: 22rpx; }
-.timeline-row { min-height: 128rpx; display: grid; grid-template-columns: 115rpx 150rpx 1fr 28rpx; align-items: center; gap: 15rpx; padding: 14rpx 0; border-bottom: 1rpx solid #dfe3da; }.timeline-date { position: relative; align-self: stretch; display: flex; align-items: center; border-right: 2rpx solid #171813; }.timeline-date text { width: 100rpx; font-size: 19rpx; font-weight: 700; }.timeline-date view { position: absolute; right: -9rpx; top: 50%; width: 15rpx; height: 15rpx; margin-top: -8rpx; border: 3rpx solid #171813; border-radius: 50%; background: #c7ff35; }.timeline-row > image { width: 150rpx; height: 104rpx; border-radius: 21rpx; }.timeline-copy { min-width: 0; display: flex; flex-direction: column; }.timeline-copy text:first-child { font-size: 25rpx; font-weight: 850; }.timeline-copy text:nth-child(2) { margin-top: 5rpx; overflow: hidden; color: #747a72; font-size: 18rpx; text-overflow: ellipsis; white-space: nowrap; }.timeline-copy text:nth-child(3) { margin-top: 7rpx; font-size: 18rpx; font-weight: 650; }.arrow { color: #8d9486; font-size: 40rpx; }
+
+/* 头部 */
+.page-head { margin-bottom: 8rpx; }
+.head-row { display: flex; align-items: center; gap: 16rpx; }
+.page-title { min-width: 0; display: flex; align-items: center; gap: 14rpx; }
+.title-ic { flex: none; }
+.title-h { font-size: 34rpx; font-weight: 900; letter-spacing: 1rpx; white-space: nowrap; }
+.title-p { font-size: 23rpx; color: #8B8271; padding-top: 6rpx; white-space: nowrap; }
+.city-pill {
+  margin-left: auto; min-width: 0; flex: none; display: flex; align-items: center; gap: 12rpx;
+  height: 60rpx; padding: 0 22rpx 0 24rpx; box-sizing: border-box;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0; border-radius: 999rpx;
+}
+.city-dot { flex: none; width: 12rpx; height: 12rpx; border-radius: 50%; background: #3E9B6F; }
+.city-name { font-size: 25rpx; font-weight: 700; white-space: nowrap; }
+.city-caret { flex: none; margin-top: 2rpx; }
+
+/* 足迹主资产：即使为空也保留可被逐步点亮的城市框架。 */
+.map-card { margin-top: 28rpx; padding: 30rpx; border: 3rpx solid #E7DCC5; border-radius: 28rpx; background: #FFFFFF; }
+.map-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24rpx; }
+.map-card-head > view { min-width: 0; display: flex; flex-direction: column; }
+.map-title { font-size: 32rpx; font-weight: 850; }
+.map-note { margin-top: 8rpx; color: #6F675B; font-size: 24rpx; line-height: 1.5; }
+.map-progress { flex: none; padding: 8rpx 14rpx; border-radius: 12rpx; background: #E5F3EA; color: #246647; font-size: 22rpx; font-weight: 800; }
+.city-map { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12rpx; margin-top: 28rpx; padding: 22rpx; border-radius: 28rpx 42rpx 34rpx 48rpx; background: #FFF4DF; transform: rotate(-.5deg); }
+.map-region { display: flex; align-items: center; justify-content: center; min-height: 96rpx; padding: 12rpx; box-sizing: border-box; border: 2rpx dashed #CFC2A8; border-radius: 40rpx 24rpx 36rpx 22rpx; color: #8B8271; font-size: 23rpx; text-align: center; }
+.map-region:nth-child(3n+2) { border-radius: 24rpx 44rpx 22rpx 38rpx; }
+.map-region.lit { border-style: solid; border-color: #2F7D58; background: #E5F3EA; color: #246647; font-weight: 800; }
+.map-empty-copy { display: block; margin-top: 20rpx; color: #6F675B; font-size: 24rpx; line-height: 1.6; text-align: center; }
+
+/* 概览卡 */
+.summary-card {
+  position: relative; display: flex; align-items: center; gap: 20rpx; margin-top: 24rpx; padding: 28rpx 28rpx;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05); box-sizing: border-box;
+}
+.poster-compact { display: flex; align-items: center; gap: 20rpx; min-height: 112rpx; margin-top: 32rpx; padding: 20rpx 26rpx; box-sizing: border-box; border: 2rpx solid #E7DCC5; border-radius: 24rpx; background: #FFF4DF; }
+.poster-compact-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.poster-compact-title { font-size: 27rpx; font-weight: 800; }
+.poster-compact-note { margin-top: 6rpx; color: #6F675B; font-size: 23rpx; }
+.poster-compact-arrow { color: #2F7D58; font-size: 40rpx; }
+.summary-medal {
+  flex: none; width: 112rpx; height: 112rpx; box-sizing: border-box; transform: rotate(-5deg);
+  display: flex; align-items: center; justify-content: center;
+}
+.summary-medal-ic { flex: none; }
+.summary-body { flex: 1; min-width: 0; display: flex; align-items: center; }
+.summary-col { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: center; gap: 10rpx; }
+.summary-num { font-size: 64rpx; font-weight: 900; line-height: 1; }
+.summary-label { font-size: 24rpx; font-weight: 700; color: #8B8271; }
+.summary-divider { width: 0; height: 56rpx; border-left: 3rpx dashed #E3D9C2; }
+.summary-sticker {
+  position: absolute; top: -16rpx; right: 28rpx; transform: rotate(2deg);
+  padding: 6rpx 16rpx; border-radius: 14rpx;
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%); box-shadow: 0 3rpx 0 #E0A62F;
+  font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 25rpx; letter-spacing: 2rpx;
+}
+
+/* 海报入口 */
+.poster-entry {
+  position: relative; height: 500rpx; margin-top: 32rpx; overflow: hidden;
+  border-radius: 44rpx; border: 3rpx solid #EFE5D0;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05); background: #332E26;
+}
+.poster-tape {
+  position: absolute; top: 22rpx; left: 50%; width: 120rpx; height: 34rpx; z-index: 2;
+  transform: translateX(-50%) rotate(-2deg); border-radius: 6rpx;
+  background: rgba(255, 251, 243, .55); border: 2rpx solid rgba(255, 251, 243, .35);
+  box-sizing: border-box;
+}
+.poster-sprinkles {
+  position: absolute; right: 26rpx; bottom: 132rpx; width: 118rpx; height: 82rpx; z-index: 2; opacity: .9;
+}
+.poster-img { width: 100%; height: 100%; }
+.poster-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(30, 26, 18, .1), rgba(30, 26, 18, .34) 46%, rgba(30, 26, 18, .86)); }
+.poster-copy { position: absolute; left: 32rpx; right: 32rpx; top: 34rpx; display: flex; flex-direction: column; color: #FFFBF3; }
+.poster-eyebrow { color: #FFC64B; font-size: 21rpx; font-weight: 800; letter-spacing: 2rpx; }
+.poster-title { margin-top: 14rpx; font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 52rpx; font-weight: 900; }
+.poster-subtitle { width: 72%; margin-top: 10rpx; color: #EFE5D0; font-size: 22rpx; line-height: 1.5; }
+.poster-cta {
+  position: absolute; left: 28rpx; right: 28rpx; bottom: 28rpx;
+  display: flex; align-items: center; justify-content: center; gap: 12rpx;
+  height: 84rpx; border-radius: 999rpx;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%);
+  color: #FFFFFF; font-size: 27rpx; font-weight: 800; box-shadow: 0 6rpx 0 #2F7D58;
+}
+.poster-arrow { flex: none; }
+
+/* 区块头 */
+.sec { display: flex; align-items: center; gap: 16rpx; margin: 44rpx 4rpx 20rpx; }
+.sec-ic { flex: none; }
+.sec-title { position: relative; }
+.sec-h { font-size: 34rpx; font-weight: 900; letter-spacing: 1rpx; white-space: nowrap; }
+.sec-scribble { position: absolute; left: -4rpx; bottom: -14rpx; }
+.sec-p { font-size: 23rpx; color: #8B8271; padding-top: 6rpx; white-space: nowrap; }
+
+/* 加载 / 空态 */
+.state-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14rpx;
+  padding: 44rpx 24rpx; border-radius: 36rpx;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; color: #8B8271; font-size: 23rpx;
+}
+.loading-dot { width: 20rpx; height: 20rpx; border-radius: 50%; background: #3E9B6F; animation: pulse 1s infinite alternate; }
+.empty-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8rpx;
+  padding: 44rpx 32rpx; border-radius: 36rpx;
+  background: #FFFFFF; border: 3rpx dashed #EFE5D0;
+}
+.empty-trail { display: flex; align-items: center; gap: 10rpx; margin-bottom: 16rpx; }
+.trail-stop {
+  width: 92rpx; height: 92rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.trail-stop.flip { transform: rotate(5deg) scaleX(-1); }
+.trail-stop.flip .trail-ic { transform: scaleX(-1); }
+.trail-ic { flex: none; }
+.trail-squig { flex: none; }
+.empty-title { font-size: 28rpx; font-weight: 800; color: #332E26; }
+.empty-note { font-size: 22rpx; color: #8B8271; text-align: center; line-height: 1.6; }
+.empty-cta {
+  margin-top: 20rpx; display: flex; align-items: center; justify-content: center;
+  height: 76rpx; padding: 0 56rpx; border-radius: 999rpx;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%);
+  color: #FFFFFF; font-size: 26rpx; font-weight: 800;
+  box-shadow: 0 6rpx 0 #2F7D58;
+}
+
+/* 时间线列表 */
+.timeline-card {
+  position: relative; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.timeline-card::before {
+  content: ''; position: absolute; left: 31rpx; top: 34rpx; bottom: 34rpx; width: 0;
+  border-left: 3rpx dashed #E3D9C2;
+}
+.timeline-row {
+  position: relative; display: flex; align-items: center; gap: 18rpx;
+  padding: 22rpx 24rpx; border-bottom: 2rpx solid #F5EEDF;
+}
+.timeline-row:last-child { border-bottom: 0; }
+.timeline-date { flex: none; width: 110rpx; display: flex; flex-direction: column; align-items: flex-start; gap: 8rpx; }
+.tl-star { width: 30rpx; height: 30rpx; margin-left: -8rpx; }
+.timeline-date > text { font-size: 19rpx; font-weight: 700; color: #8B8271; line-height: 1.3; }
+.tl-photo {
+  flex: none; padding: 8rpx; border-radius: 16rpx; box-sizing: content-box;
+  background: #FFFFFF; border: 3rpx solid #EFE5D0;
+  box-shadow: 0 3rpx 0 rgba(51, 46, 38, .05); transform: rotate(-1.8deg);
+}
+.timeline-row:nth-child(even) .tl-photo { transform: rotate(1.5deg); }
+.timeline-img { display: block; width: 140rpx; height: 96rpx; border-radius: 8rpx; background: #FFF4DF; }
+.timeline-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+.tl-place { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26rpx; font-weight: 800; }
+.tl-area { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 21rpx; color: #8B8271; }
+.tl-status { font-size: 20rpx; font-weight: 700; color: #2F7D58; }
+.row-arrow { flex: none; font-size: 32rpx; font-weight: 700; color: #C9BFA8; }
+
 @keyframes pulse { to { opacity: .25; transform: scale(.7); } }
 </style>

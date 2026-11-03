@@ -14,6 +14,44 @@
 
 /* 颜色变量 */
 
+/* NutriLens / 饭友记设计 Token。业务页面只从这些角色扩展，不新增近似色。 */
+$color-brand: #2f7d58;
+$color-brand-strong: #246647;
+$color-brand-soft: #e5f3ea;
+$color-accent: #e0a62f;
+$color-danger: #c84b31;
+
+$color-bg: #fff9ee;
+$color-surface: #ffffff;
+$color-surface-warm: #fff4df;
+$color-border: #e7dcc5;
+
+$color-text-primary: #332e26;
+$color-text-secondary: #6f675b;
+$color-text-tertiary: #8b8271;
+$color-text-inverse: #ffffff;
+
+$font-page-title: 40rpx;
+$font-section-title: 34rpx;
+$font-card-title: 30rpx;
+$font-body: 26rpx;
+$font-caption: 24rpx;
+$font-tab: 22rpx;
+
+$space-1: 4rpx;
+$space-2: 8rpx;
+$space-3: 12rpx;
+$space-4: 16rpx;
+$space-6: 24rpx;
+$space-8: 32rpx;
+$space-10: 40rpx;
+$space-12: 48rpx;
+$space-16: 64rpx;
+
+$radius-tag: 12rpx;
+$radius-control: 20rpx;
+$radius-card: 28rpx;
+
 /* 行为相关颜色 */
 $uni-color-primary: #007aff;
 $uni-color-success: #4cd964;

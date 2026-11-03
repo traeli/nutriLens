@@ -1,6 +1,6 @@
 # 前后端接口联调状态
 
-更新日期：2026-10-03
+更新日期：2026-11-03
 
 ## 第一轮已接通
 
@@ -11,6 +11,7 @@
 | 个人资料 | `GET/PUT /api/v1/user/profile` | 已改为昵称和头像 URL，不再提交健康字段 |
 | 账号注销 | `DELETE /api/v1/user/account` | 已支持永久清理账号、关联业务数据和上传文件；旧 Token 随即失效 |
 | 首页 | `GET /api/v1/experiences` | 已读取当前城市公开体验，不再展示虚构评分 |
+| 首页聚合 | `GET /api/v1/home/summary` | `scenario_filters` 返回城市/全局场景配置；`featured_route.stops` 返回 `recommended_food`、`food_category_code` 和 `icon_key`，客户端只负责本地图标渲染 |
 | 搜索 | `GET /api/v1/places/search` | 已支持城市、关键词、加载、空数据、错误重试和体验数量 |
 | 搜索 | `GET /api/v1/places/:id/experiences` | 已支持从店铺进入第一条公开体验 |
 | 地点提交 | `POST /api/v1/places` | 已接入微信地图选点，提交店名、地址和 GCJ-02 坐标；不再允许纯文本地点直接生成 |

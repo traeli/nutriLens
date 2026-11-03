@@ -10,11 +10,21 @@
       </view>
 
       <view class="route-note">
-        <text>路线只标记建议顺序</text>
-        <text>交通方式、营业状态和实时路况请以地图 App 为准。</text>
+        <text>出发前提醒</text>
+        <text>路线按建议顺序排列；雨天替代、闭店风险和实时路况请在出发前再次确认。</text>
+      </view>
+
+      <view class="overview-card">
+        <text class="section-title">路线概览</text>
+        <view class="overview-grid">
+          <view><text>站点</text><text class="overview-value">{{ route.stops.length }} 站</text></view>
+          <view><text>用时 / 距离</text><text class="overview-value">{{ route.meta || '以实际路线为准' }}</text></view>
+          <view><text>适合</text><text class="overview-value">{{ route.tag || '城市漫游' }}</text></view>
+        </view>
       </view>
 
       <view class="stop-list">
+        <text class="section-title">按顺序吃喝</text>
         <view v-if="!route.stops.length" class="empty-stops">这条攻略的具体站点还在整理中。</view>
         <view v-for="(stop, index) in route.stops" :key="`${stop.place_id || stop.name}-${index}`" class="stop-row">
           <view class="route-line" @tap="toggleStop(index)"><text :class="{ done: completedStops.includes(index) }">{{ completedStops.includes(index) ? '✓' : index + 1 }}</text><view v-if="index < route.stops.length - 1"></view></view>
@@ -30,9 +40,12 @@
 
       <view v-if="route.stops.length" class="route-actions">
         <button class="copy-button" @tap="toggleFavorite">{{ favorited ? '取消收藏' : '收藏路线' }}</button>
-        <button class="copy-button journey-button" @tap="startOrComplete">{{ journeyId ? (completedStops.length === route.stops.length ? '完成路线' : '保存进度') : '开始路线' }}</button>
         <button class="copy-button" @tap="copyRoute">复制完整路线</button>
         <text>复制后可粘贴到高德、百度等地图中逐站添加。</text>
+      </view>
+      <view v-if="route.stops.length" class="fixed-journey">
+        <button class="journey-button" @tap="advanceJourney">{{ journeyActionLabel }}</button>
+        <text v-if="journeyId && nextStop" class="skip-action" @tap="skipNextStop">跳过这一站</text>
       </view>
     </template>
   </view>
@@ -50,6 +63,15 @@ export default {
     this.nearby = options.nearby === '1'
     this.nearbyQuery = { city_code: options.city_code || '', longitude: options.longitude || '', latitude: options.latitude || '', limit: 4 }
     this.loadRoute()
+  },
+  computed: {
+    nextStopIndex() { return this.route.stops.findIndex((stop, index) => !this.completedStops.includes(index)) },
+    nextStop() { return this.nextStopIndex >= 0 ? this.route.stops[this.nextStopIndex] : null },
+    journeyActionLabel() {
+      if (!this.journeyId) return '开始这条路线'
+      if (!this.nextStop) return '完成路线'
+      return `下一站 · ${this.nextStop.name}`
+    },
   },
   methods: {
     async loadRoute() {
@@ -115,12 +137,22 @@ export default {
         uni.showToast({ title: complete ? '路线已完成' : '进度已保存', icon: 'success' })
       } catch (error) { uni.showToast({ title: error.message || '操作失败', icon: 'none' }) }
     },
+    async advanceJourney() {
+      if (!this.journeyId) return this.startOrComplete()
+      if (this.nextStopIndex >= 0) this.completedStops = [...this.completedStops, this.nextStopIndex]
+      return this.startOrComplete()
+    },
+    skipNextStop() {
+      if (this.nextStopIndex < 0) return
+      this.completedStops = [...this.completedStops, this.nextStopIndex]
+      uni.showToast({ title: '已跳过，可继续下一站', icon: 'none' })
+    },
   },
 }
 </script>
 
 <style scoped>
-.route-page { min-height: 100vh; box-sizing: border-box; padding: 30rpx 28rpx calc(60rpx + env(safe-area-inset-bottom)); background: #F5FAEC; color: #12130F; }
+.route-page { min-height: 100vh; box-sizing: border-box; padding: 30rpx 28rpx calc(180rpx + env(safe-area-inset-bottom)); background: #FFF9EE; color: #332E26; }
 .route-state { min-height: 70vh; display: flex; align-items: center; justify-content: center; color: #78806F; font-size: 26rpx; text-align: center; }
 .route-state.error { color: #A94430; }
 .route-hero { display: flex; flex-direction: column; padding: 38rpx 32rpx; border-radius: 34rpx; background: #11120F; color: #fff; }
@@ -130,6 +162,11 @@ export default {
 .route-note { display: flex; flex-direction: column; margin: 20rpx 0 30rpx; padding: 23rpx 25rpx; border: 1rpx solid #D8E1C9; border-radius: 22rpx; background: #fff; }
 .route-note text:first-child { font-size: 25rpx; font-weight: 800; }
 .route-note text:last-child { margin-top: 6rpx; color: #76806B; font-size: 21rpx; line-height: 1.5; }
+.overview-card { margin-bottom: 30rpx; padding: 28rpx; border: 1rpx solid #E7DCC5; border-radius: 28rpx; background: #FFFFFF; }
+.section-title { display: block; margin-bottom: 22rpx; color: #332E26; font-size: 32rpx; font-weight: 800; }
+.overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; }
+.overview-grid > view { display: flex; flex-direction: column; min-width: 0; padding: 18rpx; border-radius: 20rpx; background: #FFF4DF; color: #6F675B; font-size: 22rpx; }
+.overview-value { margin-top: 8rpx; color: #332E26; font-size: 24rpx; font-weight: 800; line-height: 1.35; }
 .stop-list { padding: 7rpx 8rpx; }
 .empty-stops { padding: 90rpx 20rpx; color: #7D8476; font-size: 25rpx; text-align: center; }
 .stop-row { display: flex; align-items: flex-start; min-height: 150rpx; }
@@ -147,6 +184,9 @@ export default {
 .route-actions { display: flex; flex-direction: column; align-items: center; margin-top: 20rpx; }
 .copy-button { width: 100%; height: 94rpx; border: 0; border-radius: 47rpx; background: #C7FF35; color: #11120F; font-size: 27rpx; font-weight: 900; line-height: 94rpx; }
 .route-actions .copy-button + .copy-button { margin-top: 14rpx; }
-.journey-button { background: #11120F; color: #fff; }
+.fixed-journey { position: fixed; z-index: 10; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 20rpx; padding: 18rpx 28rpx calc(18rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #E7DCC5; background: rgba(255,249,238,.96); }
+.journey-button { flex: 1; height: 92rpx; margin: 0; border: 0; border-radius: 46rpx; background: #2F7D58; color: #fff; font-size: 27rpx; font-weight: 900; line-height: 92rpx; }
+.journey-button::after { border: 0; }
+.skip-action { flex: none; min-height: 88rpx; padding: 0 8rpx; color: #6F675B; font-size: 24rpx; font-weight: 700; line-height: 88rpx; }
 .route-actions > text { margin-top: 15rpx; color: #7B8374; font-size: 20rpx; text-align: center; }
 </style>

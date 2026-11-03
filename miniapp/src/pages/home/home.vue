@@ -1,189 +1,251 @@
 <template>
   <view class="home-page">
+    <!-- 导航：logo + 城市胶囊 + 搜索圆钮（navLayout 用 px，来自 menu-button rect） -->
     <view class="nav-space" :style="{ height: `${navLayout.totalHeight}px` }">
       <view class="topbar" :style="{ top: `${navLayout.top}px`, height: `${navLayout.height}px`, paddingRight: `${navLayout.right}px` }">
-        <text class="brand">饭友记</text>
-        <view class="city-trigger" @tap="chooseCity">
-          <text class="pin">●</text><text>{{ city.name }}</text><text class="chevron">⌄</text>
+        <view class="logo">
+          <view class="logo-ic" :style="dz('bowl', '#3E9B6F', 50)"></view>
+          <text class="logo-name">饭友记</text>
         </view>
-        <view class="avatar" @tap="goMine"><text>{{ avatarText }}</text></view>
+        <view class="city-pill" @tap="chooseCity">
+          <view class="city-dot"></view>
+          <text class="city-name">{{ city.name }}</text>
+          <view class="city-caret" :style="dz('caret', '#8B8271', 18)"></view>
+        </view>
+        <view class="search-btn" @tap="goSearch">
+          <view class="search-ic" :style="dz('magnifier', '#332E26', 28)"></view>
+        </view>
       </view>
     </view>
 
-    <view class="search-float" @tap="goSearch">
-      <view class="search-mark"></view>
-      <text>搜索店名、小吃或街区</text>
-      <view class="scan-mark"><view></view><view></view><view></view><view></view></view>
-    </view>
-
-    <swiper class="route-swiper" :current="routeIndex" circular :duration="360" @change="onRouteChange">
-      <swiper-item v-for="guide in routeGuides" :key="guide.id">
-        <view class="route-card" @tap="openGuide(guide)">
-          <view class="route-copy">
-            <text class="route-tag">城市路线</text>
-            <text class="route-title">{{ guide.title }}</text>
-            <text class="route-meta">用一顿早饭，认识一座城市</text>
-            <view class="route-go">→</view>
-          </view>
-          <image :src="guide.image || images.shop" mode="aspectFill" />
-          <text class="route-note">Good<br/>Morning!</text>
-        </view>
-      </swiper-item>
-    </swiper>
-
-    <view class="section-head recent-heading">
-      <text>每日推荐</text><text @tap="goRecommendedPlaces">查看更多 ›</text>
-    </view>
-    <view class="recent-list">
-      <view v-if="!displayRecent.length" class="recent-empty">这座城市还没有公开体验，去留下第一条真实记录吧。</view>
-      <view v-for="(item, index) in displayRecent" :key="item.placeId" class="recent-item" @tap="goPlaceDetail(item.placeId)">
-        <image :src="item.image" mode="aspectFill" />
-        <view class="recent-copy"><text>{{ item.place }}</text><text>{{ item.area }} · {{ item.time }}</text></view>
-        <view class="recent-score"><text>{{ item.count }} 条真实记录</text><text>{{ item.verdict }}</text></view>
-      </view>
-    </view>
-
-    <view class="guide-section">
-      <view class="section-head guide-heading">
-        <view><text>吃喝攻略</text><text>跟着路线，慢慢认识一座城</text></view>
-        <text @tap="openRoute">查看路线 ›</text>
-      </view>
-
-      <view class="hand-route-card" v-if="featuredRoute" @tap="openGuide(featuredRoute)">
-        <view class="route-card-head">
-          <view><text>{{ featuredRoute.title }}</text><text>{{ featuredRoute.subtitle || featuredRoute.meta }}</text></view>
-          <view class="route-open">→</view>
-        </view>
-
-        <view class="hand-map">
-          <view class="street street-one"></view>
-          <view class="street street-two"></view>
-          <view class="street street-three"></view>
-          <view class="river"></view>
-          <view class="route-dash dash-one"></view>
-          <view class="route-dash dash-two"></view>
-          <view class="route-dash dash-three"></view>
+    <!-- 首屏：任务（全页唯一行动区） -->
+    <view class="hero">
+      <view class="task">
+        <text class="hero-eyebrow">从 {{ city.name }} 出发</text>
+        <text class="q">今天想怎么吃？</text>
+        <text class="q-note">先选时间，再加一个同行或场景偏好</text>
+        <view class="seg">
           <view
-            v-for="(stop, stopIndex) in featuredRoute.stops.slice(0, 4)"
-            :key="stop.index"
-            class="route-point"
-            :class="'point-' + (stopIndex + 1)"
-          >
-            <text>{{ stop.index }}</text><text>{{ stop.name }}</text>
-          </view>
-          <text class="map-note">Walk, eat,<br/>remember.</text>
+            v-for="option in budgetOptions"
+            :key="option.key"
+            class="seg-item"
+            :class="{ on: timeBudget === option.key }"
+            hover-class="hv"
+            @tap="setBudget(option.key)"
+          >{{ option.label }}</view>
         </view>
-
-        <view class="route-card-foot"><text>{{ featuredRoute.footnote || '跟着路线，慢慢认识一座城' }}</text><text>打开路线</text></view>
+        <view class="preference-chips">
+          <view
+            v-for="scene in scenes"
+            :key="scene.code"
+            class="preference-chip"
+            :class="{ on: selectedScene === scene.code }"
+            @tap="toggleScene(scene.code)"
+          >{{ scene.label }}</view>
+        </view>
+        <view class="from">
+          <view class="from-pin" :style="dz('pin', '#3E9B6F', 28)"></view>
+          <text class="from-name">{{ city.name }}</text>
+          <text class="from-note">· 当前城市</text>
+          <text class="from-change" @tap="chooseCity">换一个</text>
+        </view>
+        <view class="cta" hover-class="hv" @tap="generateRoute">
+          <text>生成一条路线</text>
+          <view class="cta-arrow" :style="dz('arrow', '#FFFFFF', 32)"></view>
+        </view>
       </view>
     </view>
 
-    <view class="community-section">
-      <view class="section-head community-heading">
-        <view><text>用户真实记录</text><text>亲自吃过，才值得被看见</text></view>
-        <text @tap="goExperienceList">查看更多 ›</text>
-      </view>
-
-      <view class="community-list">
-        <view v-for="item in displayCommunityRecords" :key="`community-${item.id}`" class="community-row" @tap="goDetail(item.id)">
-          <image :src="item.image" mode="aspectFill" />
-          <view class="community-copy">
-            <view class="community-user"><text class="user-avatar">{{ (item.author || '食').slice(0, 1) }}</text><text>{{ item.author || '城市食客' }}</text><text>· {{ item.time }}</text></view>
-            <text class="community-place">{{ item.place }}</text>
-            <text class="community-note">“{{ item.excerpt || '这家店值得留下一条真实记录。' }}”</text>
-          </view>
-          <text class="community-arrow">›</text>
+    <!-- 本周精选：大卡整卡可点 -->
+    <view class="sec">
+      <view class="sec-ic" :style="dz('flag', '#332E26', 38)"></view>
+      <text class="sec-h">本周精选</text>
+      <text class="sec-p">编辑实地走过的路线</text>
+    </view>
+    <view v-if="featuredCard" class="route" hover-class="hv" @tap="openRoute">
+      <view class="route-stops">
+        <view v-for="(stop, stopIndex) in featuredCard.stops" :key="`${stop.name}-${stopIndex}`" class="route-stop">
+          <view class="route-stop-icon"><image :src="stop.icon" mode="aspectFit" /></view>
+          <text class="route-stop-index">{{ stop.idx }}</text>
+          <text class="route-stop-name">{{ stop.name }}</text>
+          <text v-if="stopIndex < featuredCard.stops.length - 1" class="route-stop-arrow">→</text>
         </view>
       </view>
+      <view class="rhead">
+        <text class="route-title">{{ featuredCard.title }}</text>
+        <text class="go">›</text>
+      </view>
+      <view class="meta">
+        <text v-if="featuredCard.meta">{{ featuredCard.meta }}</text>
+        <text v-if="featuredCard.total"><text class="num">{{ featuredCard.total }}</text> 站</text>
+      </view>
+      <view class="assure">
+        <view class="assure-ic" :style="dz('check', '#2F7D58', 24)"></view>
+        <text>编辑实地核验</text>
+        <view class="sep"></view>
+        <view class="assure-ic" :style="dz('umbrella', '#8A661C', 24)"></view>
+        <text class="rain">雨天有替代</text>
+      </view>
+    </view>
+    <view v-else-if="homeLoading" class="route skel">
+      <view class="skel-row">
+        <view class="skel-stop"></view>
+        <view class="skel-dash"></view>
+        <view class="skel-stop"></view>
+        <view class="skel-dash"></view>
+        <view class="skel-stop"></view>
+      </view>
+      <view class="skel-bar w70"></view>
+      <view class="skel-bar w45"></view>
+    </view>
+
+    <!-- 附近真实记录 -->
+    <view class="sec">
+      <view class="sec-ic" :style="dz('quote', '#332E26', 38)"></view>
+      <text class="sec-h">附近真实到店记录</text>
+      <text class="sec-p">事实核验后展示</text>
+      <view class="stamp-btn" hover-class="hv" @tap="quickRecord('quick')">
+        <view class="stamp-ic" :style="dz('plus', '#332E26', 26)"></view>
+        <text class="stamp-t">记一笔</text>
+      </view>
+    </view>
+    <view v-if="jotCard" class="jot" hover-class="hv" @tap="goDetail(jotCard.id)">
+      <view class="qm" :style="dz('quote', '#E0A62F', 44)"></view>
+      <text class="jot-p">{{ jotCard.text }}</text>
+      <view class="jrow">
+        <view class="ava">
+          <view class="ava-ic" :style="dz('face', '#332E26', 28)"></view>
+        </view>
+        <text class="jrow-meta">{{ jotCard.author }} · {{ jotCard.time }} · {{ jotCard.place }}</text>
+      </view>
+    </view>
+    <view v-else-if="homeLoading" class="jot skel">
+      <view class="skel-bar w90"></view>
+      <view class="skel-bar w60"></view>
+      <view class="skel-bar w40"></view>
+    </view>
+    <view v-else class="jot-empty" hover-class="hv" @tap="quickRecord('text')">
+      <view class="empty-trail">
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('bowl', '#332E26', 34)"></view></view>
+        <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('noodle', '#332E26', 34)"></view></view>
+        <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('coffee', '#332E26', 34)"></view></view>
+      </view>
+      <text class="empty-t">这座城市还没有公开体验</text>
+      <text class="empty-s">去留下第一条记录，给后来人引路 ›</text>
+    </view>
+    <view class="moreline" hover-class="hv" @tap="goExperienceList">
+      <text>{{ communityMoreLabel }}</text>
+      <view class="more-arrow" :style="dz('arrow', '#3E9B6F', 24)"></view>
+    </view>
+
+    <!-- 信任行 -->
+    <view class="trust">
+      <view class="trust-ic" :style="dz('stamp', '#8B8271', 28)"></view>
+      <text>编辑实地核验 · 食客事实核验后合并 · 商业内容显著标注</text>
     </view>
   </view>
 </template>
 
 <script>
 import { api } from '@/api/request.js'
-import { collectionCampaigns, diningImages } from '@/mock/city-dining.js'
 import { getCityOptions, getSelectedCity, refreshCityOptions, setCityOptions, setSelectedCity } from '@/store/city.js'
 import { syncCustomTabBar } from '@/utils/tab-bar.js'
-
-function getNavLayout() {
-  const info = typeof uni.getWindowInfo === 'function' ? uni.getWindowInfo() : uni.getSystemInfoSync()
-  let menu = null
-  try { menu = uni.getMenuButtonBoundingClientRect() } catch (error) { menu = null }
-  const statusBarHeight = Number(info.statusBarHeight || 20)
-  const top = menu && menu.top > 0 ? menu.top : statusBarHeight + 6
-  const height = menu && menu.height > 0 ? menu.height : 32
-  const bottom = menu && menu.bottom > top ? menu.bottom : top + height
-  const pageGutter = Number(info.windowWidth || 375) * 26 / 750
-  const right = menu && menu.left > 0
-    ? Math.max(72, Number(info.windowWidth) - menu.left - pageGutter + 8)
-    : 8
-  return { top, height, right, totalHeight: bottom + 12 }
-}
+import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
+import { doodleBg, doodleStyle } from '@/utils/doodles.js'
+import { foodIconSource } from '@/utils/food-icons.js'
+import '@/utils/num-font.js'
 
 export default {
   data() {
     const cities = getCityOptions()
     const selected = getSelectedCity()
     return {
-      navLayout: getNavLayout(),
+      navLayout: getPrimaryNavLayout(),
       cities,
       city: selected,
       cityIndex: Math.max(0, cities.findIndex(item => item.code === selected.code)),
-      routeIndex: 0,
-      locationCityCode: selected.code,
-      images: diningImages,
-      campaigns: collectionCampaigns,
-      recent: [],
+      timeBudget: 'half',
+      selectedScene: '',
+      budgetOptions: [
+        { key: '2h', label: '2 小时' },
+        { key: 'half', label: '半天' },
+        { key: 'day', label: '一天' },
+      ],
+      scenes: [],
       communityRecords: [],
+      homeLoading: false,
       featuredRoute: null,
       fallbackFeaturedRoute: null,
       nearbyLocation: null,
       routeGuides: [
-        { id: 'route-01', number: '01', tag: '早餐路线', title: '曹家渡的四站早餐', meta: '2.5小时 · 步行2.8km', distance: '2.8km', keyword: '曹家渡', stops: ['曹家渡', '武定路', '余姚路', '长寿路'] },
-        { id: 'route-02', number: '02', tag: '小巷路线', title: '从平江路拐进寻常巷陌', meta: '1.8小时 · 步行1.6km', distance: '1.6km', keyword: '小巷', stops: ['临顿路', '钮家巷', '平江路'] },
+        { id: 'route-01', tag: '早餐路线', title: '曹家渡的四站早餐', meta: '2.5小时 · 步行2.8km', keyword: '曹家渡', stops: ['曹家渡', '武定路', '余姚路', '长寿路'] },
+        { id: 'route-02', tag: '小巷路线', title: '从平江路拐进寻常巷陌', meta: '1.8小时 · 步行1.6km', keyword: '小巷', stops: ['临顿路', '钮家巷', '平江路'] },
       ],
     }
   },
   computed: {
-    avatarText() { return (uni.getStorageSync('nickname') || '我').slice(0, 1) },
-    citySlides() {
-      const source = this.cities.length ? this.cities : [this.city]
-      return source.map(item => ({ ...item, tagline: item.desc || '', hero: item.image || this.images.shop }))
+    featuredCard() {
+      const route = this.featuredRoute
+      if (!route) return null
+      const rawStops = Array.isArray(route.stops) ? route.stops : []
+      const stops = rawStops.slice(0, 3).map((stop, index) => {
+        const name = typeof stop === 'string' ? stop : (stop && (stop.name || stop.title)) || ''
+        const iconKey = stop && typeof stop === 'object' ? stop.icon_key : ''
+        return { name, icon: foodIconSource(iconKey), idx: `0${index + 1}`.slice(-2) }
+      })
+      const total = rawStops.length
+      const meta = route.meta || route.subtitle || ''
+      return { id: route.id, title: route.title || '附近的吃喝路线', meta, total, stops }
     },
-    displayRecent() {
-      return this.recent.slice(0, 2).map((item, index) => ({
-        ...item,
-        area: item.area || '本城',
-        time: item.time || '最近',
-        image: item.image || (index ? this.images.shop : this.images.noodles),
-        count: Number(item.count || 0),
-        verdict: item.verdict || '真实推荐',
-      }))
-    },
-    displayCommunityRecords() {
-      return this.communityRecords.slice(0, 3).map((item, index) => ({
-        ...item,
+    jotCard() {
+      const item = this.communityRecords[0]
+      if (!item) return null
+      return {
+        id: item.id,
+        text: item.excerpt || '这家店值得留下一条真实记录。',
         author: item.author || '城市食客',
-        time: item.time || '最近更新',
-        image: item.image || (index % 2 ? this.images.cafe : this.images.noodles),
-      }))
+        time: item.time || '最近',
+        place: item.place || '',
+      }
+    },
+    communityMoreLabel() {
+      const rest = Math.max(0, this.communityRecords.length - 1)
+      return rest > 0 ? `还有 ${rest} 条真实记录` : '看看全部真实记录'
     },
   },
   onShow() {
     syncCustomTabBar(this, 0)
-    this.navLayout = getNavLayout()
+    this.navLayout = getPrimaryNavLayout()
     this.cities = getCityOptions()
     const selected = getSelectedCity()
     this.city = selected
     this.cityIndex = Math.max(0, this.cities.findIndex(item => item.code === selected.code))
-    this.loadHomeSummary()
+    if (this.cities.length) {
+      this.loadHomeSummary()
+    } else {
+      this.refreshCities().catch(() => {})
+    }
   },
   methods: {
-    chooseCity() {
+    dz(key, color, size) { return doodleStyle(key, color, size) },
+    dzBg(key) { return doodleBg(key) },
+    setBudget(key) { this.timeBudget = key },
+    toggleScene(keyword) { this.selectedScene = this.selectedScene === keyword ? '' : keyword },
+    async chooseCity() {
       if (!this.cities.length) {
-        this.refreshCities()
-        return uni.showToast({ title: '城市列表加载中', icon: 'none' })
+        uni.showLoading({ title: '城市列表加载中', mask: true })
+        try {
+          await this.refreshCities()
+        } catch (error) {
+          uni.showToast({ title: '城市列表加载失败，请稍后重试', icon: 'none' })
+          return
+        } finally {
+          uni.hideLoading()
+        }
       }
+      if (!this.cities.length) return uni.showToast({ title: '暂无可用城市', icon: 'none' })
       uni.showActionSheet({ itemList: this.cities.map(item => item.name), success: ({ tapIndex }) => this.selectCity(tapIndex) })
     },
     selectCity(index) {
@@ -192,16 +254,18 @@ export default {
       const changed = selected.code !== this.city.code
       this.city = selected
       this.cityIndex = index
-      this.routeIndex = 0
       setSelectedCity(selected)
-      if (changed) this.loadHomeSummary()
+      if (changed) {
+        this.scenes = []
+        this.selectedScene = ''
+        this.loadHomeSummary()
+      }
     },
-    onCityChange(event) { this.selectCity(Number(event.detail.current || 0)) },
-    onRouteChange(event) { this.routeIndex = Number(event.detail.current || 0) },
     async loadHomeSummary() {
       if (!this.city.code) {
         return
       }
+      this.homeLoading = true
       try {
         const data = await api.getHomeSummary(this.city.code)
         if (Array.isArray(data.cities) && data.cities.length) {
@@ -210,17 +274,23 @@ export default {
           this.city = getSelectedCity()
           this.cityIndex = Math.max(0, this.cities.findIndex(item => item.code === this.city.code))
         }
-        this.routeGuides = Array.isArray(data.route_guides) ? data.route_guides : []
+        if (Array.isArray(data.route_guides) && data.route_guides.length) {
+          this.routeGuides = data.route_guides
+        }
+        this.scenes = Array.isArray(data.scenario_filters) ? data.scenario_filters : []
+        if (this.selectedScene && !this.scenes.some(scene => scene.code === this.selectedScene)) {
+          this.selectedScene = ''
+        }
         this.fallbackFeaturedRoute = data.featured_route || null
         this.featuredRoute = this.fallbackFeaturedRoute
-        const picks = (data.daily_picks || []).map(card => this.normalizeDailyPlace(card)).filter(item => item.place && item.placeId)
         const community = (data.community_records || []).map(card => this.normalizeSummaryCard(card, true)).filter(item => item.place)
-        this.recent = picks.slice(0, 2)
         this.communityRecords = community.slice(0, 3)
         this.loadNearbyRoute()
       } catch (error) {
         console.warn('[home] use preview summary:', error && error.message ? error.message : error)
         this.refreshCities()
+      } finally {
+        this.homeLoading = false
       }
     },
     async refreshCities() {
@@ -232,8 +302,10 @@ export default {
         this.city = getSelectedCity()
         this.cityIndex = Math.max(0, cities.findIndex(item => item.code === this.city.code))
         if (this.city.code !== previousCode) this.loadHomeSummary()
+        return cities
       } catch (error) {
         console.warn('[home] keep cached cities:', error && error.message ? error.message : error)
+        throw error
       }
     },
     normalizeSummaryCard(card, withAuthor) {
@@ -248,17 +320,6 @@ export default {
         score: card.conclusion_label || '到店',
         verdict: card.verdict || '真实记录',
         author: withAuthor && card.author ? card.author.nickname : '',
-      }
-    },
-    normalizeDailyPlace(place) {
-      return {
-        placeId: place.place_id,
-        place: place.name || '',
-        area: place.area || '本城',
-        time: this.formatDate(place.latest_visit_at),
-        image: place.image_url || '',
-        count: Number(place.experience_count || 0),
-        verdict: Number(place.recommend_count || 0) > 0 ? `${place.recommend_count} 人推荐` : '真实到店',
       }
     },
     loadNearbyRoute() {
@@ -290,6 +351,55 @@ export default {
       if (Number.isNaN(date.getTime())) return '最近'
       return `${date.getMonth() + 1}月${date.getDate()}日`
     },
+    generateRoute() {
+      uni.showLoading({ title: '正在生成路线', mask: true })
+      uni.getLocation({
+        type: 'gcj02',
+        success: async location => {
+          const longitude = Number(location.longitude)
+          const latitude = Number(location.latitude)
+          if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+            uni.hideLoading()
+            this.fallbackToFeatured()
+            return
+          }
+          try {
+            const route = await api.getNearbyRoute({ city_code: this.city.code, longitude, latitude, limit: 4 })
+            uni.hideLoading()
+            if (Array.isArray(route.stops) && route.stops.length) {
+              const query = [
+                'nearby=1',
+                `city_code=${encodeURIComponent(this.city.code)}`,
+                `longitude=${longitude}`,
+                `latitude=${latitude}`,
+                `budget=${this.timeBudget}`,
+                `scene=${encodeURIComponent(this.selectedSceneValue())}`,
+              ].join('&')
+              uni.navigateTo({ url: `/pages/route-detail/route-detail?${query}` })
+            } else {
+              this.fallbackToFeatured()
+            }
+          } catch (error) {
+            console.warn('[home] generate route failed:', error && error.message ? error.message : error)
+            uni.hideLoading()
+            this.fallbackToFeatured()
+          }
+        },
+        fail: () => {
+          uni.hideLoading()
+          this.fallbackToFeatured()
+        },
+      })
+    },
+    fallbackToFeatured() {
+      uni.showToast({ title: '未开启定位，先看看编辑精选', icon: 'none' })
+      if (this.featuredRoute) this.openRoute()
+    },
+    selectedSceneValue() {
+      const scene = this.scenes.find(item => item.code === this.selectedScene)
+      return (scene && scene.query && scene.query.value) || ''
+    },
+    goScene(keyword) { uni.navigateTo({ url: `/pages/search/search?keyword=${encodeURIComponent(keyword)}` }) },
     quickRecord(mode) { uni.setStorageSync('record_entry_mode', mode); uni.switchTab({ url: '/pages/record/record' }) },
     openGuide(guide) {
       if (guide && guide.source === 'nearby' && this.nearbyLocation) {
@@ -309,197 +419,276 @@ export default {
       const keyword = (guide && (guide.keyword || guide.title)) || ''
       uni.navigateTo({ url: `/pages/search/search?keyword=${encodeURIComponent(keyword)}` })
     },
-    openRoute() { this.openGuide(this.featuredRoute || this.routeGuides[this.routeIndex] || this.routeGuides[0]) },
-    openCampaign(campaign) {
-      uni.showModal({
-        title: campaign.title,
-        content: '告诉我们店名、位置和你亲自吃过的那一道。线索会先核验，再公开推荐。',
-        confirmText: '去记录',
-        success: result => { if (result.confirm) this.quickRecord('text') },
-      })
-    },
+    openRoute() { this.openGuide(this.featuredRoute || this.routeGuides[0]) },
     goSearch() { uni.navigateTo({ url: '/pages/search/search' }) },
-    goRecommendedPlaces() { uni.navigateTo({ url: '/pages/search/search?recommended=1' }) },
     goExperienceList() { uni.navigateTo({ url: '/pages/experience-list/experience-list' }) },
-    goPlaceDetail(id) { if (id) uni.navigateTo({ url: `/pages/place-detail/place-detail?id=${id}` }) },
     goDetail(id) { if (id) uni.navigateTo({ url: `/pages/experience-detail/experience-detail?id=${id}` }) },
-    goFootprints() { uni.switchTab({ url: '/pages/footprints/footprints' }) },
-    goMine() { uni.switchTab({ url: '/pages/mine/mine' }) },
   },
   onShareAppMessage() { return { title: `饭友记｜在${this.city.name}认真吃饭`, path: '/pages/home/home' } },
 }
 </script>
 
 <style scoped>
+/* —— V6 贴纸手帐：纸 #FFFBF3 / 卡 #FFFFFF / 线 #EFE5D0 / 墨 #332E26 / 弱 #8B8271
+      绿 #3E9B6F(仅 CTA 与可点元素) / 绿深 #2F7D58 / 奶油 #FFF4DF / 蛋黄 #FFC64B / 蛋深 #E0A62F
+      渐变纪律：只做同色系 180deg 微渐变（糖果光感），不跨色相、不做大彩带 —— */
 .home-page {
   min-height: 100vh;
-  padding: 0 26rpx calc(128rpx + env(safe-area-inset-bottom));
+  padding: 0 32rpx calc(150rpx + env(safe-area-inset-bottom));
   overflow: hidden;
-  background: #F3F3EF;
-  color: #151513;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%);
+  color: #332E26;
+  font-family: "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
 }
+.num { font-family: "Baloo 2", "PingFang SC", sans-serif; }
 
+/* 按压反馈（hover-class="hv"） */
+.scene.hv, .moreline.hv, .city-pill.hv { opacity: .55; }
+.search-btn.hv { transform: scale(.9); }
+.seg-item.hv { transform: scale(.95); opacity: .85; }
+.cta.hv { transform: translateY(4rpx); box-shadow: 0 2rpx 0 #2F7D58; }
+.stamp-btn.hv { transform: rotate(1.5deg) translateY(3rpx); box-shadow: 0 1rpx 0 #E0A62F; }
+.route.hv { transform: rotate(-.6deg) scale(.985); }
+.mini.tilt-l.hv { transform: rotate(-1deg) scale(.97); }
+.mini.tilt-r.hv { transform: rotate(1.2deg) scale(.97); }
+.jot.hv { transform: rotate(.5deg) scale(.98); }
+.jot-empty.hv { transform: scale(.985); }
+
+/* 导航 */
 .nav-space { position: relative; }
 .topbar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 20rpx; }
-.brand { flex: none; font-family: "Songti SC", STSong, serif; font-size: 43rpx; font-weight: 800; letter-spacing: 2rpx; line-height: 1; }
-.city-trigger { min-width: 0; display: flex; align-items: center; gap: 9rpx; font-size: 25rpx; font-weight: 650; white-space: nowrap; }
-.pin { color: #D64B32; font-size: 17rpx; }
-.chevron { margin-top: -6rpx; font-size: 24rpx; }
-.avatar { width: 52rpx; height: 52rpx; display: flex; flex: none; align-items: center; justify-content: center; margin-left: auto; border-radius: 50%; background: #DFDDD8; color: #57534E; font-size: 20rpx; font-weight: 700; }
+.logo { flex: none; display: flex; align-items: center; gap: 14rpx; }
+.logo-name { font-size: 38rpx; font-weight: 900; letter-spacing: 3rpx; line-height: 1; }
+.city-pill {
+  margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 12rpx;
+  height: 60rpx; padding: 0 22rpx 0 24rpx;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0; border-radius: 999rpx;
+}
+.city-dot { flex: none; width: 12rpx; height: 12rpx; border-radius: 50%; background: #3E9B6F; }
+.city-name { font-size: 25rpx; font-weight: 700; white-space: nowrap; }
+.city-caret { margin-top: 2rpx; }
+.search-btn {
+  flex: none; width: 60rpx; height: 60rpx; border-radius: 50%; box-sizing: border-box;
+  background: linear-gradient(180deg, #FFF8E6, #FFF0CF);
+  border: 3rpx solid #EFE5D0;
+  display: flex; align-items: center; justify-content: center;
+}
 
-.hero-wrap { position: relative; }
-.city-swiper { width: 100%; height: 380rpx; }
-.city-hero { position: relative; height: 100%; overflow: hidden; border-radius: 25rpx; }
-.city-hero > image, .hero-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hero-shade { background: linear-gradient(90deg, rgba(14,13,11,.66), rgba(14,13,11,.05) 58%, rgba(14,13,11,.36)); }
-.hero-copy { position: absolute; left: 31rpx; bottom: 45rpx; display: flex; flex-direction: column; color: #fff; }
-.hero-city { font-family: "Songti SC", STSong, serif; font-size: 68rpx; font-weight: 500; line-height: 1; }
-.hero-line { margin-top: 18rpx; font-size: 24rpx; letter-spacing: 2rpx; }
-.hero-dash { width: 35rpx; height: 3rpx; margin-top: 18rpx; background: rgba(255,255,255,.84); }
-.location-copy { position: absolute; right: 26rpx; bottom: 39rpx; display: flex; align-items: flex-start; gap: 12rpx; color: #fff; }
-.location-dot { width: 12rpx; height: 12rpx; margin-top: 7rpx; border: 4rpx solid #fff; border-radius: 50%; }
-.location-copy > view:last-child { display: flex; flex-direction: column; align-items: flex-end; gap: 10rpx; }
-.location-copy text:first-child { font-size: 21rpx; font-weight: 650; }
-.location-copy text:last-child { color: rgba(255,255,255,.82); font-size: 19rpx; }
-.hero-pages { position: absolute; left: 0; right: 0; bottom: 15rpx; z-index: 2; display: flex; justify-content: center; gap: 8rpx; }
-.hero-pages > view { width: 8rpx; height: 8rpx; border-radius: 50%; background: rgba(255,255,255,.45); transition: width .25s ease; }
-.hero-pages > view.active { width: 25rpx; border-radius: 5rpx; background: #fff; }
+/* 首屏任务卡 */
+.hero {
+  margin-top: 8rpx; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 44rpx;
+  overflow: hidden; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.map { position: relative; height: 344rpx; background: #FFF6E3; }
+.map::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  background: linear-gradient(158deg, rgba(62, 155, 111, .10) 0%, rgba(255, 255, 255, 0) 46%, rgba(255, 196, 75, .16) 100%);
+}
+.seam { height: 26rpx; margin: 6rpx 44rpx 2rpx; opacity: .55; }
+.task { padding: 36rpx 32rpx 32rpx; }
+.hero-eyebrow { display: block; color: #2F7D58; font-size: 24rpx; font-weight: 800; letter-spacing: 2rpx; }
+.q { display: block; font-size: 36rpx; font-weight: 900; letter-spacing: 1rpx; }
+.hero-eyebrow + .q { margin-top: 10rpx; }
+.q-note { display: block; margin-top: 10rpx; color: #6F675B; font-size: 24rpx; line-height: 1.55; }
+.seg { display: flex; gap: 16rpx; margin-top: 22rpx; }
+.seg-item {
+  flex: 1; height: 64rpx; line-height: 64rpx; text-align: center; border-radius: 999rpx;
+  background: linear-gradient(180deg, #F8F1E2, #F2E9D3);
+  color: #6E6553; font-size: 25rpx; font-weight: 700;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.seg-item.on {
+  background: linear-gradient(180deg, #48AB7D 0%, #3E9B6F 100%);
+  color: #FFFFFF; box-shadow: 0 4rpx 0 #2F7D58;
+}
+.preference-chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 22rpx; }
+.preference-chip {
+  min-height: 64rpx; box-sizing: border-box; padding: 13rpx 22rpx; border: 2rpx solid #E7DCC5;
+  border-radius: 32rpx; background: #FFFFFF; color: #6F675B; font-size: 24rpx; font-weight: 700;
+}
+.preference-chip.on { border-color: #2F7D58; background: #E5F3EA; color: #246647; }
+.from {
+  display: flex; align-items: center; gap: 14rpx; margin-top: 24rpx;
+  height: 76rpx; padding: 0 24rpx; box-sizing: border-box;
+  background: linear-gradient(180deg, #FDF8EC, #FBF1D9); border: 3rpx solid #F1E7CE; border-radius: 26rpx;
+}
+.from-pin { flex: none; }
+.from-name { font-size: 26rpx; font-weight: 700; white-space: nowrap; }
+.from-note { font-size: 23rpx; color: #8B8271; white-space: nowrap; }
+.from-change { margin-left: auto; font-size: 24rpx; font-weight: 700; color: #3E9B6F; }
+.cta {
+  display: flex; align-items: center; justify-content: center; gap: 16rpx;
+  margin-top: 24rpx; height: 92rpx; border-radius: 999rpx;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%);
+  color: #FFFFFF; font-size: 30rpx; font-weight: 800;
+  box-shadow: 0 6rpx 0 #2F7D58;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.cta-arrow { flex: none; }
 
-.search-float { position: relative; z-index: 3; min-height: 88rpx; display: flex; align-items: center; gap: 23rpx; margin: -18rpx 8rpx 0; padding: 0 29rpx; border: 1rpx solid rgba(255,255,255,.8); border-radius: 46rpx; background: rgba(249,249,247,.96); box-shadow: 0 12rpx 31rpx rgba(25,24,21,.1); }
-.search-float > text { flex: 1; color: #6E6B67; font-size: 25rpx; }
-.search-mark { position: relative; width: 27rpx; height: 27rpx; border: 4rpx solid #666560; border-radius: 50%; }
-.search-mark::after { content: ''; position: absolute; right: -10rpx; bottom: -7rpx; width: 13rpx; height: 4rpx; border-radius: 4rpx; background: #666560; transform: rotate(45deg); }
-.scan-mark { position: relative; width: 31rpx; height: 31rpx; }
-.scan-mark > view { position: absolute; width: 10rpx; height: 10rpx; }
-.scan-mark view:nth-child(1) { left: 0; top: 0; border-left: 3rpx solid #5F5E5A; border-top: 3rpx solid #5F5E5A; }
-.scan-mark view:nth-child(2) { right: 0; top: 0; border-right: 3rpx solid #5F5E5A; border-top: 3rpx solid #5F5E5A; }
-.scan-mark view:nth-child(3) { left: 0; bottom: 0; border-left: 3rpx solid #5F5E5A; border-bottom: 3rpx solid #5F5E5A; }
-.scan-mark view:nth-child(4) { right: 0; bottom: 0; border-right: 3rpx solid #5F5E5A; border-bottom: 3rpx solid #5F5E5A; }
+/* 区块头（组间 64rpx / 组内 24rpx 的两级节奏） */
+.sec { display: flex; align-items: center; gap: 16rpx; margin: 64rpx 4rpx 22rpx; }
+.sec-ic { flex: none; }
+.sec-h { font-size: 30rpx; font-weight: 900; letter-spacing: 1rpx; }
+.sec-p { font-size: 23rpx; color: #756C5B; padding-top: 5rpx; }
 
-.section-head { display: flex; align-items: center; justify-content: space-between; }
-.section-head > text:first-child { font-family: "Songti SC", STSong, serif; font-size: 37rpx; font-weight: 800; }
-.section-head > text:last-child { min-height: 60rpx; display: flex; align-items: center; color: #5F5D59; font-size: 22rpx; }
-.route-heading { margin: 35rpx 10rpx 10rpx; }
-.route-swiper { width: calc(100% + 18rpx); height: 264rpx; margin-left: 8rpx; }
-.route-card { height: 246rpx; display: grid; grid-template-columns: 56% 44%; margin-right: 14rpx; overflow: hidden; border-bottom: 1rpx solid #D7D5CF; background: #F8F8F4; }
-.route-copy { min-width: 0; padding: 15rpx 14rpx 0 2rpx; }
-.route-top { display: grid; grid-template-columns: 91rpx minmax(0, 1fr); gap: 8rpx; }
-.route-number { color: #426A54; font-family: Georgia, serif; font-size: 62rpx; line-height: 1; }
-.route-summary { min-width: 0; display: flex; flex-direction: column; }
-.route-tag { align-self: flex-start; padding: 5rpx 10rpx; border-radius: 9rpx; background: #E3EAE2; color: #426A54; font-size: 16rpx; }
-.route-title { margin-top: 8rpx; font-size: 25rpx; font-weight: 750; line-height: 1.25; }
-.route-meta { margin-top: 6rpx; color: #706D68; font-size: 18rpx; white-space: nowrap; }
-.route-stops { position: relative; display: grid; margin-top: 29rpx; }
-.route-line { position: absolute; left: 20rpx; right: 20rpx; top: 8rpx; height: 3rpx; background: #426A54; }
-.route-stop { position: relative; z-index: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12rpx; }
-.route-stop > view { width: 16rpx; height: 16rpx; border: 4rpx solid #426A54; border-radius: 50%; background: #F8F8F4; }
-.route-stop text { width: 100%; overflow: hidden; font-size: 16rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.map-preview { position: relative; margin: 15rpx 0 15rpx 5rpx; overflow: hidden; border-radius: 17rpx 0 0 17rpx; background: #E9EEE8; }
-.map-grid { position: absolute; inset: -20rpx; background-image: linear-gradient(rgba(255,255,255,.86) 2rpx, transparent 2rpx), linear-gradient(90deg, rgba(255,255,255,.86) 2rpx, transparent 2rpx); background-size: 53rpx 47rpx; transform: rotate(-12deg); }
-.path { position: absolute; z-index: 1; height: 5rpx; border-radius: 5rpx; background: #426A54; transform-origin: left center; }
-.path-one { left: 35rpx; top: 170rpx; width: 78rpx; transform: rotate(-31deg); }.path-two { left: 99rpx; top: 129rpx; width: 72rpx; transform: rotate(-5deg); }.path-three { left: 167rpx; top: 123rpx; width: 66rpx; transform: rotate(-43deg); }
-.map-node { position: absolute; z-index: 2; width: 15rpx; height: 15rpx; border: 4rpx solid #426A54; border-radius: 50%; background: #F8F8F4; }
-.node-one { left: 29rpx; top: 165rpx; }.node-two { left: 92rpx; top: 122rpx; }.node-three { left: 164rpx; top: 116rpx; }.node-four { left: 208rpx; top: 74rpx; }
-.map-preview > text { position: absolute; right: 17rpx; bottom: 14rpx; z-index: 2; font-family: Georgia, serif; font-size: 18rpx; font-style: italic; transform: rotate(-7deg); }
+/* 本周精选：纯文字站点序列，避免小程序不支持 SVG mask 时出现实心方块。 */
+.route {
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 44rpx;
+  padding: 30rpx 32rpx 32rpx; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transform: rotate(-.6deg);
+}
+.route-stops { display: flex; align-items: stretch; gap: 10rpx; }
+.route-stop { min-width: 0; flex: 1; position: relative; display: flex; flex-direction: column; gap: 8rpx; padding: 20rpx 18rpx; border: 2rpx solid #E7DCC5; border-radius: 20rpx; background: #FFF9EE; }
+.route-stop-icon { width: 56rpx; height: 56rpx; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+.route-stop-icon image { width: 46rpx; height: 46rpx; }
+.route-stop-index { color: #2F7D58; font-size: 22rpx; font-weight: 800; }
+.route-stop-name { color: #332E26; font-size: 25rpx; font-weight: 750; line-height: 1.35; }
+.route-stop-arrow { position: absolute; z-index: 1; top: 50%; right: -18rpx; width: 26rpx; height: 26rpx; margin-top: -13rpx; border-radius: 50%; background: #FFFFFF; color: #2F7D58; font-size: 22rpx; font-weight: 800; line-height: 24rpx; text-align: center; }
+.tl { display: flex; align-items: flex-start; }
+.tl-cell.stop {
+  width: 152rpx; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10rpx;
+}
+.stop-c {
+  width: 108rpx; height: 108rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.stop-c.tilt { transform: rotate(7deg); }
+.stop-ic { flex: none; }
+.stop-name { font-size: 24rpx; font-weight: 700; line-height: 1.2; text-align: center; }
+.stop-idx { font-size: 20rpx; font-weight: 700; color: #B9AE96; letter-spacing: 2rpx; line-height: 1; }
+.tl-cell.dash { flex: 1; min-width: 34rpx; margin-top: 38rpx; padding: 0 2rpx; }
+.dash-squig { width: 100%; height: 34rpx; }
+.rhead { display: flex; align-items: baseline; gap: 12rpx; margin-top: 26rpx; }
+.route-title { flex: 1; font-size: 32rpx; font-weight: 800; letter-spacing: 1rpx; }
+.go { font-size: 34rpx; font-weight: 700; color: #C9BFA8; }
+.meta { display: flex; gap: 24rpx; margin-top: 12rpx; font-size: 24rpx; color: #8B8271; }
+.meta .num { font-size: 27rpx; font-weight: 700; color: #756C5B; }
+.assure { display: flex; align-items: center; gap: 12rpx; margin-top: 24rpx; font-size: 23rpx; color: #2F7D58; }
+.assure-ic { flex: none; }
+.sep { width: 6rpx; height: 6rpx; border-radius: 50%; background: #C9BFA8; }
+.rain { color: #8A661C; }
 
-.recent-heading { margin: 18rpx 10rpx 3rpx; padding-top: 22rpx; border-top: 1rpx solid #D7D5CF; }
-.recent-list { margin: 0 10rpx; }
-.recent-empty { padding: 36rpx 20rpx; color: #88827A; text-align: center; font-size: 22rpx; line-height: 1.6; }
-.recent-item { min-height: 120rpx; display: flex; align-items: center; gap: 18rpx; border-bottom: 1rpx solid #D9D7D1; }
-.recent-item > image { width: 145rpx; height: 91rpx; flex: none; border-radius: 11rpx; }
-.recent-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; }
-.recent-copy text:first-child { font-size: 25rpx; font-weight: 750; }
-.recent-copy text:nth-child(2), .recent-copy text:nth-child(3) { margin-top: 4rpx; overflow: hidden; color: #6F6C68; font-size: 18rpx; text-overflow: ellipsis; white-space: nowrap; }
-.recent-score { width: 67rpx; display: flex; flex: none; flex-direction: column; align-items: center; }
-.recent-score text:first-child { color: #D64B32; font-family: Georgia, serif; font-size: 32rpx; }
-.recent-score text:last-child { color: #66635F; font-size: 15rpx; white-space: nowrap; }
-.row-arrow { color: #4B4946; font-size: 31rpx; }
+/* 加载骨架（扫光呼吸；高度贴近真卡，避免替换时跳动） */
+.skel { pointer-events: none; }
+.skel-row { display: flex; align-items: center; gap: 10rpx; padding: 6rpx 0 10rpx; }
+.skel-stop {
+  flex: none; width: 96rpx; height: 96rpx; border-radius: 50%;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-dash {
+  flex: 1; height: 28rpx; border-radius: 999rpx;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-bar {
+  height: 30rpx; border-radius: 12rpx; margin-top: 22rpx;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-bar.w90 { width: 90%; }
+.skel-bar.w70 { width: 70%; }
+.skel-bar.w60 { width: 60%; }
+.skel-bar.w45 { width: 45%; margin-top: 14rpx; }
+.skel-bar.w40 { width: 40%; margin-top: 14rpx; }
+@keyframes skel {
+  0% { background-position: 130% 0; }
+  100% { background-position: -60% 0; }
+}
 
-.campaign { position: relative; min-height: 144rpx; display: flex; align-items: center; margin: 34rpx 7rpx 0; overflow: hidden; border-radius: 18rpx; background: #E7E0D4; }
-.campaign::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(242,237,227,.99) 0%, rgba(242,237,227,.97) 60%, rgba(242,237,227,.08) 100%); }
-.campaign > image { position: absolute; right: 0; top: 0; width: 36%; height: 100%; }
-.campaign-brush { position: relative; z-index: 2; width: 43rpx; min-height: 144rpx; flex: none; background: #D2573F; clip-path: polygon(0 0,100% 4%,82% 21%,100% 38%,75% 58%,100% 79%,84% 100%,0 100%); }
-.campaign-copy { position: relative; z-index: 2; min-width: 0; display: flex; flex: 1; flex-direction: column; padding: 0 15rpx; }
-.campaign-copy text:first-child { font-family: Georgia, serif; font-size: 16rpx; letter-spacing: 2rpx; }
-.campaign-copy text:nth-child(2) { margin-top: 8rpx; font-size: 25rpx; font-weight: 750; white-space: nowrap; }
-.campaign-copy text:last-child { margin-top: 7rpx; color: #5F5C57; font-size: 18rpx; }
-.campaign-arrow { position: relative; z-index: 3; width: 45rpx; height: 45rpx; flex: none; margin-right: 218rpx; border-radius: 50%; background: #1B1B19; color: #fff; line-height: 42rpx; text-align: center; font-size: 25rpx; }
+/* 双 mini 卡（左右反向微倾，错位贴纸） */
+.duo { display: flex; gap: 24rpx; margin-top: 24rpx; }
+.mini {
+  flex: 1; min-width: 0; background: #FFFFFF; border: 3rpx solid #EFE5D0;
+  border-radius: 36rpx; overflow: hidden; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transition: transform .15s ease;
+}
+.mini.tilt-l { transform: rotate(-1deg); }
+.mini.tilt-r { transform: rotate(1.2deg); }
+.cover {
+  position: relative; height: 200rpx;
+  background: linear-gradient(180deg, #FFF7E1 0%, #FFEFCA 100%);
+  display: flex; align-items: center; justify-content: center; gap: 20rpx;
+}
+.cover-p {
+  width: 88rpx; height: 88rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; transform: rotate(-6deg);
+}
+.cover-p.flip { transform: rotate(6deg) scaleX(-1); }
+.cover-p.flip .cover-d { transform: scaleX(-1); }
+.cover-d { flex: none; }
+.tag {
+  position: absolute; top: 18rpx; left: 18rpx; transform: rotate(-3deg);
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%);
+  color: #332E26; font-size: 21rpx; font-weight: 800;
+  padding: 6rpx 16rpx; border-radius: 14rpx; box-shadow: 0 3rpx 0 #E0A62F;
+}
+.bd { padding: 22rpx 24rpx 24rpx; }
+.mini-title { display: block; font-size: 27rpx; font-weight: 800; line-height: 1.35; }
+.mini-meta { display: block; margin-top: 8rpx; font-size: 22rpx; color: #8B8271; }
 
-/* 新视觉语言：手作展示字体与现代功能界面。 */
-.home-page { padding: 0 24rpx calc(142rpx + env(safe-area-inset-bottom)); background: #f5faec; }
-.topbar { gap: 18rpx; }
-.brand { font-family: "PingFang SC", sans-serif; font-size: 32rpx; font-weight: 900; }
-.city-trigger { margin-left: auto; padding: 15rpx 22rpx; border-radius: 32rpx; background: rgba(20,20,18,.06); }
-.pin { color: #171813; }
-.avatar { display: none; }
-.search-float { min-height: 92rpx; margin: 18rpx 4rpx 22rpx; border: 2rpx solid #dedfd9; background: #fff; box-shadow: none; }
-.search-float > text { color: #969a98; }
-.route-swiper { width: 100%; height: 300rpx; margin: 0; }
-.route-card { position: relative; height: 280rpx; display: block; margin: 0 4rpx; overflow: hidden; border: 0; border-radius: 34rpx; background: #10110e; }
-.route-card > image { position: absolute; right: 0; top: 0; width: 43%; height: 100%; }
-.route-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,#10110e 0%,#10110e 52%,rgba(16,17,14,.1) 80%); }
-.route-copy { position: relative; z-index: 2; width: 64%; height: 100%; display: flex; flex-direction: column; padding: 27rpx 25rpx; color: #fff; }
-.route-tag { align-self: flex-start; padding: 8rpx 19rpx; border-radius: 25rpx; background: #c7ff35; color: #11120e; font-size: 21rpx; font-weight: 800; }
-.route-title { margin-top: 17rpx; font-family: "Kaiti SC", STKaiti, cursive; font-size: 39rpx; font-weight: 900; line-height: 1.12; }
-.route-meta { margin-top: 12rpx; color: rgba(255,255,255,.58); font-size: 20rpx; }
-.route-go { position: absolute; right: 1rpx; bottom: 25rpx; width: 60rpx; height: 60rpx; border-radius: 50%; background: #c7ff35; color: #111; font-size: 38rpx; line-height: 56rpx; text-align: center; }
-.route-note { position: absolute; z-index: 3; right: 150rpx; top: 35rpx; color: #c7ff35; font-family: cursive; font-size: 22rpx; font-style: italic; line-height: 1.05; transform: rotate(-8deg); }
-.recent-heading { margin: 18rpx 6rpx 12rpx; padding: 0; border: 0; }
-.section-head > text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 39rpx; font-weight: 900; }
-.recent-list { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin: 0 4rpx; }
-.recent-item { min-width: 0; display: flex; flex-wrap: wrap; gap: 0; padding-bottom: 15rpx; overflow: hidden; border: 0; border-radius: 27rpx; background: #fff; }
-.recent-item > image { width: 100%; height: 184rpx; border-radius: 0; }
-.recent-copy { width: 100%; flex: none; padding: 13rpx 13rpx 0; }
-.recent-copy text:first-child { font-size: 23rpx; }
-.recent-copy text:nth-child(2) { font-size: 17rpx; }
-.recent-score { width: 100%; flex-direction: row; justify-content: space-between; padding: 7rpx 13rpx 0; }
-.recent-score text:first-child { color: #111; font-family: inherit; font-size: 19rpx; font-weight: 800; }
-.recent-score text:last-child { color: #777d75; }
-.guide-section { margin: 42rpx 4rpx 0; }
-.guide-heading { align-items: flex-end; margin-bottom: 16rpx; }
-.guide-heading > view { display: flex; flex-direction: column; }
-.guide-heading > view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 41rpx; font-weight: 900; }
-.guide-heading > view text:last-child { margin-top: 5rpx; color: #777d75; font-size: 18rpx; }
-.guide-heading > text { color: #60655f; font-size: 20rpx; }
-.hand-route-card { overflow: hidden; border-radius: 34rpx; background: #11120f; color: #fff; }
-.route-card-head { min-height: 125rpx; display: flex; align-items: center; gap: 20rpx; padding: 24rpx 26rpx; }
-.route-card-head > view:first-child { min-width: 0; display: flex; flex: 1; flex-direction: column; }
-.route-card-head > view:first-child text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 32rpx; font-weight: 900; }
-.route-card-head > view:first-child text:last-child { margin-top: 7rpx; color: rgba(255,255,255,.55); font-size: 18rpx; }
-.route-open { width: 59rpx; height: 59rpx; flex: none; border-radius: 50%; background: #c7ff35; color: #111; font-size: 36rpx; line-height: 55rpx; text-align: center; }
-.hand-map { position: relative; height: 330rpx; overflow: hidden; margin: 0 14rpx; border-radius: 28rpx; background: #c7ff35; }
-.street { position: absolute; height: 16rpx; border: 4rpx solid rgba(255,255,255,.84); border-right: 0; border-left: 0; transform-origin: left center; }
-.street-one { left: -20rpx; top: 85rpx; width: 760rpx; transform: rotate(-12deg); }
-.street-two { left: 80rpx; top: -30rpx; width: 470rpx; transform: rotate(70deg); }
-.street-three { left: 265rpx; top: 310rpx; width: 560rpx; transform: rotate(-54deg); }
-.river { position: absolute; right: -50rpx; top: -80rpx; width: 150rpx; height: 520rpx; border-radius: 50%; border-left: 28rpx solid rgba(83,208,181,.48); transform: rotate(13deg); }
-.route-dash { position: absolute; z-index: 2; height: 7rpx; border-radius: 8rpx; background: repeating-linear-gradient(90deg,#111 0,#111 14rpx,transparent 14rpx,transparent 25rpx); transform-origin: left center; }
-.dash-one { left: 105rpx; top: 95rpx; width: 190rpx; transform: rotate(34deg); }
-.dash-two { left: 270rpx; top: 205rpx; width: 170rpx; transform: rotate(-25deg); }
-.dash-three { left: 420rpx; top: 135rpx; width: 190rpx; transform: rotate(29deg); }
-.route-point { position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: center; }
-.route-point > text:first-child { width: 50rpx; height: 50rpx; border: 5rpx solid rgba(255,255,255,.9); border-radius: 50%; background: #111; color: #fff; font-size: 22rpx; font-weight: 900; line-height: 40rpx; text-align: center; }
-.route-point > text:last-child { margin-top: 5rpx; padding: 4rpx 8rpx; border-radius: 10rpx; background: rgba(199,255,53,.88); color: #111; font-size: 17rpx; font-weight: 850; white-space: nowrap; }
-.point-one { left: 58rpx; top: 44rpx; }.point-two { left: 245rpx; top: 165rpx; }.point-three { left: 399rpx; top: 77rpx; }.point-four { right: 45rpx; top: 211rpx; }
-.map-note { position: absolute; left: 46rpx; bottom: 25rpx; color: #111; font-family: cursive; font-size: 19rpx; font-style: italic; line-height: 1.05; transform: rotate(-7deg); }
-.route-card-foot { min-height: 82rpx; display: flex; align-items: center; justify-content: space-between; padding: 0 27rpx; }
-.route-card-foot text:first-child { color: rgba(255,255,255,.58); font-size: 18rpx; }
-.route-card-foot text:last-child { color: #c7ff35; font-size: 21rpx; font-weight: 800; }
-.community-section { margin: 43rpx 4rpx 0; }
-.community-heading { align-items: flex-end; margin-bottom: 14rpx; }
-.community-heading > view { display: flex; flex-direction: column; }
-.community-heading > view text:first-child { font-family: "Kaiti SC", STKaiti, cursive; font-size: 40rpx; font-weight: 900; }
-.community-heading > view text:last-child { margin-top: 5rpx; color: #777d75; font-size: 18rpx; }
-.community-heading > text { color: #60655f; font-size: 20rpx; }
-.community-list { overflow: hidden; border-radius: 30rpx; background: #fff; }
-.community-row { min-height: 158rpx; display: flex; align-items: center; gap: 17rpx; padding: 18rpx; border-bottom: 1rpx solid #e2e6de; }
-.community-row:last-child { border-bottom: 0; }
-.community-row > image { width: 126rpx; height: 112rpx; flex: none; border-radius: 20rpx; }
-.community-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; }
-.community-user { display: flex; align-items: center; gap: 7rpx; color: #858a83; font-size: 16rpx; }
-.community-user text:nth-child(2) { color: #4f554e; font-weight: 750; }
-.user-avatar { width: 31rpx; height: 31rpx; border-radius: 50%; background: #dff5d5; color: #356d20; font-size: 15rpx; font-weight: 850; line-height: 31rpx; text-align: center; }
-.community-place { margin-top: 8rpx; font-size: 23rpx; font-weight: 850; }
-.community-note { margin-top: 5rpx; overflow: hidden; color: #686e67; font-size: 18rpx; text-overflow: ellipsis; white-space: nowrap; }
-.community-arrow { color: #6e746d; font-size: 35rpx; }
+/* 场景圆点文字链 */
+.scenes { display: flex; flex-wrap: wrap; gap: 6rpx 20rpx; padding: 4rpx 4rpx 0; }
+.scene {
+  display: flex; align-items: center; gap: 14rpx; padding: 12rpx 8rpx;
+  font-size: 26rpx; font-weight: 700; color: #57503E;
+}
+.scene-dot { width: 14rpx; height: 14rpx; border-radius: 50%; }
+
+/* 记一笔贴纸 */
+.stamp-btn {
+  margin-left: auto; display: flex; align-items: center; gap: 12rpx;
+  height: 64rpx; padding: 0 28rpx;
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%);
+  border-radius: 999rpx;
+  box-shadow: 0 4rpx 0 #E0A62F; transform: rotate(1.5deg);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.stamp-t { font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 29rpx; letter-spacing: 2rpx; }
+
+/* 引用卡（微倾 + 右侧 8rpx 错位） */
+.jot {
+  position: relative; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  padding: 28rpx 30rpx; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transform: rotate(.5deg); margin-right: 8rpx;
+}
+.qm { position: absolute; top: 24rpx; right: 28rpx; opacity: .5; }
+.jot-p { display: block; font-size: 27rpx; line-height: 1.75; font-weight: 500; padding-right: 44rpx; }
+.jrow { display: flex; align-items: center; gap: 16rpx; margin-top: 20rpx; }
+.ava {
+  flex: none; width: 44rpx; height: 44rpx; border-radius: 50%; box-sizing: border-box;
+  background: #FFF4DF; border: 2rpx solid #EFE5D0;
+  display: flex; align-items: center; justify-content: center;
+}
+.jrow-meta { font-size: 23rpx; color: #8B8271; }
+
+/* 社区空态（blob 小径引路） */
+.jot-empty {
+  background: #FFFFFF; border: 3rpx dashed #EFE5D0; border-radius: 36rpx;
+  padding: 40rpx 30rpx 44rpx; text-align: center;
+  transition: transform .15s ease;
+}
+.empty-trail { display: flex; align-items: center; justify-content: center; gap: 12rpx; }
+.empty-stop {
+  width: 64rpx; height: 64rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.empty-stop:nth-child(3) { transform: rotate(6deg); }
+.empty-stop:nth-child(5) { transform: rotate(-5deg); }
+.empty-squig { flex: none; width: 52rpx; height: 20rpx; opacity: .8; }
+.empty-t { display: block; margin-top: 22rpx; font-size: 26rpx; font-weight: 800; color: #57503E; }
+.empty-s { display: block; margin-top: 10rpx; font-size: 23rpx; color: #8B8271; }
+.moreline {
+  display: flex; justify-content: flex-end; align-items: center; gap: 8rpx;
+  margin-top: 20rpx; font-size: 25rpx; font-weight: 700; color: #3E9B6F;
+}
+.more-arrow { flex: none; }
+
+/* 信任行 */
+.trust {
+  display: flex; align-items: center; justify-content: center; gap: 14rpx;
+  margin-top: 44rpx; color: #8B8271; font-size: 22rpx;
+}
+.trust-ic { flex: none; }
 </style>

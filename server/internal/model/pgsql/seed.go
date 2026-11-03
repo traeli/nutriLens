@@ -22,6 +22,9 @@ func Seed(db *gorm.DB) error {
 		if err := createSeed(tx, "experience tags", seedTags()); err != nil {
 			return err
 		}
+		if err := createSeed(tx, "discovery scenarios", seedDiscoveryScenarios()); err != nil {
+			return err
+		}
 		if err := createSeed(tx, "city routes", seedRoutes()); err != nil {
 			return err
 		}
@@ -99,17 +102,46 @@ func seedRouteStops(tx *gorm.DB) error {
 	if err := tx.Where("city_code = ? AND title = ?", "310000", "曹家渡的四站早餐").First(&route).Error; err != nil {
 		return fmt.Errorf("load seeded route: %w", err)
 	}
-	for index, name := range []string{"老周生煎", "阿庆牛肉面", "弄堂豆浆", "Mono Coffee"} {
+	type routeStopSeed struct {
+		Name, RecommendedFood, FoodCategoryCode, IconKey string
+	}
+	stops := []routeStopSeed{
+		{Name: "老周生煎", RecommendedFood: "鲜肉生煎", FoodCategoryCode: "shengjian", IconKey: "shengjian"},
+		{Name: "阿庆牛肉面", RecommendedFood: "招牌牛肉面", FoodCategoryCode: "noodles", IconKey: "noodle"},
+		{Name: "弄堂豆浆", RecommendedFood: "咸豆浆", FoodCategoryCode: "soy_milk", IconKey: "douhua"},
+		{Name: "Mono Coffee", RecommendedFood: "手冲咖啡", FoodCategoryCode: "coffee", IconKey: "coffee"},
+	}
+	for index, item := range stops {
 		var place Place
-		if err := tx.Where("city_code = ? AND name = ?", route.CityCode, name).First(&place).Error; err != nil {
-			return fmt.Errorf("load seeded route place %s: %w", name, err)
+		if err := tx.Where("city_code = ? AND name = ?", route.CityCode, item.Name).First(&place).Error; err != nil {
+			return fmt.Errorf("load seeded route place %s: %w", item.Name, err)
 		}
-		stop := CityRouteStop{RouteID: route.ID, PlaceID: place.ID, SortOrder: index + 1}
+		stop := CityRouteStop{
+			RouteID: route.ID, PlaceID: place.ID, SortOrder: index + 1,
+			RecommendedFood: item.RecommendedFood, FoodCategoryCode: item.FoodCategoryCode, IconKey: item.IconKey,
+		}
 		if err := tx.Where("route_id = ? AND sort_order = ?", route.ID, index+1).FirstOrCreate(&stop).Error; err != nil {
-			return fmt.Errorf("seed route stop %s: %w", name, err)
+			return fmt.Errorf("seed route stop %s: %w", item.Name, err)
+		}
+		if err := tx.Model(&CityRouteStop{}).
+			Where("id = ? AND recommended_food = ''", stop.ID).
+			Updates(map[string]any{
+				"recommended_food": item.RecommendedFood, "food_category_code": item.FoodCategoryCode, "icon_key": item.IconKey,
+			}).Error; err != nil {
+			return fmt.Errorf("backfill seeded route stop %s: %w", item.Name, err)
 		}
 	}
 	return nil
+}
+
+func seedDiscoveryScenarios() []DiscoveryScenario {
+	return []DiscoveryScenario{
+		{Code: "first_visit", Label: "第一次来", ConditionType: "scene", ConditionValue: "first_visit", Enabled: true, SortOrder: 10},
+		{Code: "family", Label: "亲子同行", ConditionType: "scene", ConditionValue: "family", Enabled: true, SortOrder: 20},
+		{Code: "rainy_day", Label: "雨天照吃", ConditionType: "scene", ConditionValue: "rainy_day", Enabled: true, SortOrder: 30},
+		{Code: "late_night", Label: "深夜到访", ConditionType: "scene", ConditionValue: "late_night", Enabled: true, SortOrder: 40},
+		{Code: "solo", Label: "一个人吃", ConditionType: "scene", ConditionValue: "solo", Enabled: true, SortOrder: 50},
+	}
 }
 
 func seedCities() []City {

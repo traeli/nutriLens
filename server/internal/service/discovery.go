@@ -63,15 +63,30 @@ type RouteGuideView struct {
 }
 
 type RouteStopView struct {
-	Index           int     `json:"index"`
-	PlaceID         uint    `json:"place_id,omitempty"`
-	Name            string  `json:"name"`
-	Address         string  `json:"address,omitempty"`
-	Longitude       float64 `json:"longitude,omitempty"`
-	Latitude        float64 `json:"latitude,omitempty"`
-	DistanceMeters  int     `json:"distance_meters,omitempty"`
-	ExperienceCount int64   `json:"experience_count,omitempty"`
-	Note            string  `json:"note,omitempty"`
+	Index            int     `json:"index"`
+	PlaceID          uint    `json:"place_id,omitempty"`
+	Name             string  `json:"name"`
+	Address          string  `json:"address,omitempty"`
+	Longitude        float64 `json:"longitude,omitempty"`
+	Latitude         float64 `json:"latitude,omitempty"`
+	DistanceMeters   int     `json:"distance_meters,omitempty"`
+	ExperienceCount  int64   `json:"experience_count,omitempty"`
+	RecommendedFood  string  `json:"recommended_food,omitempty"`
+	FoodCategoryCode string  `json:"food_category_code,omitempty"`
+	IconKey          string  `json:"icon_key,omitempty"`
+	Note             string  `json:"note,omitempty"`
+}
+
+type ScenarioQueryView struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type ScenarioFilterView struct {
+	Code      string            `json:"code"`
+	Label     string            `json:"label"`
+	SortOrder int               `json:"sort_order"`
+	Query     ScenarioQueryView `json:"query"`
 }
 
 type FeaturedRouteView struct {
@@ -141,13 +156,14 @@ type HomeStatsView struct {
 }
 
 type HomeSummaryView struct {
-	City             model.City         `json:"city"`
-	Cities           []model.City       `json:"cities"`
-	RouteGuides      []RouteGuideView   `json:"route_guides"`
-	FeaturedRoute    *FeaturedRouteView `json:"featured_route"`
-	DailyPicks       []DailyPlaceView   `json:"daily_picks"`
-	CommunityRecords []HomeCardView     `json:"community_records"`
-	Stats            HomeStatsView      `json:"stats"`
+	City             model.City           `json:"city"`
+	Cities           []model.City         `json:"cities"`
+	ScenarioFilters  []ScenarioFilterView `json:"scenario_filters"`
+	RouteGuides      []RouteGuideView     `json:"route_guides"`
+	FeaturedRoute    *FeaturedRouteView   `json:"featured_route"`
+	DailyPicks       []DailyPlaceView     `json:"daily_picks"`
+	CommunityRecords []HomeCardView       `json:"community_records"`
+	Stats            HomeStatsView        `json:"stats"`
 }
 
 func NewDiscoveryService(db *gorm.DB) *DiscoveryService { return &DiscoveryService{db: db} }
@@ -194,11 +210,19 @@ func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error
 			Meta: route.Meta, Keyword: route.Keyword, Image: route.Image,
 		})
 		if featured == nil && route.IsFeatured {
+			stops, stopErr := s.routeStops(route)
+			if stopErr != nil {
+				return nil, stopErr
+			}
 			featured = &FeaturedRouteView{
 				ID: route.ID, Title: route.Title, Subtitle: route.Meta,
-				Stops: parseRouteStops(route.Stops), Footnote: route.Footnote,
+				Stops: stops, Footnote: route.Footnote,
 			}
 		}
+	}
+	scenarioFilters, err := s.scenarioFilters(cityCode)
+	if err != nil {
+		return nil, err
 	}
 
 	page, err := s.listExperiences(cityCode, 0, "", 30)
@@ -232,9 +256,47 @@ func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error
 	}
 
 	return &HomeSummaryView{
-		City: city, Cities: cities, RouteGuides: routeGuides, FeaturedRoute: featured,
+		City: city, Cities: cities, ScenarioFilters: scenarioFilters, RouteGuides: routeGuides, FeaturedRoute: featured,
 		DailyPicks: dailyPicks, CommunityRecords: communityRecords, Stats: stats,
 	}, nil
+}
+
+func (s *DiscoveryService) scenarioFilters(cityCode string) ([]ScenarioFilterView, error) {
+	var rows []model.DiscoveryScenario
+	err := s.db.Where("enabled = ? AND city_code IN ?", true, []string{"", cityCode}).
+		Order("sort_order, id").Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return mergeScenarioFilters(rows, cityCode), nil
+}
+
+func mergeScenarioFilters(rows []model.DiscoveryScenario, cityCode string) []ScenarioFilterView {
+	selected := make(map[string]model.DiscoveryScenario, len(rows))
+	for _, row := range rows {
+		current, exists := selected[row.Code]
+		if !exists || (row.CityCode == cityCode && current.CityCode != cityCode) {
+			selected[row.Code] = row
+		}
+	}
+	ordered := make([]model.DiscoveryScenario, 0, len(selected))
+	for _, row := range selected {
+		ordered = append(ordered, row)
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].SortOrder == ordered[j].SortOrder {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].SortOrder < ordered[j].SortOrder
+	})
+	views := make([]ScenarioFilterView, 0, len(ordered))
+	for _, row := range ordered {
+		views = append(views, ScenarioFilterView{
+			Code: row.Code, Label: row.Label, SortOrder: row.SortOrder,
+			Query: ScenarioQueryView{Type: row.ConditionType, Value: row.ConditionValue},
+		})
+	}
+	return views
 }
 
 func (s *DiscoveryService) cityRoutes(cityCode string) ([]model.CityRoute, error) {
@@ -260,9 +322,20 @@ func (s *DiscoveryService) GetRoute(id uint) (*RouteDetailView, error) {
 		return nil, err
 	}
 
+	stops, err := s.routeStops(route)
+	if err != nil {
+		return nil, err
+	}
+	return &RouteDetailView{
+		ID: route.ID, CityCode: route.CityCode, Title: route.Title, Tag: route.Tag,
+		Meta: route.Meta, Image: route.Image, Footnote: route.Footnote, Stops: stops,
+	}, nil
+}
+
+func (s *DiscoveryService) routeStops(route model.CityRoute) ([]RouteStopView, error) {
 	var stops []RouteStopView
 	err := s.db.Table("city_route_stops AS route_stops").
-		Select("route_stops.sort_order AS index, route_stops.place_id, places.name, places.address, places.longitude, places.latitude, route_stops.note").
+		Select("route_stops.sort_order AS index, route_stops.place_id, places.name, places.address, places.longitude, places.latitude, route_stops.recommended_food, route_stops.food_category_code, route_stops.icon_key, route_stops.note").
 		Joins("JOIN places ON places.id = route_stops.place_id AND places.status = 'active'").
 		Where("route_stops.route_id = ?", route.ID).
 		Order("route_stops.sort_order, route_stops.id").
@@ -273,10 +346,12 @@ func (s *DiscoveryService) GetRoute(id uint) (*RouteDetailView, error) {
 	if len(stops) == 0 {
 		stops = parseRouteStops(route.Stops)
 	}
-	return &RouteDetailView{
-		ID: route.ID, CityCode: route.CityCode, Title: route.Title, Tag: route.Tag,
-		Meta: route.Meta, Image: route.Image, Footnote: route.Footnote, Stops: stops,
-	}, nil
+	for index := range stops {
+		if strings.TrimSpace(stops[index].IconKey) == "" {
+			stops[index].IconKey = "bowl"
+		}
+	}
+	return stops, nil
 }
 
 func (s *DiscoveryService) NearbyRoute(cityCode string, longitude, latitude float64, limit int) (*RouteDetailView, error) {
@@ -329,6 +404,7 @@ func (s *DiscoveryService) NearbyRoute(cityCode string, longitude, latitude floa
 			Longitude: place.Longitude, Latitude: place.Latitude,
 			DistanceMeters:  int(math.Round(haversineMeters(longitude, latitude, place.Longitude, place.Latitude))),
 			ExperienceCount: experienceCounts[place.ID],
+			IconKey:         nearbyIconKey(place.Category),
 		})
 	}
 	reviewed := make([]RouteStopView, 0, len(stops))
@@ -352,6 +428,13 @@ func (s *DiscoveryService) NearbyRoute(cityCode string, longitude, latitude floa
 		Tag: "附近路线", Meta: "按直线距离由近到远排列", Footnote: "实际交通方式与路况请以地图 App 为准",
 		Stops: stops, Source: "nearby",
 	}, nil
+}
+
+func nearbyIconKey(category string) string {
+	if category == "drink" {
+		return "coffee"
+	}
+	return "bowl"
 }
 
 func placeIDs(places []model.Place) []uint {
@@ -386,7 +469,7 @@ func parseRouteStops(raw model.JSONDocument) []RouteStopView {
 		if name = strings.TrimSpace(name); name == "" {
 			continue
 		}
-		stops = append(stops, RouteStopView{Index: len(stops) + 1, Name: name})
+		stops = append(stops, RouteStopView{Index: len(stops) + 1, Name: name, IconKey: "bowl"})
 	}
 	return stops
 }

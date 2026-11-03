@@ -65,6 +65,20 @@
 
 用户店名、到店日期和统计只在小程序本地 Canvas 合成，主题表不接收用户隐私数据。海报节点按时间排序生成艺术星座，不表达真实地理关系。
 
+### 3.0.2 `discovery_scenarios`（MVP）
+
+首页路线生成场景的运营配置。空 `city_code` 表示全局默认配置；同一 `code` 的城市配置覆盖全局配置。接口只返回场景语义和查询条件，不返回颜色、字号或 CSS 等视觉参数。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `city_code` | varchar(16) | 城市编码；空字符串表示全局 |
+| `code` | varchar(48) | 稳定场景编码，与 `city_code` 联合唯一 |
+| `label` | varchar(32) | 小程序展示文案 |
+| `condition_type` / `condition_value` | varchar | 路线查询条件及其值 |
+| `enabled` | boolean | 是否展示 |
+| `sort_order` | integer | 展示顺序 |
+| `created_at` / `updated_at` | timestamptz | 时间戳 |
+
 ### 3.1 `places`（MVP）
 
 餐厅、小吃摊、夜市档口、饮品店等地点主表。
@@ -90,10 +104,19 @@
 
 ### 3.1.1 `city_route_stops`
 
-吃喝攻略的有序地点表。`route_id` 关联 `city_routes`，`place_id` 关联规范化地点，`sort_order` 表示建议访问顺序，`note` 保存该站的简短攻略说明。地址和坐标只保存在 `places`，地点修正后所有攻略自动生效。路线不存储地图折线或实时算路结果。
+吃喝攻略的有序地点表。地址和坐标只保存在 `places`，地点修正后所有攻略自动生效。推荐食物及图标属于路线语境，因此保存在路线站点而不是地点主表。路线不存储地图折线或实时算路结果。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `route_id` / `place_id` | bigint | 路线与规范化地点 |
+| `sort_order` | integer | 建议访问顺序 |
+| `recommended_food` | varchar(80) | 该路线在本站推荐的食物 |
+| `food_category_code` | varchar(48) | 推荐食物的稳定分类编码 |
+| `icon_key` | varchar(48) | 小程序本地图标语义键，不保存 UI 样式 |
+| `note` | varchar(240) | 站点简短攻略说明 |
 | `created_at` / `updated_at` | timestamptz | 时间戳 |
 
-索引：`(city_code, name)`、`(poi_provider, poi_id)` 唯一索引、经纬度空间索引、`merged_into_id`。
+唯一约束：`(route_id, sort_order)`；索引：`route_id`、`place_id`。
 
 ### 3.2 `place_suggestions`（MVP）
 

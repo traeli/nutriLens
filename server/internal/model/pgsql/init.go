@@ -70,7 +70,7 @@ func migrateLegacyAccountStatuses(tx *gorm.DB) error {
 func autoMigrateModels() []any {
 	return []any{
 		&User{}, &PrivacyAgreement{},
-		&City{}, &CityPosterTheme{}, &Place{}, &Tag{},
+		&City{}, &CityPosterTheme{}, &Place{}, &Tag{}, &DiscoveryScenario{},
 		&CityRoute{}, &CityRouteStop{},
 		&VisitRecord{},
 		&RestaurantReview{}, &RestaurantReviewVersion{}, &RestaurantReviewTagLink{},
@@ -91,6 +91,7 @@ func applyTableComments(tx *gorm.DB) error {
 		`COMMENT ON TABLE city_poster_themes IS '城市饮食记忆海报主题'`,
 		`COMMENT ON TABLE places IS '餐饮地点'`,
 		`COMMENT ON TABLE tags IS '内容标签'`,
+		`COMMENT ON TABLE discovery_scenarios IS '首页路线生成场景配置'`,
 		`COMMENT ON TABLE city_routes IS '城市餐饮路线'`,
 		`COMMENT ON TABLE city_route_stops IS '城市餐饮路线站点'`,
 		`COMMENT ON TABLE visit_records IS '用户私人到店足迹'`,
