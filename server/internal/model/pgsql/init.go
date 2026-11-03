@@ -46,6 +46,10 @@ func Init() error {
 		_ = closeDB(db)
 		return fmt.Errorf("database compatibility migration: %w", err)
 	}
+	if err := ensureRestaurantReviewVersionSequence(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("restaurant review version sequence migration: %w", err)
+	}
 	if err := migrateLegacyVisitRecords(db); err != nil {
 		_ = closeDB(db)
 		return fmt.Errorf("visit record consolidation migration: %w", err)
@@ -170,15 +174,31 @@ func migrateLegacyRestaurantReviews(tx *gorm.DB) error {
 			 FROM record_media AS media WHERE media.record_id = reviews.visit_record_id
 		 ), '[]'::jsonb)
 		 WHERE reviews.media = '[]'::jsonb`,
+	}
+	for _, statement := range statements {
+		if err := tx.Exec(statement).Error; err != nil {
+			return fmt.Errorf("migrate legacy restaurant reviews: %w", err)
+		}
+	}
+	return nil
+}
+
+// ensureRestaurantReviewVersionSequence 修复旧生产表中评论版本主键没有序列默认值的问题。
+// 旧数据迁移会显式保留版本 ID，因此需要在迁移完成后再把序列推进到当前最大值。
+func ensureRestaurantReviewVersionSequence(tx *gorm.DB) error {
+	statements := []string{
+		`CREATE SEQUENCE IF NOT EXISTS restaurant_review_versions_id_seq`,
+		`ALTER SEQUENCE restaurant_review_versions_id_seq OWNED BY restaurant_review_versions.id`,
+		`ALTER TABLE restaurant_review_versions ALTER COLUMN id SET DEFAULT nextval('restaurant_review_versions_id_seq'::regclass)`,
 		`SELECT setval(
-			pg_get_serial_sequence('restaurant_review_versions', 'id'),
+			'restaurant_review_versions_id_seq',
 			GREATEST(COALESCE((SELECT MAX(id) FROM restaurant_review_versions), 0), 1),
 			EXISTS (SELECT 1 FROM restaurant_review_versions)
 		)`,
 	}
 	for _, statement := range statements {
 		if err := tx.Exec(statement).Error; err != nil {
-			return fmt.Errorf("migrate legacy restaurant reviews: %w", err)
+			return fmt.Errorf("ensure restaurant review version sequence: %w", err)
 		}
 	}
 	return nil

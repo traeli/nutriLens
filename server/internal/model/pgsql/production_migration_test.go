@@ -3,6 +3,7 @@ package pgsql
 import (
 	"os"
 	"testing"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -57,12 +58,23 @@ func TestProductionSchemaUpgrade(t *testing.T) {
 	if err := db.AutoMigrate(legacyModels...); err != nil {
 		t.Fatalf("create legacy production schema: %v", err)
 	}
+	// 复现旧生产表：主键存在，但缺少自增序列和默认值。AutoMigrate 不会补回该默认值。
+	if err := db.Exec(`ALTER TABLE restaurant_review_versions ALTER COLUMN id DROP DEFAULT;
+		DROP SEQUENCE IF EXISTS restaurant_review_versions_id_seq`).Error; err != nil {
+		t.Fatalf("simulate legacy review version primary key: %v", err)
+	}
 	if err := seedLegacyDiscoveryData(db); err != nil {
 		t.Fatalf("seed legacy production data: %v", err)
 	}
 
 	if err := db.AutoMigrate(autoMigrateModels()...); err != nil {
 		t.Fatalf("upgrade production schema: %v", err)
+	}
+	if err := migrateLegacyRestaurantReviews(db); err != nil {
+		t.Fatalf("migrate legacy restaurant reviews: %v", err)
+	}
+	if err := ensureRestaurantReviewVersionSequence(db); err != nil {
+		t.Fatalf("repair restaurant review version sequence: %v", err)
 	}
 	if err := applyTableComments(db); err != nil {
 		t.Fatalf("apply upgraded schema comments: %v", err)
@@ -88,6 +100,17 @@ func TestProductionSchemaUpgrade(t *testing.T) {
 	}
 	if scenarioCount != 5 {
 		t.Fatalf("discovery scenario count after repeated seed = %d, want 5", scenarioCount)
+	}
+
+	version := RestaurantReviewVersion{
+		ReviewID: 999999, VersionNo: 1, EditorUserID: 1, VisitDate: time.Now(),
+		Conclusion: "recommend", Content: "sequence migration verification", CreatedAt: time.Now(),
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("insert review version with generated ID: %v", err)
+	}
+	if version.ID == 0 {
+		t.Fatal("generated review version ID is zero")
 	}
 
 	var stop CityRouteStop
