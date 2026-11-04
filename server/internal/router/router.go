@@ -26,25 +26,28 @@ func New(h *handler.Handler, tokens middleware.TokenAuthenticator, allowedOrigin
 
 	v1.POST("/auth/refresh", h.RefreshToken)
 
+	// Public discovery endpoints contain only published or editorial content. Keep
+	// them outside the authenticated group so a visitor can understand and browse
+	// the product before deciding whether to sign in.
+	v1.GET("/cities", h.Cities)
+	v1.GET("/home/summary", h.HomeSummary)
+	v1.GET("/routes/nearby", h.NearbyRoute)
+	v1.GET("/routes/:id", h.GetRoute)
+	v1.GET("/cities/:code/poster-theme", h.CityPosterTheme)
+	v1.GET("/places/search", h.SearchPlaces)
+	v1.GET("/places/:id", h.GetPlace)
+	v1.GET("/places/:id/experiences", h.PlaceExperiences)
+	v1.GET("/experiences", h.Experiences)
+	v1.GET("/experiences/:id", h.GetExperience)
+	v1.GET("/tags", h.Tags)
+	v1.GET("/agreements/current", h.CurrentAgreements)
+
 	authorized := v1.Group("")
 	if h.Accounts != nil {
 		authorized.Use(middleware.Authenticate(tokens, h.Accounts))
 	} else {
 		authorized.Use(middleware.Authenticate(tokens))
 	}
-	authorized.GET("/cities", h.Cities)
-	authorized.GET("/home/summary", h.HomeSummary)
-	authorized.GET("/routes/nearby", h.NearbyRoute)
-	authorized.GET("/routes/:id", h.GetRoute)
-	authorized.GET("/cities/:code/poster-theme", h.CityPosterTheme)
-	authorized.GET("/places/search", h.SearchPlaces)
-	authorized.GET("/places/:id", h.GetPlace)
-	authorized.GET("/places/:id/experiences", h.PlaceExperiences)
-	authorized.GET("/experiences", h.Experiences)
-	authorized.GET("/experiences/:id", h.GetExperience)
-	authorized.GET("/tags", h.Tags)
-	authorized.GET("/agreements/current", h.CurrentAgreements)
-
 	authorized.GET("/user/profile", h.GetProfile)
 	authorized.PUT("/user/profile", h.UpdateProfile)
 	authorized.DELETE("/user/account", h.DeleteAccount)

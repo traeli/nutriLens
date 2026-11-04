@@ -11,6 +11,7 @@
       </button>
 
       <view class="form-card">
+        <text class="optional-note">头像和昵称均为选填，你也可以稍后再完善。</text>
         <view class="form-item">
           <text class="field-label">昵称</text>
           <input
@@ -34,6 +35,7 @@
         >
           保存
         </button>
+        <button class="skip-button" @tap="skip">稍后填写，先去浏览</button>
       </view>
     </view>
   </view>
@@ -117,6 +119,7 @@ export default {
         this.submitting = false
       }
     },
+    skip() { uni.switchTab({ url: '/pages/home/home' }) },
   },
 }
 </script>
@@ -210,6 +213,14 @@ export default {
   padding: 0 3rpx;
 }
 
+.optional-note {
+  display: block;
+  margin-bottom: 24rpx;
+  color: #777169;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
 .field-label {
   display: block;
   margin-bottom: 14rpx;
@@ -241,6 +252,16 @@ export default {
   font-size: 29rpx;
   font-weight: 650;
   line-height: 94rpx;
+}
+
+.skip-button {
+  height: 82rpx;
+  margin: 18rpx 0 0;
+  border: 0;
+  background: transparent;
+  color: #5F5A53;
+  font-size: 25rpx;
+  line-height: 82rpx;
 }
 
 .save-button[disabled] {

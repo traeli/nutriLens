@@ -15,7 +15,7 @@
     },
     "permission": {
       "scope.userLocation": {
-        "desc": "用于选择餐厅位置、记录准确地址并打开地图导航"
+        "desc": "用于你主动生成附近路线、选择餐厅位置并打开地图导航"
       },
       "scope.record": {
         "desc": "用于将你的到店体验语音转成可编辑文字"

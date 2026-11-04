@@ -285,7 +285,6 @@ export default {
         this.featuredRoute = this.fallbackFeaturedRoute
         const community = (data.community_records || []).map(card => this.normalizeSummaryCard(card, true)).filter(item => item.place)
         this.communityRecords = community.slice(0, 3)
-        this.loadNearbyRoute()
       } catch (error) {
         console.warn('[home] use preview summary:', error && error.message ? error.message : error)
         this.refreshCities()
@@ -321,30 +320,6 @@ export default {
         verdict: card.verdict || '真实记录',
         author: withAuthor && card.author ? card.author.nickname : '',
       }
-    },
-    loadNearbyRoute() {
-      const cityCode = this.city.code
-      uni.getLocation({
-        type: 'gcj02',
-        success: async location => {
-          const longitude = Number(location.longitude)
-          const latitude = Number(location.latitude)
-          if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return
-          try {
-            const route = await api.getNearbyRoute({ city_code: cityCode, longitude, latitude, limit: 4 })
-            if (cityCode === this.city.code && Array.isArray(route.stops) && route.stops.length) {
-              this.nearbyLocation = { longitude, latitude }
-              this.featuredRoute = route
-            }
-          } catch (error) {
-            console.warn('[home] nearby route unavailable:', error && error.message ? error.message : error)
-          }
-        },
-        fail: () => {
-          this.nearbyLocation = null
-          this.featuredRoute = this.fallbackFeaturedRoute
-        },
-      })
     },
     formatDate(value) {
       const date = new Date(value)

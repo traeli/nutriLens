@@ -28,23 +28,27 @@ func TestHealthAndRemovedLegacyRoutes(t *testing.T) {
 	}
 }
 
-func TestHomeSummaryRequiresAuthentication(t *testing.T) {
+func TestDiscoveryRoutesDoNotRequireAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := New(&handler.Handler{}, nil, nil)
-	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/home/summary?city_code=310000", nil))
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("home summary route status = %d, want 401", response.Code)
+	paths := []string{
+		"/api/v1/cities",
+		"/api/v1/home/summary?city_code=310000",
+		"/api/v1/routes/nearby?city_code=310000&longitude=121.47&latitude=31.23",
+		"/api/v1/routes/1",
+		"/api/v1/places/search?city_code=310000",
+		"/api/v1/places/1",
+		"/api/v1/places/1/experiences",
+		"/api/v1/experiences",
+		"/api/v1/experiences/1",
+		"/api/v1/tags",
 	}
-}
-
-func TestNearbyRouteRequiresAuthentication(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	engine := New(&handler.Handler{}, nil, nil)
-	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/routes/nearby?city_code=310000&longitude=121.47&latitude=31.23", nil))
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("nearby route status = %d, want 401", response.Code)
+	for _, path := range paths {
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code == http.StatusUnauthorized {
+			t.Errorf("GET %s unexpectedly requires authentication", path)
+		}
 	}
 }
 
@@ -108,7 +112,7 @@ func TestAllBusinessRoutesRequireAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := New(&handler.Handler{}, nil, nil)
 	for _, route := range engine.Routes() {
-		if route.Path == "/api/v1/auth/email-login" || route.Path == "/api/v1/auth/getemailcode" || route.Path == "/health" || route.Path == "/api/v1/auth/login" || route.Path == "/api/v1/auth/wx-login" || route.Path == "/api/v1/auth/refresh" {
+		if isPublicRoute(route.Method, route.Path) {
 			continue
 		}
 		path := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(route.Path, ":media_id", "1"), ":id", "1"), ":code", "310000")
@@ -117,5 +121,20 @@ func TestAllBusinessRoutesRequireAuthentication(t *testing.T) {
 		if response.Code != http.StatusUnauthorized {
 			t.Errorf("%s %s = %d, want 401", route.Method, path, response.Code)
 		}
+	}
+}
+
+func isPublicRoute(method, path string) bool {
+	if path == "/health" || path == "/api/v1/auth/email-login" || path == "/api/v1/auth/getemailcode" || path == "/api/v1/auth/login" || path == "/api/v1/auth/wx-login" || path == "/api/v1/auth/refresh" {
+		return true
+	}
+	if method != http.MethodGet {
+		return false
+	}
+	switch path {
+	case "/api/v1/cities", "/api/v1/home/summary", "/api/v1/routes/nearby", "/api/v1/routes/:id", "/api/v1/cities/:code/poster-theme", "/api/v1/places/search", "/api/v1/places/:id", "/api/v1/places/:id/experiences", "/api/v1/experiences", "/api/v1/experiences/:id", "/api/v1/tags", "/api/v1/agreements/current":
+		return true
+	default:
+		return false
 	}
 }

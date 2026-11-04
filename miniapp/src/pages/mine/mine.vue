@@ -11,7 +11,7 @@
           <view class="profile-chip" @tap="goProfile">
             <image v-if="profile.avatar_url" class="avatar" :src="profile.avatar_url" mode="aspectFill" />
             <view v-else class="avatar avatar-text">{{ avatarText }}</view>
-            <text class="profile-name">{{ profile.nickname || '城市记录者' }}</text>
+            <text class="profile-name">{{ profile.nickname || (isLoggedIn ? '城市记录者' : '登录后记录') }}</text>
             <view class="profile-caret" :style="dz('caret', '#8B8271', 18)"></view>
           </view>
           <view class="settings-btn" @tap="showSettings">
@@ -133,7 +133,7 @@ export default {
   data() {
     return {
       navLayout: getPrimaryNavLayout(),
-      city: getSelectedCity(), profile: { nickname: uni.getStorageSync('nickname') || '林初', avatar_url: '' },
+      city: getSelectedCity(), profile: { nickname: uni.getStorageSync('nickname') || '', avatar_url: '' },
       contribution: { total_points: 0, month_points: 0 }, trust: { trust_level: 'new' }, badges: [],
       metrics: { records: 0, helpful: 0, badges: 0 },
       quickActions: [
@@ -153,6 +153,7 @@ export default {
     }
   },
   computed: {
+    isLoggedIn() { return Boolean(uni.getStorageSync('token')) },
     avatarText() { return (this.profile.nickname || '城').slice(0, 1) },
     trustLabel() { return ({ new: '新记录者', normal: '城市记录者', reliable: '可靠记录者', trusted: '资深记录者' })[this.trust.trust_level] || '城市记录者' },
     levelInitial() { return this.trustLabel().slice(0, 1) },
@@ -190,7 +191,7 @@ export default {
       const failed = results.find(item => item.status === 'rejected')
       if (failed) console.warn('[mine] some data use preview:', failed.reason && failed.reason.message ? failed.reason.message : failed.reason)
     },
-    goProfile() { uni.navigateTo({ url: '/pages/profile/profile' }) },
+    goProfile() { uni.navigateTo({ url: this.isLoggedIn ? '/pages/profile/profile' : '/pages/login/login' }) },
     startRecord() { uni.switchTab({ url: '/pages/record/record' }) },
     openAction(item) {
       if (item.url) return uni.navigateTo({ url: item.url })
@@ -204,6 +205,10 @@ export default {
       uni.showToast({ title: `${item.label}将在数据接入后开放`, icon: 'none' })
     },
     showSettings() {
+      if (!this.isLoggedIn) {
+        uni.navigateTo({ url: '/pages/login/login' })
+        return
+      }
       uni.showActionSheet({ itemList: ['编辑个人资料', '清理本地缓存', '退出登录', '注销账号'], success: ({ tapIndex }) => {
         if (tapIndex === 0) this.goProfile()
         if (tapIndex === 1) uni.showToast({ title: '缓存已整理', icon: 'success' })

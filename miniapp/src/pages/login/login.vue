@@ -40,8 +40,8 @@
           <text class="consent-copy">我已阅读并同意以上三份协议</text>
         </view>
         <view class="privacy-actions">
-          <button class="secondary-button" @tap="denyPrivacy">暂不使用</button>
-          <button class="primary-button" :disabled="!checked" @tap="agreePrivacy">同意并继续</button>
+          <button class="secondary-button" @tap="denyPrivacy">暂不同意</button>
+          <button class="primary-button" open-type="agreePrivacyAuthorization" :disabled="!checked" @agreeprivacyauthorization="agreePrivacy">同意并继续</button>
         </view>
       </view>
     </view>
@@ -85,7 +85,7 @@ export default {
       this.privacyAgreed = true
       uni.setStorageSync('privacy_agreed_version', AGREEMENT_VERSION)
     },
-    denyPrivacy() { uni.showToast({ title: '同意协议后才能使用饭友记', icon: 'none' }) },
+    denyPrivacy() { uni.switchTab({ url: '/pages/home/home' }) },
     async checkLogin() {
       if (!uni.getStorageSync('token')) return
       try {
@@ -93,7 +93,7 @@ export default {
         const hasProfile = Boolean(profile && String(profile.nickname || '').trim())
         uni.setStorageSync('has_profile', hasProfile)
         if (hasProfile) uni.setStorageSync('nickname', profile.nickname)
-        uni[hasProfile ? 'switchTab' : 'redirectTo']({ url: hasProfile ? '/pages/home/home' : '/pages/profile/profile' })
+        uni.switchTab({ url: '/pages/home/home' })
       } catch (error) {
         if (error.status !== 401) console.warn('[login] 登录状态校验失败', error.message || error)
       }
@@ -114,7 +114,7 @@ export default {
               console.warn('[login] 协议状态同步失败', error.message || error)
             }
             if (!uni.getStorageSync('token')) return
-            uni[res.has_profile ? 'switchTab' : 'redirectTo']({ url: res.has_profile ? '/pages/home/home' : '/pages/profile/profile' })
+            uni.switchTab({ url: '/pages/home/home' })
           } catch (error) {
             uni.showToast({ title: `登录失败：${error.message}`, icon: 'none' })
           } finally { this.loginLoading = false }
