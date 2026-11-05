@@ -141,6 +141,12 @@ func seedDiscoveryScenarios() []DiscoveryScenario {
 		{Code: "rainy_day", Label: "雨天照吃", ConditionType: "scene", ConditionValue: "rainy_day", Enabled: true, SortOrder: 30},
 		{Code: "late_night", Label: "深夜到访", ConditionType: "scene", ConditionValue: "late_night", Enabled: true, SortOrder: 40},
 		{Code: "solo", Label: "一个人吃", ConditionType: "scene", ConditionValue: "solo", Enabled: true, SortOrder: 50},
+		{Code: "local_explore", Label: "本地人探店", ConditionType: "scene", ConditionValue: "local_explore", Enabled: true, SortOrder: 60},
+		{Code: "couple", Label: "两人约会", ConditionType: "scene", ConditionValue: "couple", Enabled: true, SortOrder: 70},
+		{Code: "friends", Label: "朋友聚餐", ConditionType: "scene", ConditionValue: "friends", Enabled: true, SortOrder: 80},
+		{Code: "elderly", Label: "长辈同行", ConditionType: "scene", ConditionValue: "elderly", Enabled: true, SortOrder: 90},
+		{Code: "budget_friendly", Label: "省心实惠", ConditionType: "scene", ConditionValue: "budget_friendly", Enabled: true, SortOrder: 100},
+		{Code: "no_queue", Label: "不想排队", ConditionType: "scene", ConditionValue: "no_queue", Enabled: true, SortOrder: 110},
 	}
 }
 

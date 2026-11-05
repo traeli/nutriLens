@@ -98,8 +98,8 @@ func TestProductionSchemaUpgrade(t *testing.T) {
 	if err := db.Model(&DiscoveryScenario{}).Count(&scenarioCount).Error; err != nil {
 		t.Fatalf("count discovery scenarios: %v", err)
 	}
-	if scenarioCount != 5 {
-		t.Fatalf("discovery scenario count after repeated seed = %d, want 5", scenarioCount)
+	if scenarioCount != 11 {
+		t.Fatalf("discovery scenario count after repeated seed = %d, want 11", scenarioCount)
 	}
 
 	version := RestaurantReviewVersion{

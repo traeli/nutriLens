@@ -69,6 +69,8 @@
 
 首页路线生成场景的运营配置。空 `city_code` 表示全局默认配置；同一 `code` 的城市配置覆盖全局配置。接口只返回场景语义和查询条件，不返回颜色、字号或 CSS 等视觉参数。
 
+全局种子当前提供 11 个场景：`first_visit`、`family`、`rainy_day`、`late_night`、`solo`、`local_explore`、`couple`、`friends`、`elderly`、`budget_friendly`、`no_queue`。这些记录只定义可选项和稳定查询值；实时路线由服务层按当次输入计算，不在本表或 `city_routes` 中保存结果。
+
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `city_code` | varchar(16) | 城市编码；空字符串表示全局 |

@@ -110,7 +110,10 @@ func (h *Handler) NearbyRoute(c *gin.Context) {
 		httpx.Error(c, http.StatusBadRequest, "INVALID_ARGUMENT", "当前位置坐标不正确")
 		return
 	}
-	result, err := h.Discovery.NearbyRoute(c.Query("city_code"), longitude, latitude, queryLimit(c))
+	result, err := h.Discovery.NearbyRoute(service.NearbyRouteOptions{
+		CityCode: c.Query("city_code"), Longitude: longitude, Latitude: latitude,
+		Limit: queryLimit(c), Budget: c.Query("budget"), Scene: c.Query("scene"),
+	})
 	if err != nil {
 		writeServiceError(c, err)
 		return

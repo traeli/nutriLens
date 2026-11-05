@@ -339,7 +339,14 @@ export default {
             return
           }
           try {
-            const route = await api.getNearbyRoute({ city_code: this.city.code, longitude, latitude, limit: 4 })
+            const route = await api.getNearbyRoute({
+              city_code: this.city.code,
+              longitude,
+              latitude,
+              limit: 4,
+              budget: this.timeBudget,
+              scene: this.selectedSceneValue(),
+            })
             uni.hideLoading()
             if (Array.isArray(route.stops) && route.stops.length) {
               const query = [

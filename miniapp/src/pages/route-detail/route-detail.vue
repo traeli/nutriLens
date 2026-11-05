@@ -61,7 +61,14 @@ export default {
   onLoad(options) {
     this.id = String(options.id || '')
     this.nearby = options.nearby === '1'
-    this.nearbyQuery = { city_code: options.city_code || '', longitude: options.longitude || '', latitude: options.latitude || '', limit: 4 }
+    this.nearbyQuery = {
+      city_code: options.city_code || '',
+      longitude: options.longitude || '',
+      latitude: options.latitude || '',
+      limit: 4,
+      budget: options.budget || '',
+      scene: options.scene || '',
+    }
     this.loadRoute()
   },
   computed: {

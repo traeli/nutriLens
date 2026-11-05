@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -352,82 +351,6 @@ func (s *DiscoveryService) routeStops(route model.CityRoute) ([]RouteStopView, e
 		}
 	}
 	return stops, nil
-}
-
-func (s *DiscoveryService) NearbyRoute(cityCode string, longitude, latitude float64, limit int) (*RouteDetailView, error) {
-	cityCode = strings.TrimSpace(cityCode)
-	if cityCode == "" || !validPublicCoordinate(longitude, latitude) {
-		return nil, ErrInvalidInput
-	}
-	if limit < 3 {
-		limit = 4
-	}
-	if limit > 4 {
-		limit = 4
-	}
-
-	var city model.City
-	if err := s.db.Where("code = ? AND enabled = ?", cityCode, true).First(&city).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	var places []model.Place
-	if err := s.db.Where("city_code = ? AND status = ? AND longitude <> 0 AND latitude <> 0", cityCode, "active").Find(&places).Error; err != nil {
-		return nil, err
-	}
-	if len(places) == 0 {
-		return &RouteDetailView{CityCode: cityCode, Title: "附近吃喝路线", Meta: "附近暂时没有可用地点", Stops: []RouteStopView{}, Source: "nearby"}, nil
-	}
-	type placeExperienceCount struct {
-		PlaceID uint
-		Count   int64
-	}
-	var countRows []placeExperienceCount
-	if err := s.db.Model(&model.RestaurantReview{}).
-		Select("place_id, COUNT(*) AS count").
-		Where("status = ? AND deleted_at IS NULL", "published").
-		Where("place_id IN ?", placeIDs(places)).
-		Group("place_id").Scan(&countRows).Error; err != nil {
-		return nil, err
-	}
-	experienceCounts := make(map[uint]int64, len(countRows))
-	for _, row := range countRows {
-		experienceCounts[row.PlaceID] = row.Count
-	}
-	stops := make([]RouteStopView, 0, len(places))
-	for _, place := range places {
-		stops = append(stops, RouteStopView{
-			PlaceID: place.ID, Name: place.Name, Address: place.Address,
-			Longitude: place.Longitude, Latitude: place.Latitude,
-			DistanceMeters:  int(math.Round(haversineMeters(longitude, latitude, place.Longitude, place.Latitude))),
-			ExperienceCount: experienceCounts[place.ID],
-			IconKey:         nearbyIconKey(place.Category),
-		})
-	}
-	reviewed := make([]RouteStopView, 0, len(stops))
-	for _, stop := range stops {
-		if stop.ExperienceCount > 0 {
-			reviewed = append(reviewed, stop)
-		}
-	}
-	if len(reviewed) >= 3 {
-		stops = reviewed
-	}
-	sort.SliceStable(stops, func(i, j int) bool { return stops[i].DistanceMeters < stops[j].DistanceMeters })
-	if len(stops) > limit {
-		stops = stops[:limit]
-	}
-	for index := range stops {
-		stops[index].Index = index + 1
-	}
-	return &RouteDetailView{
-		CityCode: cityCode, Title: fmt.Sprintf("从你附近开始的 %d 站吃喝路线", len(stops)),
-		Tag: "附近路线", Meta: "按直线距离由近到远排列", Footnote: "实际交通方式与路况请以地图 App 为准",
-		Stops: stops, Source: "nearby",
-	}, nil
 }
 
 func nearbyIconKey(category string) string {
