@@ -1,10 +1,15 @@
 package service
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
+	mathrand "math/rand"
+	"sort"
 	"strings"
+	"time"
 
 	model "shijibu/internal/model/pgsql"
 
@@ -54,12 +59,12 @@ var nearbySceneLabels = map[string]string{
 }
 
 func normalizeNearbyRoutePlan(options NearbyRouteOptions) nearbyRoutePlan {
-	plan := nearbyRoutePlan{budget: "half", budgetLabel: "半天", targetStops: 2, radiusMeters: 5000}
+	plan := nearbyRoutePlan{budget: "half", budgetLabel: "半天", targetStops: 4, radiusMeters: 5000}
 	switch strings.TrimSpace(options.Budget) {
 	case "2h":
-		plan.budget, plan.budgetLabel, plan.targetStops, plan.radiusMeters = "2h", "2 小时", 1, 2500
+		plan.budget, plan.budgetLabel, plan.targetStops, plan.radiusMeters = "2h", "2 小时", 3, 2500
 	case "day":
-		plan.budget, plan.budgetLabel, plan.targetStops, plan.radiusMeters = "day", "一整天", 3, 12000
+		plan.budget, plan.budgetLabel, plan.targetStops, plan.radiusMeters = "day", "一整天", 6, 12000
 	case "half":
 		// 使用默认值。
 	default:
@@ -106,7 +111,7 @@ func (s *DiscoveryService) NearbyRoute(options NearbyRouteOptions) (*RouteDetail
 		return nil, err
 	}
 	candidates := buildNearbyCandidates(places, signals, options, plan)
-	selected := selectNearbyCandidates(candidates, plan)
+	selected := selectNearbyCandidates(candidates, plan, newNearbyRouteRandom())
 	stops, routeDistance := orderNearbyStops(selected, options.Longitude, options.Latitude)
 
 	tag := "实时路线"
@@ -174,11 +179,16 @@ func nearbyCandidateScore(candidate nearbyCandidate, plan nearbyRoutePlan) float
 		distanceWeight = 45
 	}
 	score := math.Log1p(float64(candidate.signal.ReviewCount))*16 - float64(candidate.stop.DistanceMeters)/plan.radiusMeters*distanceWeight
-	lowCost := candidate.signal.AverageCost != nil && *candidate.signal.AverageCost <= 80
-	lowWait := candidate.signal.AverageWait != nil && *candidate.signal.AverageWait <= 20
+	lowCost := (candidate.signal.AverageCost != nil && *candidate.signal.AverageCost <= 80) ||
+		(candidate.signal.AverageCost == nil && (candidate.place.Category == "stall" || candidate.place.Category == "drink"))
+	lowWait := (candidate.signal.AverageWait != nil && *candidate.signal.AverageWait <= 20) ||
+		(candidate.signal.AverageWait == nil && (candidate.place.Category == "stall" || candidate.place.Category == "drink"))
 	switch plan.scene {
 	case "first_visit":
 		score += math.Log1p(float64(candidate.signal.ReviewCount)) * 10
+		if candidate.signal.ReviewCount == 0 && candidate.place.Category == "restaurant" {
+			score += 10
+		}
 	case "family", "elderly":
 		if lowWait {
 			score += 18
@@ -206,7 +216,8 @@ func nearbyCandidateScore(candidate nearbyCandidate, plan nearbyRoutePlan) float
 			score += 10
 		}
 	case "local_explore":
-		if candidate.signal.ReviewCount > 0 && candidate.signal.ReviewCount <= 3 {
+		if (candidate.signal.ReviewCount > 0 && candidate.signal.ReviewCount <= 3) ||
+			(candidate.signal.ReviewCount == 0 && (candidate.place.Category == "stall" || candidate.place.Category == "night_market")) {
 			score += 14
 		}
 	case "couple":
@@ -229,7 +240,27 @@ func nearbyCandidateScore(candidate nearbyCandidate, plan nearbyRoutePlan) float
 	return score
 }
 
-func selectNearbyCandidates(candidates []nearbyCandidate, plan nearbyRoutePlan) []nearbyCandidate {
+const (
+	nearbyRouteExplorationRatio = 0.15
+	nearbyRouteScoreTemperature = 12.0
+)
+
+type scoredNearbyCandidate struct {
+	index int
+	score float64
+}
+
+func newNearbyRouteRandom() *mathrand.Rand {
+	var seed int64
+	if err := binary.Read(cryptorand.Reader, binary.LittleEndian, &seed); err != nil {
+		seed = time.Now().UnixNano()
+	}
+	return mathrand.New(mathrand.NewSource(seed))
+}
+
+// selectNearbyCandidates 只在高分候选池内进行加权随机抽样。85% 权重来自推荐分，
+// 15% 用于探索，因此同一筛选条件可产生小幅变化，但低质量候选不会越级入选。
+func selectNearbyCandidates(candidates []nearbyCandidate, plan nearbyRoutePlan, random *mathrand.Rand) []nearbyCandidate {
 	withinRadius := make([]nearbyCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		if float64(candidate.stop.DistanceMeters) <= plan.radiusMeters {
@@ -244,7 +275,7 @@ func selectNearbyCandidates(candidates []nearbyCandidate, plan nearbyRoutePlan) 
 	usedCategories := make(map[string]bool)
 	usedAreas := make(map[string]bool)
 	for len(remaining) > 0 && len(selected) < plan.targetStops {
-		bestIndex, bestScore := 0, math.Inf(-1)
+		ranked := make([]scoredNearbyCandidate, 0, len(remaining))
 		for index, candidate := range remaining {
 			score := candidate.score
 			if !usedCategories[candidate.place.Category] {
@@ -257,11 +288,24 @@ func selectNearbyCandidates(candidates []nearbyCandidate, plan nearbyRoutePlan) 
 			if area != "" && !usedAreas[area] {
 				score += 4
 			}
-			if score > bestScore {
-				bestIndex, bestScore = index, score
-			}
+			ranked = append(ranked, scoredNearbyCandidate{index: index, score: score})
 		}
-		chosen := remaining[bestIndex]
+		sort.SliceStable(ranked, func(i, j int) bool {
+			if ranked[i].score == ranked[j].score {
+				return remaining[ranked[i].index].place.ID < remaining[ranked[j].index].place.ID
+			}
+			return ranked[i].score > ranked[j].score
+		})
+		poolSize := plan.targetStops * 3
+		if poolSize < 5 {
+			poolSize = 5
+		}
+		if poolSize > len(ranked) {
+			poolSize = len(ranked)
+		}
+		chosenRank := weightedNearbyCandidateIndex(ranked[:poolSize], random)
+		chosenIndex := ranked[chosenRank].index
+		chosen := remaining[chosenIndex]
 		selected = append(selected, chosen)
 		usedCategories[chosen.place.Category] = true
 		area := chosen.place.BusinessArea
@@ -269,9 +313,33 @@ func selectNearbyCandidates(candidates []nearbyCandidate, plan nearbyRoutePlan) 
 			area = chosen.place.District
 		}
 		usedAreas[area] = true
-		remaining = append(remaining[:bestIndex], remaining[bestIndex+1:]...)
+		remaining = append(remaining[:chosenIndex], remaining[chosenIndex+1:]...)
 	}
 	return selected
+}
+
+func weightedNearbyCandidateIndex(candidates []scoredNearbyCandidate, random *mathrand.Rand) int {
+	if len(candidates) <= 1 {
+		return 0
+	}
+	maxScore := candidates[0].score
+	weights := make([]float64, len(candidates))
+	var relevanceTotal float64
+	for index, candidate := range candidates {
+		weight := math.Exp((candidate.score - maxScore) / nearbyRouteScoreTemperature)
+		weights[index] = weight
+		relevanceTotal += weight
+	}
+	threshold := random.Float64()
+	var cumulative float64
+	for index, weight := range weights {
+		probability := (1-nearbyRouteExplorationRatio)*weight/relevanceTotal + nearbyRouteExplorationRatio/float64(len(weights))
+		cumulative += probability
+		if threshold < cumulative {
+			return index
+		}
+	}
+	return len(candidates) - 1
 }
 
 func orderNearbyStops(candidates []nearbyCandidate, longitude, latitude float64) ([]RouteStopView, float64) {
