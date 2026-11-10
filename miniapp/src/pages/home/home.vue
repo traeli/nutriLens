@@ -145,6 +145,54 @@
       <view class="trust-ic" :style="dz('stamp', '#8B8271', 28)"></view>
       <text>编辑实地核验 · 食客事实核验后合并 · 商业内容显著标注</text>
     </view>
+
+    <view v-if="cityPickerVisible" class="city-picker-mask" @tap="closeCityPicker">
+      <view class="city-picker" @tap.stop>
+        <view class="city-picker-head">
+          <view>
+            <text class="city-picker-title">选择城市</text>
+            <text class="city-picker-subtitle">按拼音首字母排序</text>
+          </view>
+          <view class="city-picker-close" @tap="closeCityPicker">×</view>
+        </view>
+        <view class="city-picker-search">
+          <view class="city-picker-search-icon" :style="dz('magnifier', '#8B8271', 28)"></view>
+          <input
+            v-model="cityQuery"
+            class="city-picker-input"
+            type="text"
+            confirm-type="search"
+            placeholder="搜索城市名或拼音"
+            placeholder-class="city-picker-placeholder"
+            :focus="cityPickerVisible"
+          />
+          <text v-if="cityQuery" class="city-picker-clear" @tap="cityQuery = ''">清除</text>
+        </view>
+        <scroll-view class="city-picker-list" scroll-y enhanced show-scrollbar>
+          <view v-for="group in cityGroups" :key="group.initial" class="city-picker-group">
+            <text class="city-picker-initial">{{ group.initial }}</text>
+            <view
+              v-for="item in group.items"
+              :key="item.code"
+              class="city-picker-item"
+              :class="{ active: item.code === city.code }"
+              hover-class="city-picker-item-hover"
+              @tap="selectCity(item)"
+            >
+              <view class="city-picker-item-main">
+                <text class="city-picker-item-name">{{ item.name }}</text>
+                <text v-if="item.desc" class="city-picker-item-desc">{{ item.desc }}</text>
+              </view>
+              <text v-if="item.code === city.code" class="city-picker-selected">当前</text>
+            </view>
+          </view>
+          <view v-if="!cityGroups.length" class="city-picker-empty">
+            <text class="city-picker-empty-title">没有找到相关城市</text>
+            <text class="city-picker-empty-copy">换个城市名或拼音试试</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -155,6 +203,7 @@ import { syncCustomTabBar } from '@/utils/tab-bar.js'
 import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
 import { doodleBg, doodleStyle } from '@/utils/doodles.js'
 import { foodIconSource } from '@/utils/food-icons.js'
+import { citySearchGroups } from '@/utils/city-search.js'
 import '@/utils/num-font.js'
 
 export default {
@@ -166,6 +215,8 @@ export default {
       cities,
       city: selected,
       cityIndex: Math.max(0, cities.findIndex(item => item.code === selected.code)),
+      cityPickerVisible: false,
+      cityQuery: '',
       timeBudget: 'half',
       selectedScene: '',
       budgetOptions: [
@@ -192,8 +243,9 @@ export default {
       const rawStops = Array.isArray(route.stops) ? route.stops : []
       const stops = rawStops.slice(0, 3).map((stop, index) => {
         const name = typeof stop === 'string' ? stop : (stop && (stop.name || stop.title)) || ''
-        const iconKey = stop && typeof stop === 'object' ? stop.icon_key : ''
-        return { name, icon: foodIconSource(iconKey), idx: `0${index + 1}`.slice(-2) }
+        const iconKey = stop && typeof stop === 'object' ? (stop.icon_key || stop.theme_code) : ''
+        const themeIconURL = stop && typeof stop === 'object' ? stop.theme_icon_url : ''
+        return { name, icon: themeIconURL || foodIconSource(iconKey), idx: `0${index + 1}`.slice(-2) }
       })
       const total = rawStops.length
       const meta = route.meta || route.subtitle || ''
@@ -213,6 +265,9 @@ export default {
     communityMoreLabel() {
       const rest = Math.max(0, this.communityRecords.length - 1)
       return rest > 0 ? `还有 ${rest} 条真实记录` : '看看全部真实记录'
+    },
+    cityGroups() {
+      return citySearchGroups(this.cities, this.cityQuery)
     },
   },
   onShow() {
@@ -246,15 +301,20 @@ export default {
         }
       }
       if (!this.cities.length) return uni.showToast({ title: '暂无可用城市', icon: 'none' })
-      uni.showActionSheet({ itemList: this.cities.map(item => item.name), success: ({ tapIndex }) => this.selectCity(tapIndex) })
+      this.cityQuery = ''
+      this.cityPickerVisible = true
     },
-    selectCity(index) {
-      const selected = this.cities[index]
+    closeCityPicker() {
+      this.cityPickerVisible = false
+      this.cityQuery = ''
+    },
+    selectCity(selected) {
       if (!selected) return
       const changed = selected.code !== this.city.code
       this.city = selected
-      this.cityIndex = index
+      this.cityIndex = this.cities.findIndex(item => item.code === selected.code)
       setSelectedCity(selected)
+      this.closeCityPicker()
       if (changed) {
         this.scenes = []
         this.selectedScene = ''
@@ -455,6 +515,49 @@ export default {
   border: 3rpx solid #EFE5D0;
   display: flex; align-items: center; justify-content: center;
 }
+
+/* 城市选择器：支持长列表滚动、中文/拼音模糊搜索和拼音首字母分组。 */
+.city-picker-mask {
+  position: fixed; z-index: 1000; left: 0; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: flex-end; background: rgba(51, 46, 38, .38);
+}
+.city-picker {
+  width: 100%; max-height: 82vh; box-sizing: border-box; padding: 32rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  border-radius: 44rpx 44rpx 0 0; background: #FFFDF9; box-shadow: 0 -10rpx 40rpx rgba(51, 46, 38, .12);
+}
+.city-picker-head { display: flex; align-items: center; justify-content: space-between; }
+.city-picker-title { display: block; font-size: 36rpx; font-weight: 900; color: #332E26; }
+.city-picker-subtitle { display: block; margin-top: 6rpx; color: #8B8271; font-size: 22rpx; }
+.city-picker-close {
+  width: 64rpx; height: 64rpx; border-radius: 50%; background: #F5EEDC;
+  color: #756C5B; font-size: 44rpx; line-height: 58rpx; text-align: center;
+}
+.city-picker-search {
+  display: flex; align-items: center; gap: 14rpx; height: 78rpx; margin-top: 26rpx; padding: 0 24rpx;
+  border: 3rpx solid #E7DCC5; border-radius: 24rpx; background: #FFFFFF; box-sizing: border-box;
+}
+.city-picker-search-icon { flex: none; }
+.city-picker-input { flex: 1; min-width: 0; height: 72rpx; color: #332E26; font-size: 27rpx; }
+.city-picker-placeholder { color: #A69D8D; }
+.city-picker-clear { flex: none; color: #3E9B6F; font-size: 23rpx; font-weight: 700; }
+.city-picker-list { height: 58vh; margin-top: 20rpx; }
+.city-picker-group { padding-bottom: 12rpx; }
+.city-picker-initial {
+  display: block; padding: 16rpx 12rpx 8rpx; color: #2F7D58; font-size: 24rpx; font-weight: 900;
+}
+.city-picker-item {
+  display: flex; align-items: center; min-height: 92rpx; padding: 14rpx 20rpx; box-sizing: border-box;
+  border-bottom: 2rpx solid #F1E8D8; border-radius: 18rpx;
+}
+.city-picker-item.active { background: #EAF6EE; }
+.city-picker-item-hover { background: #F7F1E4; }
+.city-picker-item-main { flex: 1; min-width: 0; }
+.city-picker-item-name { display: block; color: #332E26; font-size: 28rpx; font-weight: 800; }
+.city-picker-item-desc { display: block; margin-top: 5rpx; overflow: hidden; color: #8B8271; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
+.city-picker-selected { flex: none; margin-left: 20rpx; color: #2F7D58; font-size: 22rpx; font-weight: 800; }
+.city-picker-empty { padding: 100rpx 24rpx; text-align: center; }
+.city-picker-empty-title { display: block; color: #57503E; font-size: 27rpx; font-weight: 800; }
+.city-picker-empty-copy { display: block; margin-top: 12rpx; color: #8B8271; font-size: 23rpx; }
 
 /* 首屏任务卡 */
 .hero {

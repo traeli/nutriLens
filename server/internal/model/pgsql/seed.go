@@ -13,6 +13,9 @@ func Seed(db *gorm.DB) error {
 		if err := seedCityCatalog(tx); err != nil {
 			return err
 		}
+		if err := createSeed(tx, "place themes", seedPlaceThemes()); err != nil {
+			return err
+		}
 		if err := seedPlaces(tx); err != nil {
 			return err
 		}
@@ -36,6 +39,30 @@ func Seed(db *gorm.DB) error {
 		}
 		return nil
 	})
+}
+
+const routeThemeIconBaseURL = "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons"
+
+func seedPlaceThemes() []PlaceTheme {
+	themes := []struct {
+		code string
+		name string
+	}{
+		{"dumpling_bun", "包子点心"}, {"noodles", "面馆米粉"}, {"rice_meal", "米饭简餐"},
+		{"local_dishes", "地方家常菜"}, {"hotpot", "火锅砂锅"}, {"bbq_skewers", "烧烤串串"},
+		{"street_snack", "街头小吃"}, {"breakfast", "传统早餐"}, {"coffee_tea", "咖啡茶饮"},
+		{"dessert", "甜品糖水"}, {"bakery", "面包烘焙"}, {"seafood", "海鲜河鲜"},
+		{"vegetarian", "素食轻食"}, {"bar_drinks", "酒馆饮品"}, {"general", "通用餐厅"},
+	}
+	result := make([]PlaceTheme, 0, len(themes))
+	for index, theme := range themes {
+		result = append(result, PlaceTheme{
+			Code: theme.code, Name: theme.name,
+			IconURL: routeThemeIconBaseURL + "/" + theme.code + ".png",
+			Enabled: true, SortOrder: (index + 1) * 10,
+		})
+	}
+	return result
 }
 
 func seedCityCatalog(tx *gorm.DB) error {
@@ -64,10 +91,10 @@ func createSeed(tx *gorm.DB, name string, values any) error {
 
 func seedPlaces(tx *gorm.DB) error {
 	places := []Place{
-		{Name: "老周生煎", Category: "stall", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "长宁路123号", Longitude: 121.4288, Latitude: 31.2282, Status: "active"},
-		{Name: "阿庆牛肉面", Category: "restaurant", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "万航渡路245号", Longitude: 121.4305, Latitude: 31.2275, Status: "active"},
-		{Name: "弄堂豆浆", Category: "stall", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "万航渡路170号", Longitude: 121.4298, Latitude: 31.2266, Status: "active"},
-		{Name: "Mono Coffee", Category: "drink", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "长宁路88号", Longitude: 121.4276, Latitude: 31.229, Status: "active"},
+		{Name: "老周生煎", Category: "stall", ThemeCode: "dumpling_bun", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "长宁路123号", Longitude: 121.4288, Latitude: 31.2282, Status: "active"},
+		{Name: "阿庆牛肉面", Category: "restaurant", ThemeCode: "noodles", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "万航渡路245号", Longitude: 121.4305, Latitude: 31.2275, Status: "active"},
+		{Name: "弄堂豆浆", Category: "stall", ThemeCode: "breakfast", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "万航渡路170号", Longitude: 121.4298, Latitude: 31.2266, Status: "active"},
+		{Name: "Mono Coffee", Category: "drink", ThemeCode: "coffee_tea", CityCode: "310000", District: "静安区", BusinessArea: "曹家渡", Address: "长宁路88号", Longitude: 121.4276, Latitude: 31.229, Status: "active"},
 		{Name: "万寿斋", Category: "restaurant", CityCode: "310000", District: "虹口区", BusinessArea: "山阴路", Address: "山阴路123号", Longitude: 121.4749, Latitude: 31.2647, Status: "active"},
 		{Name: "阿娘黄鱼面", Category: "restaurant", CityCode: "310000", District: "黄浦区", BusinessArea: "进贤路", Address: "进贤路120号", Longitude: 121.4678, Latitude: 31.2228, Status: "active"},
 		{Name: "菊英面店", Category: "restaurant", CityCode: "330100", District: "上城区", BusinessArea: "中山北路", Address: "中山北路436号", Longitude: 120.1722, Latitude: 30.2543, Status: "active"},
@@ -90,8 +117,14 @@ func seedPlaces(tx *gorm.DB) error {
 		{Name: "蓝老大糖粥藕", Category: "stall", CityCode: "320100", District: "秦淮区", BusinessArea: "夫子庙", Address: "双塘园18号", Longitude: 118.7808, Latitude: 32.0065, Status: "active"},
 	}
 	for _, place := range places {
+		seedThemeCode := place.ThemeCode
 		if err := tx.Where("city_code = ? AND name = ?", place.CityCode, place.Name).FirstOrCreate(&place).Error; err != nil {
 			return fmt.Errorf("seed place %s/%s: %w", place.CityCode, place.Name, err)
+		}
+		if seedThemeCode != "" && seedThemeCode != "general" {
+			if err := tx.Model(&Place{}).Where("id = ? AND (theme_code = '' OR theme_code = 'general')", place.ID).Update("theme_code", seedThemeCode).Error; err != nil {
+				return fmt.Errorf("backfill place theme %s/%s: %w", place.CityCode, place.Name, err)
+			}
 		}
 	}
 	return nil
@@ -153,9 +186,21 @@ func seedDiscoveryScenarios() []DiscoveryScenario {
 func seedCities() []City {
 	return []City{
 		{Code: "310000", Name: "上海", Description: "在巷子里 遇见生活", Image: "/static/dining/shanghai-city.jpg", Enabled: true, IsDefault: true, SortOrder: 10},
-		{Code: "330100", Name: "杭州", Description: "沿湖而行 吃进四季", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 20},
-		{Code: "320500", Name: "苏州", Description: "转进小巷 尝一口江南", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 30},
-		{Code: "320100", Name: "南京", Description: "顺着城墙 找老味道", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 40},
+		{Code: "110000", Name: "北京", Description: "沿着胡同 吃遍京城", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 20},
+		{Code: "510100", Name: "成都", Description: "茶馆烟火里 慢慢吃", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 30},
+		{Code: "440100", Name: "广州", Description: "从早茶吃到夜宵", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 40},
+		{Code: "440300", Name: "深圳", Description: "山海之间 尝遍新鲜", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 50},
+		{Code: "500000", Name: "重庆", Description: "沿着山城 寻找热辣", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 60},
+		{Code: "610100", Name: "西安", Description: "城墙脚下 吃一口长安", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 70},
+		{Code: "460200", Name: "三亚", Description: "海风椰影里 尝鲜", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 80},
+		{Code: "230100", Name: "哈尔滨", Description: "冰城街头 暖胃出发", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 90},
+		{Code: "530100", Name: "昆明", Description: "春城四季 都有鲜味", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 100},
+		{Code: "350200", Name: "厦门", Description: "沿着海岸 吃进闽南", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 110},
+		{Code: "420100", Name: "武汉", Description: "过早之后 继续逛吃", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 120},
+		{Code: "330100", Name: "杭州", Description: "沿湖而行 吃进四季", Image: "/static/dining/corner-cafe.jpg", Enabled: true, SortOrder: 130},
+		{Code: "320100", Name: "南京", Description: "顺着城墙 找老味道", Image: "/static/dining/noodle-detail.jpg", Enabled: true, SortOrder: 140},
+		{Code: "320500", Name: "苏州", Description: "转进小巷 尝一口江南", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 150},
+		{Code: "430100", Name: "长沙", Description: "从米粉吃到深夜湘味", Image: "/static/dining/noodle-shop.jpg", Enabled: true, SortOrder: 160},
 	}
 }
 

@@ -1,0 +1,2 @@
+node --test tests/*.test.mjs => 15 passed, 0 failed, exit 0
+npm run build:mp-weixin => DONE Build complete, exit 0

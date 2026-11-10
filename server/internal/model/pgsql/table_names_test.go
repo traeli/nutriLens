@@ -10,6 +10,7 @@ func TestPersistentTableNamesRemainStable(t *testing.T) {
 		"city poster theme":    (CityPosterTheme{}).TableName(),
 		"city route":           (CityRoute{}).TableName(),
 		"place":                (Place{}).TableName(),
+		"place theme":          (PlaceTheme{}).TableName(),
 		"tag":                  (Tag{}).TableName(),
 		"visit record":         (VisitRecord{}).TableName(),
 		"restaurant review":    (RestaurantReview{}).TableName(),
@@ -22,7 +23,7 @@ func TestPersistentTableNamesRemainStable(t *testing.T) {
 		"user badge":           (UserBadge{}).TableName(),
 	}
 	want := map[string]string{
-		"user": "nutrilens_users", "privacy agreement": "privacy_agreements", "city": "cities", "city poster theme": "city_poster_themes", "city route": "city_routes", "place": "places", "tag": "tags",
+		"user": "nutrilens_users", "privacy agreement": "privacy_agreements", "city": "cities", "city poster theme": "city_poster_themes", "city route": "city_routes", "place": "places", "place theme": "place_themes", "tag": "tags",
 		"visit record": "visit_records", "user trust profile": "user_trust_profiles",
 		"restaurant review": "restaurant_reviews", "review version": "restaurant_review_versions",
 		"review tag link": "restaurant_review_tag_links", "nutrition record": "nutrition_records",

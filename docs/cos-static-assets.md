@@ -15,6 +15,7 @@ VITE_ASSET_BASE_URL=https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/c
 原 `miniapp/src/static` 文件内容共 2,818,321 字节（约 2.69 MiB）。uni-app 会将 static 目录直接复制到输出目录，即使图片没有被页面引用，也会占用包体积。
 
 - 7 张在用大图移到 `miniapp/cos-assets/static`：1,876,854 字节（约 1.79 MiB）。这个目录用于上传 COS，不是小程序源码目录。
+- 15 张路线主题图标位于 `miniapp/cos-assets/static/route-theme-icons`，由 `place_themes.icon_url` 记录公开 COS 地址，不进入小程序包。
 - 2 张未发现运行时代码或种子 SQL 引用的图片移到 `miniapp/asset-archive/dining`：935,364 字节（约 913 KiB），保留原图，不参与构建。
 - `miniapp/src/static` 保留 logo 和 8 张底部导航图标：6,103 字节（约 5.96 KiB）。导航图标继续使用本地路径。
 
@@ -47,6 +48,8 @@ nutrilens/v1/static/posters/food-memory-night-v1.jpg
 | static/dining/shanghai-city.jpg | 195,917 B | 上海城市种子图 |
 | static/dining/visit-rating-art-v2.jpg | 624,222 B | 记录页、个人资料页插图 |
 | static/posters/food-memory-night-v1.jpg | 205,719 B | 足迹页入口、海报主题种子数据 |
+
+路线主题图标对象键为 `cos-assets/static/route-theme-icons/<theme_code>.png`。上传完成后，Directus 的 `place_themes.icon_url` 应为对应的完整 HTTPS 地址；服务种子已按当前 COS 域名生成 15 条默认记录。
 
 归档的 `login-journal-cover.jpg` 和 `shanghai-hero.jpg` 暂不需要上传。如果现有线上数据库中仍有人为配置了这两张图，可将对应归档文件额外上传到同一个 `static/dining/` 前缀，原路径转换仍然有效。归档判断只依据仓库引用，未读取线上数据库。
 

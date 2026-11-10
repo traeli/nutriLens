@@ -1,0 +1,676 @@
+<template>
+  <view class="home-page">
+    <!-- 导航：logo + 城市胶囊 + 搜索圆钮（navLayout 用 px，来自 menu-button rect） -->
+    <view class="nav-space" :style="{ height: `${navLayout.totalHeight}px` }">
+      <view class="topbar" :style="{ top: `${navLayout.top}px`, height: `${navLayout.height}px`, paddingRight: `${navLayout.right}px` }">
+        <view class="logo">
+          <view class="logo-ic" :style="dz('bowl', '#3E9B6F', 50)"></view>
+          <text class="logo-name">饭友记</text>
+        </view>
+        <view class="city-pill" @tap="chooseCity">
+          <view class="city-dot"></view>
+          <text class="city-name">{{ city.name }}</text>
+          <view class="city-caret" :style="dz('caret', '#8B8271', 18)"></view>
+        </view>
+        <view class="search-btn" @tap="goSearch">
+          <view class="search-ic" :style="dz('magnifier', '#332E26', 28)"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 首屏：任务（全页唯一行动区） -->
+    <view class="hero">
+      <view class="task">
+        <text class="hero-eyebrow">从 {{ city.name }} 出发</text>
+        <text class="q">今天想怎么吃？</text>
+        <text class="q-note">先选时间，再加一个同行或场景偏好</text>
+        <view class="seg">
+          <view
+            v-for="option in budgetOptions"
+            :key="option.key"
+            class="seg-item"
+            :class="{ on: timeBudget === option.key }"
+            hover-class="hv"
+            @tap="setBudget(option.key)"
+          >{{ option.label }}</view>
+        </view>
+        <view class="preference-chips">
+          <view
+            v-for="scene in scenes"
+            :key="scene.code"
+            class="preference-chip"
+            :class="{ on: selectedScene === scene.code }"
+            @tap="toggleScene(scene.code)"
+          >{{ scene.label }}</view>
+        </view>
+        <view class="from">
+          <view class="from-pin" :style="dz('pin', '#3E9B6F', 28)"></view>
+          <text class="from-name">{{ city.name }}</text>
+          <text class="from-note">· 当前城市</text>
+          <text class="from-change" @tap="chooseCity">换一个</text>
+        </view>
+        <view class="cta" hover-class="hv" @tap="generateRoute">
+          <text>生成一条路线</text>
+          <view class="cta-arrow" :style="dz('arrow', '#FFFFFF', 32)"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 本周精选：大卡整卡可点 -->
+    <view class="sec">
+      <view class="sec-ic" :style="dz('flag', '#332E26', 38)"></view>
+      <text class="sec-h">本周精选</text>
+      <text class="sec-p">编辑实地走过的路线</text>
+    </view>
+    <view v-if="featuredCard" class="route" hover-class="hv" @tap="openRoute">
+      <view class="route-stops">
+        <view v-for="(stop, stopIndex) in featuredCard.stops" :key="`${stop.name}-${stopIndex}`" class="route-stop">
+          <view class="route-stop-icon"><image :src="stop.icon" mode="aspectFit" /></view>
+          <text class="route-stop-index">{{ stop.idx }}</text>
+          <text class="route-stop-name">{{ stop.name }}</text>
+          <text v-if="stopIndex < featuredCard.stops.length - 1" class="route-stop-arrow">→</text>
+        </view>
+      </view>
+      <view class="rhead">
+        <text class="route-title">{{ featuredCard.title }}</text>
+        <text class="go">›</text>
+      </view>
+      <view class="meta">
+        <text v-if="featuredCard.meta">{{ featuredCard.meta }}</text>
+        <text v-if="featuredCard.total"><text class="num">{{ featuredCard.total }}</text> 站</text>
+      </view>
+      <view class="assure">
+        <view class="assure-ic" :style="dz('check', '#2F7D58', 24)"></view>
+        <text>编辑实地核验</text>
+        <view class="sep"></view>
+        <view class="assure-ic" :style="dz('umbrella', '#8A661C', 24)"></view>
+        <text class="rain">雨天有替代</text>
+      </view>
+    </view>
+    <view v-else-if="homeLoading" class="route skel">
+      <view class="skel-row">
+        <view class="skel-stop"></view>
+        <view class="skel-dash"></view>
+        <view class="skel-stop"></view>
+        <view class="skel-dash"></view>
+        <view class="skel-stop"></view>
+      </view>
+      <view class="skel-bar w70"></view>
+      <view class="skel-bar w45"></view>
+    </view>
+
+    <!-- 附近真实记录 -->
+    <view class="sec">
+      <view class="sec-ic" :style="dz('quote', '#332E26', 38)"></view>
+      <text class="sec-h">附近真实到店记录</text>
+      <text class="sec-p">事实核验后展示</text>
+      <view class="stamp-btn" hover-class="hv" @tap="quickRecord('quick')">
+        <view class="stamp-ic" :style="dz('plus', '#332E26', 26)"></view>
+        <text class="stamp-t">记一笔</text>
+      </view>
+    </view>
+    <view v-if="jotCard" class="jot" hover-class="hv" @tap="goDetail(jotCard.id)">
+      <view class="qm" :style="dz('quote', '#E0A62F', 44)"></view>
+      <text class="jot-p">{{ jotCard.text }}</text>
+      <view class="jrow">
+        <view class="ava">
+          <view class="ava-ic" :style="dz('face', '#332E26', 28)"></view>
+        </view>
+        <text class="jrow-meta">{{ jotCard.author }} · {{ jotCard.time }} · {{ jotCard.place }}</text>
+      </view>
+    </view>
+    <view v-else-if="homeLoading" class="jot skel">
+      <view class="skel-bar w90"></view>
+      <view class="skel-bar w60"></view>
+      <view class="skel-bar w40"></view>
+    </view>
+    <view v-else class="jot-empty" hover-class="hv" @tap="quickRecord('text')">
+      <view class="empty-trail">
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('bowl', '#332E26', 34)"></view></view>
+        <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('noodle', '#332E26', 34)"></view></view>
+        <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
+        <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('coffee', '#332E26', 34)"></view></view>
+      </view>
+      <text class="empty-t">这座城市还没有公开体验</text>
+      <text class="empty-s">去留下第一条记录，给后来人引路 ›</text>
+    </view>
+    <view class="moreline" hover-class="hv" @tap="goExperienceList">
+      <text>{{ communityMoreLabel }}</text>
+      <view class="more-arrow" :style="dz('arrow', '#3E9B6F', 24)"></view>
+    </view>
+
+    <!-- 信任行 -->
+    <view class="trust">
+      <view class="trust-ic" :style="dz('stamp', '#8B8271', 28)"></view>
+      <text>编辑实地核验 · 食客事实核验后合并 · 商业内容显著标注</text>
+    </view>
+  </view>
+</template>
+
+<script>
+import { api } from '@/api/request.js'
+import { getCityOptions, getSelectedCity, refreshCityOptions, setCityOptions, setSelectedCity } from '@/store/city.js'
+import { syncCustomTabBar } from '@/utils/tab-bar.js'
+import { getPrimaryNavLayout } from '@/utils/nav-layout.js'
+import { doodleBg, doodleStyle } from '@/utils/doodles.js'
+import { foodIconSource } from '@/utils/food-icons.js'
+import '@/utils/num-font.js'
+
+export default {
+  data() {
+    const cities = getCityOptions()
+    const selected = getSelectedCity()
+    return {
+      navLayout: getPrimaryNavLayout(),
+      cities,
+      city: selected,
+      cityIndex: Math.max(0, cities.findIndex(item => item.code === selected.code)),
+      timeBudget: 'half',
+      selectedScene: '',
+      budgetOptions: [
+        { key: '2h', label: '2 小时' },
+        { key: 'half', label: '半天' },
+        { key: 'day', label: '一天' },
+      ],
+      scenes: [],
+      communityRecords: [],
+      homeLoading: false,
+      featuredRoute: null,
+      fallbackFeaturedRoute: null,
+      nearbyLocation: null,
+      routeGuides: [
+        { id: 'route-01', tag: '早餐路线', title: '曹家渡的四站早餐', meta: '2.5小时 · 步行2.8km', keyword: '曹家渡', stops: ['曹家渡', '武定路', '余姚路', '长寿路'] },
+        { id: 'route-02', tag: '小巷路线', title: '从平江路拐进寻常巷陌', meta: '1.8小时 · 步行1.6km', keyword: '小巷', stops: ['临顿路', '钮家巷', '平江路'] },
+      ],
+    }
+  },
+  computed: {
+    featuredCard() {
+      const route = this.featuredRoute
+      if (!route) return null
+      const rawStops = Array.isArray(route.stops) ? route.stops : []
+      const stops = rawStops.slice(0, 3).map((stop, index) => {
+        const name = typeof stop === 'string' ? stop : (stop && (stop.name || stop.title)) || ''
+        const iconKey = stop && typeof stop === 'object' ? stop.icon_key : ''
+        return { name, icon: foodIconSource(iconKey), idx: `0${index + 1}`.slice(-2) }
+      })
+      const total = rawStops.length
+      const meta = route.meta || route.subtitle || ''
+      return { id: route.id, title: route.title || '附近的吃喝路线', meta, total, stops }
+    },
+    jotCard() {
+      const item = this.communityRecords[0]
+      if (!item) return null
+      return {
+        id: item.id,
+        text: item.excerpt || '这家店值得留下一条真实记录。',
+        author: item.author || '城市食客',
+        time: item.time || '最近',
+        place: item.place || '',
+      }
+    },
+    communityMoreLabel() {
+      const rest = Math.max(0, this.communityRecords.length - 1)
+      return rest > 0 ? `还有 ${rest} 条真实记录` : '看看全部真实记录'
+    },
+  },
+  onShow() {
+    syncCustomTabBar(this, 0)
+    this.navLayout = getPrimaryNavLayout()
+    this.cities = getCityOptions()
+    const selected = getSelectedCity()
+    this.city = selected
+    this.cityIndex = Math.max(0, this.cities.findIndex(item => item.code === selected.code))
+    if (this.cities.length) {
+      this.loadHomeSummary()
+    } else {
+      this.refreshCities().catch(() => {})
+    }
+  },
+  methods: {
+    dz(key, color, size) { return doodleStyle(key, color, size) },
+    dzBg(key) { return doodleBg(key) },
+    setBudget(key) { this.timeBudget = key },
+    toggleScene(keyword) { this.selectedScene = this.selectedScene === keyword ? '' : keyword },
+    async chooseCity() {
+      if (!this.cities.length) {
+        uni.showLoading({ title: '城市列表加载中', mask: true })
+        try {
+          await this.refreshCities()
+        } catch (error) {
+          uni.showToast({ title: '城市列表加载失败，请稍后重试', icon: 'none' })
+          return
+        } finally {
+          uni.hideLoading()
+        }
+      }
+      if (!this.cities.length) return uni.showToast({ title: '暂无可用城市', icon: 'none' })
+      uni.showActionSheet({ itemList: this.cities.map(item => item.name), success: ({ tapIndex }) => this.selectCity(tapIndex) })
+    },
+    selectCity(index) {
+      const selected = this.cities[index]
+      if (!selected) return
+      const changed = selected.code !== this.city.code
+      this.city = selected
+      this.cityIndex = index
+      setSelectedCity(selected)
+      if (changed) {
+        this.scenes = []
+        this.selectedScene = ''
+        this.loadHomeSummary()
+      }
+    },
+    async loadHomeSummary() {
+      if (!this.city.code) {
+        return
+      }
+      this.homeLoading = true
+      try {
+        const data = await api.getHomeSummary(this.city.code)
+        if (Array.isArray(data.cities) && data.cities.length) {
+          setCityOptions(data.cities)
+          this.cities = getCityOptions()
+          this.city = getSelectedCity()
+          this.cityIndex = Math.max(0, this.cities.findIndex(item => item.code === this.city.code))
+        }
+        if (Array.isArray(data.route_guides) && data.route_guides.length) {
+          this.routeGuides = data.route_guides
+        }
+        this.scenes = Array.isArray(data.scenario_filters) ? data.scenario_filters : []
+        if (this.selectedScene && !this.scenes.some(scene => scene.code === this.selectedScene)) {
+          this.selectedScene = ''
+        }
+        this.fallbackFeaturedRoute = data.featured_route || null
+        this.featuredRoute = this.fallbackFeaturedRoute
+        const community = (data.community_records || []).map(card => this.normalizeSummaryCard(card, true)).filter(item => item.place)
+        this.communityRecords = community.slice(0, 3)
+      } catch (error) {
+        console.warn('[home] use preview summary:', error && error.message ? error.message : error)
+        this.refreshCities()
+      } finally {
+        this.homeLoading = false
+      }
+    },
+    async refreshCities() {
+      try {
+        const cities = await refreshCityOptions()
+        if (!cities.length) throw new Error('暂无可用城市')
+        const previousCode = this.city.code
+        this.cities = cities
+        this.city = getSelectedCity()
+        this.cityIndex = Math.max(0, cities.findIndex(item => item.code === this.city.code))
+        if (this.city.code !== previousCode) this.loadHomeSummary()
+        return cities
+      } catch (error) {
+        console.warn('[home] keep cached cities:', error && error.message ? error.message : error)
+        throw error
+      }
+    },
+    normalizeSummaryCard(card, withAuthor) {
+      return {
+        id: card.record_id || card.id,
+        placeId: card.place_id,
+        place: card.place_name || '',
+        area: card.area || '本城',
+        excerpt: card.excerpt || '',
+        time: this.formatDate(card.visited_at),
+        image: card.image_url || '',
+        score: card.conclusion_label || '到店',
+        verdict: card.verdict || '真实记录',
+        author: withAuthor && card.author ? card.author.nickname : '',
+      }
+    },
+    formatDate(value) {
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return '最近'
+      return `${date.getMonth() + 1}月${date.getDate()}日`
+    },
+    generateRoute() {
+      uni.showLoading({ title: '正在生成路线', mask: true })
+      uni.getLocation({
+        type: 'gcj02',
+        success: async location => {
+          const longitude = Number(location.longitude)
+          const latitude = Number(location.latitude)
+          if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+            uni.hideLoading()
+            this.fallbackToFeatured()
+            return
+          }
+          try {
+            const route = await api.getNearbyRoute({
+              city_code: this.city.code,
+              longitude,
+              latitude,
+              limit: 4,
+              budget: this.timeBudget,
+              scene: this.selectedSceneValue(),
+            })
+            uni.hideLoading()
+            if (Array.isArray(route.stops) && route.stops.length) {
+              const query = [
+                'nearby=1',
+                `city_code=${encodeURIComponent(this.city.code)}`,
+                `longitude=${longitude}`,
+                `latitude=${latitude}`,
+                `budget=${this.timeBudget}`,
+                `scene=${encodeURIComponent(this.selectedSceneValue())}`,
+              ].join('&')
+              uni.navigateTo({ url: `/pages/route-detail/route-detail?${query}` })
+            } else {
+              this.fallbackToFeatured()
+            }
+          } catch (error) {
+            console.warn('[home] generate route failed:', error && error.message ? error.message : error)
+            uni.hideLoading()
+            this.fallbackToFeatured()
+          }
+        },
+        fail: () => {
+          uni.hideLoading()
+          this.fallbackToFeatured()
+        },
+      })
+    },
+    fallbackToFeatured() {
+      uni.showToast({ title: '未开启定位，先看看编辑精选', icon: 'none' })
+      if (this.featuredRoute) this.openRoute()
+    },
+    selectedSceneValue() {
+      const scene = this.scenes.find(item => item.code === this.selectedScene)
+      return (scene && scene.query && scene.query.value) || ''
+    },
+    goScene(keyword) { uni.navigateTo({ url: `/pages/search/search?keyword=${encodeURIComponent(keyword)}` }) },
+    quickRecord(mode) { uni.setStorageSync('record_entry_mode', mode); uni.switchTab({ url: '/pages/record/record' }) },
+    openGuide(guide) {
+      if (guide && guide.source === 'nearby' && this.nearbyLocation) {
+        const query = [
+          'nearby=1',
+          `city_code=${encodeURIComponent(this.city.code)}`,
+          `longitude=${this.nearbyLocation.longitude}`,
+          `latitude=${this.nearbyLocation.latitude}`,
+        ].join('&')
+        uni.navigateTo({ url: `/pages/route-detail/route-detail?${query}` })
+        return
+      }
+      if (guide && /^\d+$/.test(String(guide.id || ''))) {
+        uni.navigateTo({ url: `/pages/route-detail/route-detail?id=${guide.id}` })
+        return
+      }
+      const keyword = (guide && (guide.keyword || guide.title)) || ''
+      uni.navigateTo({ url: `/pages/search/search?keyword=${encodeURIComponent(keyword)}` })
+    },
+    openRoute() { this.openGuide(this.featuredRoute || this.routeGuides[0]) },
+    goSearch() { uni.navigateTo({ url: '/pages/search/search' }) },
+    goExperienceList() { uni.navigateTo({ url: '/pages/experience-list/experience-list' }) },
+    goDetail(id) { if (id) uni.navigateTo({ url: `/pages/experience-detail/experience-detail?id=${id}` }) },
+  },
+  onShareAppMessage() { return { title: `饭友记｜在${this.city.name}认真吃饭`, path: '/pages/home/home' } },
+}
+</script>
+
+<style scoped>
+/* —— V6 贴纸手帐：纸 #FFFBF3 / 卡 #FFFFFF / 线 #EFE5D0 / 墨 #332E26 / 弱 #8B8271
+      绿 #3E9B6F(仅 CTA 与可点元素) / 绿深 #2F7D58 / 奶油 #FFF4DF / 蛋黄 #FFC64B / 蛋深 #E0A62F
+      渐变纪律：只做同色系 180deg 微渐变（糖果光感），不跨色相、不做大彩带 —— */
+.home-page {
+  min-height: 100vh;
+  padding: 0 32rpx calc(150rpx + env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: linear-gradient(180deg, #FFFDF9 0%, #FFFBF3 36%, #FFF3DF 100%);
+  color: #332E26;
+  font-family: "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
+}
+.num { font-family: "Baloo 2", "PingFang SC", sans-serif; }
+
+/* 按压反馈（hover-class="hv"） */
+.scene.hv, .moreline.hv, .city-pill.hv { opacity: .55; }
+.search-btn.hv { transform: scale(.9); }
+.seg-item.hv { transform: scale(.95); opacity: .85; }
+.cta.hv { transform: translateY(4rpx); box-shadow: 0 2rpx 0 #2F7D58; }
+.stamp-btn.hv { transform: rotate(1.5deg) translateY(3rpx); box-shadow: 0 1rpx 0 #E0A62F; }
+.route.hv { transform: rotate(-.6deg) scale(.985); }
+.mini.tilt-l.hv { transform: rotate(-1deg) scale(.97); }
+.mini.tilt-r.hv { transform: rotate(1.2deg) scale(.97); }
+.jot.hv { transform: rotate(.5deg) scale(.98); }
+.jot-empty.hv { transform: scale(.985); }
+
+/* 导航 */
+.nav-space { position: relative; }
+.topbar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 20rpx; }
+.logo { flex: none; display: flex; align-items: center; gap: 14rpx; }
+.logo-name { font-size: 38rpx; font-weight: 900; letter-spacing: 3rpx; line-height: 1; }
+.city-pill {
+  margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 12rpx;
+  height: 60rpx; padding: 0 22rpx 0 24rpx;
+  background: #FFF4DF; border: 3rpx solid #EFE5D0; border-radius: 999rpx;
+}
+.city-dot { flex: none; width: 12rpx; height: 12rpx; border-radius: 50%; background: #3E9B6F; }
+.city-name { font-size: 25rpx; font-weight: 700; white-space: nowrap; }
+.city-caret { margin-top: 2rpx; }
+.search-btn {
+  flex: none; width: 60rpx; height: 60rpx; border-radius: 50%; box-sizing: border-box;
+  background: linear-gradient(180deg, #FFF8E6, #FFF0CF);
+  border: 3rpx solid #EFE5D0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* 首屏任务卡 */
+.hero {
+  margin-top: 8rpx; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 44rpx;
+  overflow: hidden; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+}
+.map { position: relative; height: 344rpx; background: #FFF6E3; }
+.map::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  background: linear-gradient(158deg, rgba(62, 155, 111, .10) 0%, rgba(255, 255, 255, 0) 46%, rgba(255, 196, 75, .16) 100%);
+}
+.seam { height: 26rpx; margin: 6rpx 44rpx 2rpx; opacity: .55; }
+.task { padding: 36rpx 32rpx 32rpx; }
+.hero-eyebrow { display: block; color: #2F7D58; font-size: 24rpx; font-weight: 800; letter-spacing: 2rpx; }
+.q { display: block; font-size: 36rpx; font-weight: 900; letter-spacing: 1rpx; }
+.hero-eyebrow + .q { margin-top: 10rpx; }
+.q-note { display: block; margin-top: 10rpx; color: #6F675B; font-size: 24rpx; line-height: 1.55; }
+.seg { display: flex; gap: 16rpx; margin-top: 22rpx; }
+.seg-item {
+  flex: 1; height: 64rpx; line-height: 64rpx; text-align: center; border-radius: 999rpx;
+  background: linear-gradient(180deg, #F8F1E2, #F2E9D3);
+  color: #6E6553; font-size: 25rpx; font-weight: 700;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.seg-item.on {
+  background: linear-gradient(180deg, #48AB7D 0%, #3E9B6F 100%);
+  color: #FFFFFF; box-shadow: 0 4rpx 0 #2F7D58;
+}
+.preference-chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 22rpx; }
+.preference-chip {
+  min-height: 64rpx; box-sizing: border-box; padding: 13rpx 22rpx; border: 2rpx solid #E7DCC5;
+  border-radius: 32rpx; background: #FFFFFF; color: #6F675B; font-size: 24rpx; font-weight: 700;
+}
+.preference-chip.on { border-color: #2F7D58; background: #E5F3EA; color: #246647; }
+.from {
+  display: flex; align-items: center; gap: 14rpx; margin-top: 24rpx;
+  height: 76rpx; padding: 0 24rpx; box-sizing: border-box;
+  background: linear-gradient(180deg, #FDF8EC, #FBF1D9); border: 3rpx solid #F1E7CE; border-radius: 26rpx;
+}
+.from-pin { flex: none; }
+.from-name { font-size: 26rpx; font-weight: 700; white-space: nowrap; }
+.from-note { font-size: 23rpx; color: #8B8271; white-space: nowrap; }
+.from-change { margin-left: auto; font-size: 24rpx; font-weight: 700; color: #3E9B6F; }
+.cta {
+  display: flex; align-items: center; justify-content: center; gap: 16rpx;
+  margin-top: 24rpx; height: 92rpx; border-radius: 999rpx;
+  background: linear-gradient(180deg, #4BAB7E 0%, #3E9B6F 52%, #35855A 100%);
+  color: #FFFFFF; font-size: 30rpx; font-weight: 800;
+  box-shadow: 0 6rpx 0 #2F7D58;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.cta-arrow { flex: none; }
+
+/* 区块头（组间 64rpx / 组内 24rpx 的两级节奏） */
+.sec { display: flex; align-items: center; gap: 16rpx; margin: 64rpx 4rpx 22rpx; }
+.sec-ic { flex: none; }
+.sec-h { font-size: 30rpx; font-weight: 900; letter-spacing: 1rpx; }
+.sec-p { font-size: 23rpx; color: #756C5B; padding-top: 5rpx; }
+
+/* 本周精选：纯文字站点序列，避免小程序不支持 SVG mask 时出现实心方块。 */
+.route {
+  background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 44rpx;
+  padding: 30rpx 32rpx 32rpx; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transform: rotate(-.6deg);
+}
+.route-stops { display: flex; align-items: stretch; gap: 10rpx; }
+.route-stop { min-width: 0; flex: 1; position: relative; display: flex; flex-direction: column; gap: 8rpx; padding: 20rpx 18rpx; border: 2rpx solid #E7DCC5; border-radius: 20rpx; background: #FFF9EE; }
+.route-stop-icon { width: 56rpx; height: 56rpx; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+.route-stop-icon image { width: 46rpx; height: 46rpx; }
+.route-stop-index { color: #2F7D58; font-size: 22rpx; font-weight: 800; }
+.route-stop-name { color: #332E26; font-size: 25rpx; font-weight: 750; line-height: 1.35; }
+.route-stop-arrow { position: absolute; z-index: 1; top: 50%; right: -18rpx; width: 26rpx; height: 26rpx; margin-top: -13rpx; border-radius: 50%; background: #FFFFFF; color: #2F7D58; font-size: 22rpx; font-weight: 800; line-height: 24rpx; text-align: center; }
+.tl { display: flex; align-items: flex-start; }
+.tl-cell.stop {
+  width: 152rpx; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10rpx;
+}
+.stop-c {
+  width: 108rpx; height: 108rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.stop-c.tilt { transform: rotate(7deg); }
+.stop-ic { flex: none; }
+.stop-name { font-size: 24rpx; font-weight: 700; line-height: 1.2; text-align: center; }
+.stop-idx { font-size: 20rpx; font-weight: 700; color: #B9AE96; letter-spacing: 2rpx; line-height: 1; }
+.tl-cell.dash { flex: 1; min-width: 34rpx; margin-top: 38rpx; padding: 0 2rpx; }
+.dash-squig { width: 100%; height: 34rpx; }
+.rhead { display: flex; align-items: baseline; gap: 12rpx; margin-top: 26rpx; }
+.route-title { flex: 1; font-size: 32rpx; font-weight: 800; letter-spacing: 1rpx; }
+.go { font-size: 34rpx; font-weight: 700; color: #C9BFA8; }
+.meta { display: flex; gap: 24rpx; margin-top: 12rpx; font-size: 24rpx; color: #8B8271; }
+.meta .num { font-size: 27rpx; font-weight: 700; color: #756C5B; }
+.assure { display: flex; align-items: center; gap: 12rpx; margin-top: 24rpx; font-size: 23rpx; color: #2F7D58; }
+.assure-ic { flex: none; }
+.sep { width: 6rpx; height: 6rpx; border-radius: 50%; background: #C9BFA8; }
+.rain { color: #8A661C; }
+
+/* 加载骨架（扫光呼吸；高度贴近真卡，避免替换时跳动） */
+.skel { pointer-events: none; }
+.skel-row { display: flex; align-items: center; gap: 10rpx; padding: 6rpx 0 10rpx; }
+.skel-stop {
+  flex: none; width: 96rpx; height: 96rpx; border-radius: 50%;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-dash {
+  flex: 1; height: 28rpx; border-radius: 999rpx;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-bar {
+  height: 30rpx; border-radius: 12rpx; margin-top: 22rpx;
+  background: linear-gradient(100deg, #F4ECDA 30%, #FBF6EA 50%, #F4ECDA 70%);
+  background-size: 200% 100%; animation: skel 1.4s ease infinite;
+}
+.skel-bar.w90 { width: 90%; }
+.skel-bar.w70 { width: 70%; }
+.skel-bar.w60 { width: 60%; }
+.skel-bar.w45 { width: 45%; margin-top: 14rpx; }
+.skel-bar.w40 { width: 40%; margin-top: 14rpx; }
+@keyframes skel {
+  0% { background-position: 130% 0; }
+  100% { background-position: -60% 0; }
+}
+
+/* 双 mini 卡（左右反向微倾，错位贴纸） */
+.duo { display: flex; gap: 24rpx; margin-top: 24rpx; }
+.mini {
+  flex: 1; min-width: 0; background: #FFFFFF; border: 3rpx solid #EFE5D0;
+  border-radius: 36rpx; overflow: hidden; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transition: transform .15s ease;
+}
+.mini.tilt-l { transform: rotate(-1deg); }
+.mini.tilt-r { transform: rotate(1.2deg); }
+.cover {
+  position: relative; height: 200rpx;
+  background: linear-gradient(180deg, #FFF7E1 0%, #FFEFCA 100%);
+  display: flex; align-items: center; justify-content: center; gap: 20rpx;
+}
+.cover-p {
+  width: 88rpx; height: 88rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; transform: rotate(-6deg);
+}
+.cover-p.flip { transform: rotate(6deg) scaleX(-1); }
+.cover-p.flip .cover-d { transform: scaleX(-1); }
+.cover-d { flex: none; }
+.tag {
+  position: absolute; top: 18rpx; left: 18rpx; transform: rotate(-3deg);
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%);
+  color: #332E26; font-size: 21rpx; font-weight: 800;
+  padding: 6rpx 16rpx; border-radius: 14rpx; box-shadow: 0 3rpx 0 #E0A62F;
+}
+.bd { padding: 22rpx 24rpx 24rpx; }
+.mini-title { display: block; font-size: 27rpx; font-weight: 800; line-height: 1.35; }
+.mini-meta { display: block; margin-top: 8rpx; font-size: 22rpx; color: #8B8271; }
+
+/* 场景圆点文字链 */
+.scenes { display: flex; flex-wrap: wrap; gap: 6rpx 20rpx; padding: 4rpx 4rpx 0; }
+.scene {
+  display: flex; align-items: center; gap: 14rpx; padding: 12rpx 8rpx;
+  font-size: 26rpx; font-weight: 700; color: #57503E;
+}
+.scene-dot { width: 14rpx; height: 14rpx; border-radius: 50%; }
+
+/* 记一笔贴纸 */
+.stamp-btn {
+  margin-left: auto; display: flex; align-items: center; gap: 12rpx;
+  height: 64rpx; padding: 0 28rpx;
+  background: linear-gradient(180deg, #FFD05C 0%, #FFC64B 60%, #F7B93E 100%);
+  border-radius: 999rpx;
+  box-shadow: 0 4rpx 0 #E0A62F; transform: rotate(1.5deg);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.stamp-t { font-family: "Kaiti SC", "STKaiti", "PingFang SC", sans-serif; font-size: 29rpx; letter-spacing: 2rpx; }
+
+/* 引用卡（微倾 + 右侧 8rpx 错位） */
+.jot {
+  position: relative; background: #FFFFFF; border: 3rpx solid #EFE5D0; border-radius: 36rpx;
+  padding: 28rpx 30rpx; box-shadow: 0 4rpx 0 rgba(51, 46, 38, .05);
+  transform: rotate(.5deg); margin-right: 8rpx;
+}
+.qm { position: absolute; top: 24rpx; right: 28rpx; opacity: .5; }
+.jot-p { display: block; font-size: 27rpx; line-height: 1.75; font-weight: 500; padding-right: 44rpx; }
+.jrow { display: flex; align-items: center; gap: 16rpx; margin-top: 20rpx; }
+.ava {
+  flex: none; width: 44rpx; height: 44rpx; border-radius: 50%; box-sizing: border-box;
+  background: #FFF4DF; border: 2rpx solid #EFE5D0;
+  display: flex; align-items: center; justify-content: center;
+}
+.jrow-meta { font-size: 23rpx; color: #8B8271; }
+
+/* 社区空态（blob 小径引路） */
+.jot-empty {
+  background: #FFFFFF; border: 3rpx dashed #EFE5D0; border-radius: 36rpx;
+  padding: 40rpx 30rpx 44rpx; text-align: center;
+  transition: transform .15s ease;
+}
+.empty-trail { display: flex; align-items: center; justify-content: center; gap: 12rpx; }
+.empty-stop {
+  width: 64rpx; height: 64rpx; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.empty-stop:nth-child(3) { transform: rotate(6deg); }
+.empty-stop:nth-child(5) { transform: rotate(-5deg); }
+.empty-squig { flex: none; width: 52rpx; height: 20rpx; opacity: .8; }
+.empty-t { display: block; margin-top: 22rpx; font-size: 26rpx; font-weight: 800; color: #57503E; }
+.empty-s { display: block; margin-top: 10rpx; font-size: 23rpx; color: #8B8271; }
+.moreline {
+  display: flex; justify-content: flex-end; align-items: center; gap: 8rpx;
+  margin-top: 20rpx; font-size: 25rpx; font-weight: 700; color: #3E9B6F;
+}
+.more-arrow { flex: none; }
+
+/* 信任行 */
+.trust {
+  display: flex; align-items: center; justify-content: center; gap: 14rpx;
+  margin-top: 44rpx; color: #8B8271; font-size: 22rpx;
+}
+.trust-ic { flex: none; }
+</style>

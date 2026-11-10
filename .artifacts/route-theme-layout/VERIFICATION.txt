@@ -1,0 +1,32 @@
+CHANGE_BRANCH: route sketch coordinate projection uses valid GCJ-02 coordinates; missing/identical coordinates use diagonal fallback.
+CHANGE_FIELD: places.theme_code -> RouteStopView.theme_code -> miniapp theme icon/accent mapping.
+
+ARTIFACT_PATHS:
+MODIFIED_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/MODIFIED_FILE
+DIFF_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/DIFF_FILE.diff
+VERIFICATION=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/VERIFICATION.txt
+ROLLBACK=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/ROLLBACK.sh
+
+HASHES:
+ORIGINAL_SHA256=8e755a27e03f0d5c6c9ee0c28385913917d78a834fd4283ce79d175a5a6a14dc
+MODIFIED_SHA256=d0db5bfaeabc063e0977371bb6fa9926158f6e5d6d37c33ce00efe7e1b9be7f1
+ROLLBACK_SHA256=8e755a27e03f0d5c6c9ee0c28385913917d78a834fd4283ce79d175a5a6a14dc
+
+BASELINE:
+COMMAND: cd /Users/Zhuanz1/develop/src/nutriLens && (cd server && go test ./...); (cd miniapp && node --test tests/*.test.mjs)
+INPUT: repository state before route/theme implementation
+LITERAL_RESULT: server: "pattern ./...: open /Users/Zhuanz1/Library/Caches/go-build/...: operation not permitted" and "go: failed to trim cache"; miniapp: "tests 17", "pass 17", "fail 0"
+EXIT_STATUS: server=1; miniapp=0
+
+MODIFIED:
+COMMAND: cd /Users/Zhuanz1/develop/src/nutriLens && (cd server && GOCACHE=/tmp/nutrilens-go-cache go test ./... && GOCACHE=/tmp/nutrilens-go-cache go build ./...); (cd miniapp && node --test tests/*.test.mjs && npm run build:mp-weixin); (cd /Users/Zhuanz1/develop/src/food-route-collector && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests -v)
+INPUT: theme_code field, legacy mini-program Canvas createCanvasContext with one beginPath/stroke and continuous quadratic Bézier curves, drawn after loading state ends, 15-theme illustrated icon folder and mapping, Directus publisher pass-through
+LITERAL_RESULT: server "ok shijibu/internal/service"; miniapp "tests 24", "pass 24", "fail 0", "DONE Build complete."; collector "Ran 23 tests", "OK"
+EXIT_STATUS: server=0; miniapp=0; collector=0
+
+ROLLBACK:
+COMMAND: /Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/ROLLBACK.sh /Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/route-detail.vue.rollback-test
+INPUT: MODIFIED_FILE copy
+LITERAL_OUTPUT: restored /Users/Zhuanz1/develop/src/nutriLens/.artifacts/route-theme-layout/route-detail.vue.rollback-test
+EXIT_STATUS: 0
+RESTORED_BEHAVIOR_STATUS: rollback copy SHA256 equals original (8e755a27e03f0d5c6c9ee0c28385913917d78a834fd4283ce79d175a5a6a14dc); repository route-detail.vue remains modified (d0db5bfaeabc063e0977371bb6fa9926158f6e5d6d37c33ce00efe7e1b9be7f1).

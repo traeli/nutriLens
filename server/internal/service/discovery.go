@@ -72,6 +72,8 @@ type RouteStopView struct {
 	ExperienceCount  int64   `json:"experience_count,omitempty"`
 	RecommendedFood  string  `json:"recommended_food,omitempty"`
 	FoodCategoryCode string  `json:"food_category_code,omitempty"`
+	ThemeCode        string  `json:"theme_code,omitempty"`
+	ThemeIconURL     string  `json:"theme_icon_url,omitempty"`
 	IconKey          string  `json:"icon_key,omitempty"`
 	Note             string  `json:"note,omitempty"`
 }
@@ -334,7 +336,7 @@ func (s *DiscoveryService) GetRoute(id uint) (*RouteDetailView, error) {
 func (s *DiscoveryService) routeStops(route model.CityRoute) ([]RouteStopView, error) {
 	var stops []RouteStopView
 	err := s.db.Table("city_route_stops AS route_stops").
-		Select("route_stops.sort_order AS index, route_stops.place_id, places.name, places.address, places.longitude, places.latitude, route_stops.recommended_food, route_stops.food_category_code, route_stops.icon_key, route_stops.note").
+		Select("route_stops.sort_order AS index, route_stops.place_id, places.name, places.address, places.longitude, places.latitude, places.theme_code, route_stops.recommended_food, route_stops.food_category_code, route_stops.icon_key, route_stops.note").
 		Joins("JOIN places ON places.id = route_stops.place_id AND places.status = 'active'").
 		Where("route_stops.route_id = ?", route.ID).
 		Order("route_stops.sort_order, route_stops.id").
@@ -346,10 +348,14 @@ func (s *DiscoveryService) routeStops(route model.CityRoute) ([]RouteStopView, e
 		stops = parseRouteStops(route.Stops)
 	}
 	for index := range stops {
-		if strings.TrimSpace(stops[index].IconKey) == "" {
-			stops[index].IconKey = "bowl"
-		}
+		stops[index].ThemeCode = normalizePlaceThemeCode(stops[index].ThemeCode, "")
+		stops[index].IconKey = themeIconKey(stops[index].ThemeCode)
 	}
+	themeIcons, err := s.placeThemeIconURLs()
+	if err != nil {
+		return nil, err
+	}
+	applyThemeIconURLs(stops, themeIcons)
 	return stops, nil
 }
 
@@ -358,6 +364,51 @@ func nearbyIconKey(category string) string {
 		return "coffee"
 	}
 	return "bowl"
+}
+
+var placeThemeCodes = map[string]bool{
+	"dumpling_bun": true, "noodles": true, "rice_meal": true, "local_dishes": true,
+	"hotpot": true, "bbq_skewers": true, "street_snack": true, "breakfast": true,
+	"coffee_tea": true, "dessert": true, "bakery": true, "seafood": true,
+	"vegetarian": true, "bar_drinks": true, "general": true,
+}
+
+func normalizePlaceThemeCode(themeCode, category string) string {
+	themeCode = strings.TrimSpace(themeCode)
+	if placeThemeCodes[themeCode] {
+		return themeCode
+	}
+	switch strings.TrimSpace(category) {
+	case "drink":
+		return "coffee_tea"
+	case "stall", "night_market":
+		return "street_snack"
+	default:
+		return "general"
+	}
+}
+
+// themeIconKey 返回稳定语义键；具体图形和颜色由小程序控制。
+func themeIconKey(themeCode string) string {
+	return normalizePlaceThemeCode(themeCode, "")
+}
+
+func (s *DiscoveryService) placeThemeIconURLs() (map[string]string, error) {
+	var themes []model.PlaceTheme
+	if err := s.db.Where("enabled = ?", true).Find(&themes).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(themes))
+	for _, theme := range themes {
+		result[theme.Code] = strings.TrimSpace(theme.IconURL)
+	}
+	return result, nil
+}
+
+func applyThemeIconURLs(stops []RouteStopView, iconURLs map[string]string) {
+	for index := range stops {
+		stops[index].ThemeIconURL = iconURLs[stops[index].ThemeCode]
+	}
 }
 
 func placeIDs(places []model.Place) []uint {

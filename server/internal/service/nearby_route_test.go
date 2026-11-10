@@ -52,6 +52,52 @@ func TestNearbyCandidateScoreUsesSceneSignals(t *testing.T) {
 	}
 }
 
+func TestMergePlaceRecommendationSignalUsesOperationalFallback(t *testing.T) {
+	cost, wait := 68.0, 25
+	place := model.Place{AverageCost: &cost, TypicalWaitMinutes: &wait, MealPeriods: model.JSONDocument(`["dinner","late_night"]`)}
+	signal := mergePlaceRecommendationSignal(nearbyPlaceSignal{}, place)
+	if signal.AverageCost == nil || *signal.AverageCost != 68 || signal.AverageWait == nil || *signal.AverageWait != 25 || signal.LateNightCount != 1 {
+		t.Fatalf("merged signal = %#v", signal)
+	}
+	reviewCost := 99.0
+	signal = mergePlaceRecommendationSignal(nearbyPlaceSignal{AverageCost: &reviewCost}, place)
+	if *signal.AverageCost != 99 {
+		t.Fatalf("review signal should take precedence, got %v", *signal.AverageCost)
+	}
+}
+
+func TestNormalizePlaceThemeCodeUsesStableFallback(t *testing.T) {
+	if got := normalizePlaceThemeCode("noodles", "restaurant"); got != "noodles" {
+		t.Fatalf("theme = %q", got)
+	}
+	if got := normalizePlaceThemeCode("unknown", "drink"); got != "coffee_tea" {
+		t.Fatalf("drink fallback = %q", got)
+	}
+	if got := normalizePlaceThemeCode("", "night_market"); got != "street_snack" {
+		t.Fatalf("night market fallback = %q", got)
+	}
+}
+
+func TestBuildNearbyCandidatesUsesPlaceThemeForIcon(t *testing.T) {
+	places := []model.Place{{ID: 1, Name: "测试面馆", Category: "restaurant", ThemeCode: "noodles", Longitude: 121.47, Latitude: 31.23}}
+	options := NearbyRouteOptions{Longitude: 121.47, Latitude: 31.23}
+	candidates := buildNearbyCandidates(places, nil, options, normalizeNearbyRoutePlan(options))
+	if len(candidates) != 1 || candidates[0].stop.ThemeCode != "noodles" || candidates[0].stop.IconKey != "noodles" {
+		t.Fatalf("candidate stop = %#v", candidates[0].stop)
+	}
+}
+
+func TestApplyThemeIconURLsUsesDirectusThemeConfiguration(t *testing.T) {
+	stops := []RouteStopView{{ThemeCode: "noodles"}, {ThemeCode: "general"}}
+	applyThemeIconURLs(stops, map[string]string{
+		"noodles": "https://assets.example/noodles.png",
+		"general": "https://assets.example/general.png",
+	})
+	if stops[0].ThemeIconURL != "https://assets.example/noodles.png" || stops[1].ThemeIconURL != "https://assets.example/general.png" {
+		t.Fatalf("theme icon urls = %#v", stops)
+	}
+}
+
 func TestNearbyCandidateScoreFallsBackToCategoryWithoutReviews(t *testing.T) {
 	stall := nearbyCandidate{place: model.Place{Category: "stall"}, stop: RouteStopView{DistanceMeters: 800}}
 	restaurant := nearbyCandidate{place: model.Place{Category: "restaurant"}, stop: RouteStopView{DistanceMeters: 800}}

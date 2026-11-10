@@ -1,0 +1,131 @@
+--- .artifacts/route-theme-layout/route-detail.vue.original	2026-11-10 10:53:53
++++ .artifacts/route-theme-layout/route-detail.vue.modified	2026-11-10 14:13:12
+@@ -23,6 +23,32 @@
+         </view>
+       </view>
+ 
++      <view v-if="route.stops.length" class="route-sketch-card">
++        <view class="sketch-heading">
++          <view>
++            <text class="section-title">路线手记</text>
++            <view class="sketch-title-mark"></view>
++          </view>
++          <view class="sketch-palette"><view></view><view></view><view></view></view>
++        </view>
++        <text class="sketch-caption">跟着坐标走，线条故意画得不那么规矩。</text>
++        <view class="route-sketch">
++          <canvas id="route-line-canvas" canvas-id="route-line-canvas" class="route-line-canvas"></canvas>
++          <view v-for="point in sketchLayout.points" :key="`point-${point.index}`" class="sketch-stop" :style="pointStyle(point)" @tap="openPlace(point.stop)">
++            <view class="sketch-icon-wrap" :style="{ borderBottomColor: themeAccent(point.stop) }">
++              <image class="sketch-icon" :src="themeIcon(point.stop)" mode="aspectFit" />
++            </view>
++            <text class="sketch-index">{{ String(point.index + 1).padStart(2, '0') }}</text>
++            <text class="sketch-name">{{ point.stop.name }}</text>
++          </view>
++          <text class="sketch-side-note">慢慢走，沿路吃</text>
++        </view>
++        <view class="sketch-memo-row">
++          <view class="sketch-memo yellow"><text>路线</text><text>{{ route.meta || `${route.stops.length} 站` }}</text></view>
++          <view class="sketch-memo pink"><text>主题</text><text>{{ route.tag || '城市漫游' }}</text></view>
++        </view>
++      </view>
++
+       <view class="stop-list">
+         <text class="section-title">按顺序吃喝</text>
+         <view v-if="!route.stops.length" class="empty-stops">这条攻略的具体站点还在整理中。</view>
+@@ -53,6 +79,8 @@
+ 
+ <script>
+ import { api } from '@/api/request.js'
++import { foodIconSource, foodThemeAccent } from '@/utils/food-icons.js'
++import { routeSketchLayout } from '@/utils/route-layout.js'
+ 
+ export default {
+   data() {
+@@ -72,6 +100,7 @@
+     this.loadRoute()
+   },
+   computed: {
++    sketchLayout() { return routeSketchLayout(this.route.stops) },
+     nextStopIndex() { return this.route.stops.findIndex((stop, index) => !this.completedStops.includes(index)) },
+     nextStop() { return this.nextStopIndex >= 0 ? this.route.stops[this.nextStopIndex] : null },
+     journeyActionLabel() {
+@@ -81,6 +110,36 @@
+     },
+   },
+   methods: {
++    pointStyle(point) { return { left: `${point.x}%`, top: `${point.y}%` } },
++    themeIcon(stop) { return foodIconSource(stop.icon_key || stop.theme_code || 'general') },
++    themeAccent(stop) { return foodThemeAccent(stop.theme_code || 'general') },
++    drawRouteSketch() {
++      if (!this.sketchLayout.curves.length) return
++      this.$nextTick(() => {
++        uni.createSelectorQuery().in(this).select('#route-line-canvas').boundingClientRect(canvasInfo => {
++          if (!canvasInfo || !canvasInfo.width || !canvasInfo.height) return
++          const context = uni.createCanvasContext('route-line-canvas', this)
++          context.clearRect(0, 0, canvasInfo.width, canvasInfo.height)
++          context.setStrokeStyle('#4A453D')
++          context.setLineWidth(2.35)
++          context.setLineCap('round')
++          context.setLineJoin('round')
++          const percentX = value => value * canvasInfo.width / 100
++          const percentY = value => value * canvasInfo.height / 100
++          const first = this.sketchLayout.points[0]
++          context.beginPath()
++          context.moveTo(percentX(first.x), percentY(first.y))
++          this.sketchLayout.curves.forEach(curve => {
++            context.quadraticCurveTo(
++              percentX(curve.control.x), percentY(curve.control.y),
++              percentX(curve.end.x), percentY(curve.end.y),
++            )
++          })
++          context.stroke()
++          context.draw(false)
++        }).exec()
++      })
++    },
+     async loadRoute() {
+       if (!this.nearby && !/^\d+$/.test(this.id)) {
+         this.loading = false
+@@ -96,6 +155,7 @@
+         this.error = error.message || '攻略加载失败'
+       } finally {
+         this.loading = false
++        if (!this.error && this.route.stops.length) this.drawRouteSketch()
+       }
+     },
+     hasCoordinate(stop) {
+@@ -174,6 +234,33 @@
+ .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; }
+ .overview-grid > view { display: flex; flex-direction: column; min-width: 0; padding: 18rpx; border-radius: 20rpx; background: #FFF4DF; color: #6F675B; font-size: 22rpx; }
+ .overview-value { margin-top: 8rpx; color: #332E26; font-size: 24rpx; font-weight: 800; line-height: 1.35; }
++.route-sketch-card { position: relative; margin-bottom: 36rpx; padding: 32rpx 20rpx 28rpx; border-radius: 8rpx 24rpx 12rpx 20rpx; background: #FFFDFC; box-shadow: 0 10rpx 28rpx rgba(68,55,36,.07); overflow: hidden; }
++.route-sketch-card::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2rpx; background: rgba(72,63,51,.1); }
++.sketch-heading { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; padding: 0 12rpx; }
++.sketch-heading > view:first-child { position: relative; }
++.sketch-heading .section-title { position: relative; z-index: 2; margin-bottom: 0; font-family: "Kaiti SC", STKaiti, serif; font-size: 38rpx; transform: rotate(-2deg); }
++.sketch-title-mark { position: absolute; z-index: 1; left: -6rpx; right: -18rpx; bottom: 0; height: 12rpx; border-radius: 40% 60% 46% 54%; background: rgba(248,207,62,.65); transform: rotate(-1deg); }
++.sketch-palette { display: flex; align-items: center; gap: 8rpx; transform: rotate(3deg); }
++.sketch-palette view { width: 26rpx; height: 26rpx; border-radius: 55% 45% 51% 49%; background: #F3C846; }
++.sketch-palette view:nth-child(2) { background: #EE7654; transform: translateY(5rpx); }
++.sketch-palette view:nth-child(3) { background: #5E9FBD; transform: translateY(-3rpx); }
++.sketch-caption { position: relative; z-index: 3; display: block; margin: 12rpx 12rpx 0; color: #777066; font-family: "Kaiti SC", STKaiti, serif; font-size: 21rpx; transform: rotate(-.5deg); }
++.route-sketch { position: relative; height: 640rpx; margin-top: 6rpx; }
++.route-line-canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; pointer-events: none; }
++.sketch-stop { position: absolute; z-index: 2; display: flex; flex-direction: column; align-items: center; width: 190rpx; transform: translate(-50%, -50%); }
++.sketch-stop:nth-of-type(2n) { transform: translate(-50%, -50%) rotate(1.3deg); }
++.sketch-icon-wrap { width: 96rpx; height: 80rpx; border-bottom: 9rpx solid; border-radius: 48% 52% 56% 44%; box-sizing: border-box; transform: rotate(-3deg); }
++.sketch-icon { width: 96rpx; height: 96rpx; transform: translateY(-12rpx); }
++.sketch-index { margin-top: 2rpx; color: #332E26; font-family: "Kaiti SC", STKaiti, serif; font-size: 23rpx; font-weight: 900; transform: rotate(-3deg); }
++.sketch-name { max-width: 190rpx; margin-top: 2rpx; padding: 2rpx 7rpx 5rpx; border-bottom: 5rpx solid rgba(248,207,62,.48); background: rgba(255,253,248,.82); color: #332E26; font-family: "Kaiti SC", STKaiti, serif; font-size: 22rpx; font-weight: 800; line-height: 1.2; text-align: center; }
++.sketch-side-note { position: absolute; z-index: 3; right: 2%; top: 48%; color: #E96E4E; font-family: "Kaiti SC", STKaiti, serif; font-size: 21rpx; transform: rotate(-7deg); }
++.sketch-side-note::after { content: ''; display: block; width: 132rpx; height: 4rpx; margin-top: 2rpx; border-radius: 50%; background: #E96E4E; transform: rotate(-3deg); opacity: .68; }
++.sketch-memo-row { display: flex; justify-content: flex-end; gap: 18rpx; padding: 0 12rpx 4rpx; }
++.sketch-memo { display: flex; flex-direction: column; width: 190rpx; min-height: 88rpx; padding: 14rpx 16rpx; box-sizing: border-box; box-shadow: 4rpx 7rpx 0 rgba(68,55,36,.07); font-family: "Kaiti SC", STKaiti, serif; transform: rotate(-2deg); }
++.sketch-memo.pink { background: #F3B9D6; transform: rotate(2deg) translateY(-8rpx); }
++.sketch-memo.yellow { background: #F6D65A; }
++.sketch-memo text:first-child { font-size: 18rpx; font-weight: 800; }
++.sketch-memo text:last-child { margin-top: 5rpx; font-size: 20rpx; line-height: 1.25; }
+ .stop-list { padding: 7rpx 8rpx; }
+ .empty-stops { padding: 90rpx 20rpx; color: #7D8476; font-size: 25rpx; text-align: center; }
+ .stop-row { display: flex; align-items: flex-start; min-height: 150rpx; }

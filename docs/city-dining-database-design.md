@@ -90,6 +90,7 @@
 | `id` | bigint PK | 地点 ID |
 | `name` | varchar(160) | 店名 |
 | `category` | varchar(32) | restaurant/stall/night_market/drink/other |
+| `theme_code` | varchar(32) | 地点主餐饮主题；用于路线手绘图标，默认 general，可由 Directus 维护 |
 | `city_code` | varchar(16) | 城市编码 |
 | `district` | varchar(64) | 行政区 |
 | `business_area` | varchar(64) | 商圈 |
@@ -104,9 +105,24 @@
 
 用户补充地点必须来自地图选点并具有非零 GCJ-02 坐标；`poi_provider=wechat` 表示位置由微信原生选点界面确认。没有稳定 POI ID 时，使用“同城 + 标准化名称 + 80 米距离”辅助去重。
 
-### 3.1.1 `city_route_stops`
+`theme_code` 使用稳定枚举：`dumpling_bun`、`noodles`、`rice_meal`、`local_dishes`、`hotpot`、`bbq_skewers`、`street_snack`、`breakfast`、`coffee_tea`、`dessert`、`bakery`、`seafood`、`vegetarian`、`bar_drinks`、`general`。
 
-吃喝攻略的有序地点表。地址和坐标只保存在 `places`，地点修正后所有攻略自动生效。推荐食物及图标属于路线语境，因此保存在路线站点而不是地点主表。路线不存储地图折线或实时算路结果。
+### 3.1.1 `place_themes`
+
+Directus 维护餐厅主题与 COS 公开图标地址之间的映射。路线接口按 `places.theme_code` 读取启用主题并返回 `theme_icon_url`，小程序不再打包主题图片。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `code` | varchar(32) PK | 与 `places.theme_code` 对应的稳定主题编码 |
+| `name` | varchar(64) | Directus 中展示的中文主题名称 |
+| `icon_url` | varchar(1024) | 长期有效的 HTTPS COS/CDN 公开地址 |
+| `enabled` | boolean | 是否向路线接口提供图标 |
+| `sort_order` | integer | Directus 列表排序 |
+| `created_at` / `updated_at` | timestamptz | 时间戳 |
+
+### 3.1.2 `city_route_stops`
+
+吃喝攻略的有序地点表。地址、坐标和地点主主题只保存在 `places`，地点修正后所有攻略自动生效。小程序优先使用路线响应的 `theme_icon_url`；`icon_key` 仅为旧路线兼容字段。路线不存储地图折线或实时算路结果。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|

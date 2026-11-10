@@ -1,0 +1,43 @@
+CHANGE_BRANCH: route icons are served from COS; miniapp fallback resolves /static/route-theme-icons through VITE_ASSET_BASE_URL.
+CHANGE_FIELD: place_themes.icon_url -> RouteStopView.theme_icon_url -> miniapp stop.theme_icon_url.
+
+ARTIFACT_PATHS:
+MODIFIED_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/MODIFIED_FILE
+DIFF_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/DIFF_FILE.diff
+VERIFICATION=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/VERIFICATION.txt
+ROLLBACK=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/ROLLBACK.sh
+
+HASHES:
+ORIGINAL_SHA256=EMPTY_NEW_FILE
+MODIFIED_SHA256=0f217c9f419b2363e531f38cf60515940cd1dea50e9cb925707f1b52d3194825
+
+BASELINE:
+COMMAND: cd /Users/Zhuanz1/develop/src/nutriLens/miniapp && npm run build:mp-weixin
+INPUT: 15 theme icons under src/static
+LITERAL_RESULT: "DONE Build complete."; output size "1.5M"
+EXIT_STATUS: 0
+
+MODIFIED:
+COMMAND: (cd server && GOCACHE=/tmp/nutrilens-go-cache go test ./... && GOCACHE=/tmp/nutrilens-go-cache go build ./...); (cd miniapp && node --test tests/*.test.mjs && npm run build:mp-weixin)
+INPUT: place_themes COS mapping, API theme_icon_url, icons moved to cos-assets
+LITERAL_RESULT: server tests/build passed; miniapp "tests 24", "pass 24", "fail 0", "DONE Build complete."; build size "952K"; packaged media bytes "13034"; packaged route theme files "0"
+EXIT_STATUS: server=0; miniapp=0
+
+COS_VERIFICATION:
+COMMAND: curl each README.md and 15 <theme_code>.png URLs
+INPUT: https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/
+LITERAL_RESULT: README.md=200; all 15 PNG files=200
+EXIT_STATUS: 0
+
+DIRECTUS_SYNC:
+COMMAND: cd /Users/Zhuanz1/develop/src/food-route-collector && scripts/sync_route_theme_icons.py --commit
+INPUT: 15 place_themes rows with verified COS URLs
+LITERAL_RESULT: "FORBIDDEN" / collection place_themes unavailable to configured token; no rows written
+EXIT_STATUS: 1
+
+ROLLBACK:
+COMMAND: /Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/ROLLBACK.sh /Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/place_theme.go.rollback-test
+INPUT: MODIFIED_FILE copy
+LITERAL_OUTPUT: removed /Users/Zhuanz1/develop/src/nutriLens/.artifacts/cos-theme-icons/place_theme.go.rollback-test
+EXIT_STATUS: 0
+RESTORED_BEHAVIOR_STATUS: rollback copy removed; repository place_theme.go remains modified with SHA256 0f217c9f419b2363e531f38cf60515940cd1dea50e9cb925707f1b52d3194825.

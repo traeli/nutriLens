@@ -74,7 +74,7 @@ func migrateLegacyAccountStatuses(tx *gorm.DB) error {
 func autoMigrateModels() []any {
 	return []any{
 		&User{}, &PrivacyAgreement{},
-		&City{}, &CityPosterTheme{}, &Place{}, &Tag{}, &DiscoveryScenario{},
+		&City{}, &CityPosterTheme{}, &PlaceTheme{}, &Place{}, &Tag{}, &DiscoveryScenario{},
 		&CityRoute{}, &CityRouteStop{},
 		&VisitRecord{},
 		&RestaurantReview{}, &RestaurantReviewVersion{}, &RestaurantReviewTagLink{},
@@ -93,6 +93,7 @@ func applyTableComments(tx *gorm.DB) error {
 		`COMMENT ON TABLE privacy_agreements IS '用户隐私协议确认记录'`,
 		`COMMENT ON TABLE cities IS '运营城市'`,
 		`COMMENT ON TABLE city_poster_themes IS '城市饮食记忆海报主题'`,
+		`COMMENT ON TABLE place_themes IS '餐厅主题与公开图标配置'`,
 		`COMMENT ON TABLE places IS '餐饮地点'`,
 		`COMMENT ON TABLE tags IS '内容标签'`,
 		`COMMENT ON TABLE discovery_scenarios IS '首页路线生成场景配置'`,

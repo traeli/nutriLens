@@ -26,7 +26,7 @@ function localArtworkPlugin(assetBaseURL) {
         if (!outputRelative || outputRelative === '..' || outputRelative.startsWith('..' + sep) || isAbsolute(outputRelative)) {
           throw new Error('静态资源输出目录必须位于 miniapp/dist 的子目录中')
         }
-        for (const group of ['dining', 'posters']) {
+        for (const group of ['dining', 'posters', 'route-theme-icons']) {
           const destination = resolve(outputDir, 'static', group)
           // 清理之前离线构建留下的图片，避免切换 COS 后仍占包体积。
           rmSync(destination, { recursive: true, force: true })

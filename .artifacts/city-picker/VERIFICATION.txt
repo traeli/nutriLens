@@ -1,0 +1,49 @@
+CHANGED_BRANCH_FIELD: miniapp/src/pages/home/home.vue :: chooseCity() now sets cityPickerVisible=true; computed cityGroups derives searchable pinyin-initial groups from cityQuery.
+
+ARTIFACT_PATHS:
+MODIFIED_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/city-picker/MODIFIED_FILE
+DIFF_FILE=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/city-picker/DIFF_FILE.diff
+VERIFICATION=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/city-picker/VERIFICATION.txt
+ROLLBACK=/Users/Zhuanz1/develop/src/nutriLens/.artifacts/city-picker/ROLLBACK.sh
+
+ORIGINAL_SHA256:
+command: shasum -a 256 miniapp/src/pages/home/home.vue
+input: original miniapp/src/pages/home/home.vue
+literal result: 6329fff2c81ccb594d6fc482e4bb39bec03eacc4a7d4b29b47830e9c1f79736e  miniapp/src/pages/home/home.vue
+exit status: 0
+
+BASELINE:
+command: cd miniapp && node --test tests/*.test.mjs
+input: pre-change test suite (15 tests)
+literal result: tests 15; pass 15; fail 0; duration_ms 81.976875
+exit status: 0
+command: cd miniapp && npm run build:mp-weixin
+input: pre-change miniapp source
+literal result: DONE  Build complete.
+exit status: 0
+
+MODIFIED:
+command: cd miniapp && node --test tests/*.test.mjs
+input: changed source plus city-search.test.mjs
+literal result: tests 17; pass 17; fail 0; duration_ms 110.19575
+exit status: 0
+command: cd miniapp && npm run build:mp-weixin
+input: changed miniapp source with searchable city picker and pinyin-pro 3.29.5
+literal result: DONE  Build complete.
+exit status: 0
+command: git diff --check -- miniapp
+input: all miniapp changes
+literal result: (no output)
+exit status: 0
+command: rg -n "选择城市|没有找到相关城市|搜索城市名或拼音" miniapp/dist/build/mp-weixin/pages/home/home.wxml
+input: compiled WeChat Mini Program home template
+literal result: compiled WXML contains 选择城市, 搜索城市名或拼音, 没有找到相关城市, scroll-view, and grouped city rows
+exit status: 0
+
+ROLLBACK:
+command: /Users/Zhuanz1/develop/src/nutriLens/.artifacts/city-picker/ROLLBACK.sh /tmp/nutrilens-city-picker-rollback
+input: separate copy containing the modified home.vue, package manifests, city-search utility, and city-search test
+literal output: restored home city selection to showActionSheet source state
+literal result: original and restored home.vue SHA256 both 6329fff2c81ccb594d6fc482e4bb39bec03eacc4a7d4b29b47830e9c1f79736e; added utility/test absent; package manifests byte-identical to originals
+exit status: 0
+restored behavior/status: rollback copy uses the original showActionSheet branch again; searchable picker source and its test are removed. Working-tree MODIFIED_FILE and implementation remain changed.

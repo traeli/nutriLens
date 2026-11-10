@@ -3,6 +3,7 @@ package service
 import (
 	cryptorand "crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -113,6 +114,11 @@ func (s *DiscoveryService) NearbyRoute(options NearbyRouteOptions) (*RouteDetail
 	candidates := buildNearbyCandidates(places, signals, options, plan)
 	selected := selectNearbyCandidates(candidates, plan, newNearbyRouteRandom())
 	stops, routeDistance := orderNearbyStops(selected, options.Longitude, options.Latitude)
+	themeIcons, err := s.placeThemeIconURLs()
+	if err != nil {
+		return nil, err
+	}
+	applyThemeIconURLs(stops, themeIcons)
 
 	tag := "实时路线"
 	if plan.sceneLabel != "" {
@@ -161,16 +167,45 @@ func buildNearbyCandidates(places []model.Place, signals map[uint]nearbyPlaceSig
 	candidates := make([]nearbyCandidate, 0, len(places))
 	for _, place := range places {
 		distance := haversineMeters(options.Longitude, options.Latitude, place.Longitude, place.Latitude)
-		signal := signals[place.ID]
+		signal := mergePlaceRecommendationSignal(signals[place.ID], place)
 		candidate := nearbyCandidate{
 			place: place, signal: signal,
 			stop: RouteStopView{PlaceID: place.ID, Name: place.Name, Address: place.Address, Longitude: place.Longitude, Latitude: place.Latitude,
-				DistanceMeters: int(math.Round(distance)), ExperienceCount: signal.ReviewCount, IconKey: nearbyIconKey(place.Category)},
+				DistanceMeters: int(math.Round(distance)), ExperienceCount: signal.ReviewCount,
+				ThemeCode: normalizePlaceThemeCode(place.ThemeCode, place.Category)},
 		}
+		candidate.stop.IconKey = themeIconKey(candidate.stop.ThemeCode)
 		candidate.score = nearbyCandidateScore(candidate, plan)
 		candidates = append(candidates, candidate)
 	}
 	return candidates
+}
+
+func mergePlaceRecommendationSignal(signal nearbyPlaceSignal, place model.Place) nearbyPlaceSignal {
+	if signal.AverageCost == nil {
+		signal.AverageCost = place.AverageCost
+	}
+	if signal.AverageWait == nil && place.TypicalWaitMinutes != nil {
+		wait := float64(*place.TypicalWaitMinutes)
+		signal.AverageWait = &wait
+	}
+	if signal.LateNightCount == 0 && placeHasMealPeriod(place.MealPeriods, "late_night") {
+		signal.LateNightCount = 1
+	}
+	return signal
+}
+
+func placeHasMealPeriod(document model.JSONDocument, period string) bool {
+	var periods []string
+	if len(document) == 0 || json.Unmarshal(document, &periods) != nil {
+		return false
+	}
+	for _, item := range periods {
+		if item == period {
+			return true
+		}
+	}
+	return false
 }
 
 func nearbyCandidateScore(candidate nearbyCandidate, plan nearbyRoutePlan) float64 {
