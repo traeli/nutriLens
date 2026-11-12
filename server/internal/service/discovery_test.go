@@ -49,3 +49,9 @@ func TestNearbyIconKey(t *testing.T) {
 		t.Fatalf("nearbyIconKey(restaurant) = %q, want bowl", got)
 	}
 }
+
+func TestPublicEditorialAuthorIsPlatformOwned(t *testing.T) {
+	if editorialAuthorName != "饭友记编辑" {
+		t.Fatalf("editorialAuthorName = %q", editorialAuthorName)
+	}
+}

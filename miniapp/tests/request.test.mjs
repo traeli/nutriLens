@@ -35,21 +35,13 @@ test('concurrent 401 requests share one refresh and retry with the new token', a
   assert.equal(storage.get('token'), 'new')
 })
 
-test('refreshes before expiry and uploads use the refreshed token', async () => {
-  const { api, storage, calls } = await setup(o => o.success({ statusCode: 200, data: o.url.endsWith('/auth/refresh') ? pair : '{"ok":true}' }))
+test('refreshes before expiry and discovery likes use the refreshed token', async () => {
+  const { api, storage, calls } = await setup(o => o.success({ statusCode: 200, data: o.url.endsWith('/auth/refresh') ? pair : { ok: true } }))
   storage.set('token_expires_at', Date.now() + 30000)
-  assert.deepEqual(await api.uploadRecordMedia(1, '/tmp/photo.jpg'), { ok: true })
+  assert.deepEqual(await api.likeDiscoveryPost(1), { ok: true })
   assert.ok(calls[0].url.endsWith('/auth/refresh'))
   assert.equal(calls[1].header.Authorization, 'Bearer new')
-})
-
-test('upload 401 retries the upload once', async () => {
-  const { api, calls } = await setup(o => {
-    if (o.url.endsWith('/auth/refresh')) o.success({ statusCode: 200, data: pair })
-    else o.success(o.header.Authorization === 'Bearer old' ? { ...unauthorized, data: JSON.stringify(unauthorized.data) } : { statusCode: 200, data: '{"ok":true}' })
-  })
-  assert.deepEqual(await api.uploadEvidence(1, '/tmp/photo.jpg'), { ok: true })
-  assert.equal(calls.filter(o => o.filePath).length, 2)
+  assert.ok(calls[1].url.endsWith('/discovery/posts/1/like'))
 })
 
 test('temporary refresh outage retains credentials', async () => {
@@ -117,7 +109,7 @@ test('non-2xx responses log safe request and backend error details', async () =>
       statusCode: 422,
       data: { error: { code: 'INVALID_ARGUMENT', message: '请求参数不正确', request_id: 'request-123' } },
     }))
-    await assert.rejects(api.createPlace({ name: '' }), error => {
+    await assert.rejects(api.likeDiscoveryPost(1), error => {
       assert.equal(error.status, 422)
       assert.equal(error.code, 'INVALID_ARGUMENT')
       assert.equal(error.requestId, 'request-123')
@@ -127,7 +119,7 @@ test('non-2xx responses log safe request and backend error details', async () =>
       '[API] HTTP 请求失败',
       {
         method: 'POST',
-        path: '/places',
+        path: '/discovery/posts/1/like',
         upload: false,
         statusCode: 422,
         code: 'INVALID_ARGUMENT',

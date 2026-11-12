@@ -1,20 +1,20 @@
 <template>
   <view class="cases-page">
-    <text class="title">举报与申诉</text>
+    <text class="title">举报记录</text>
     <view v-for="item in combined" :key="item.key" class="case-card">
       <view><text>{{ item.type }}</text><text>{{ item.status }}</text></view>
       <text>{{ item.text }}</text><text>{{ item.date }}</text>
     </view>
-    <view v-if="!combined.length" class="empty">暂无举报或申诉记录</view>
+    <view v-if="!combined.length" class="empty">暂无举报记录</view>
   </view>
 </template>
 <script>
 import { api } from '@/api/request.js'
 export default {
-  data() { return { reports: [], appeals: [] } },
-  computed: { combined() { return [...this.reports.map(item => ({ key: 'r' + item.id, type: '内容举报', status: item.status, text: item.description || item.reason_code, date: this.date(item.created_at) })), ...this.appeals.map(item => ({ key: 'a' + item.id, type: '用户申诉', status: item.status, text: item.claim_text, date: this.date(item.created_at) }))] } },
+  data() { return { reports: [] } },
+  computed: { combined() { return this.reports.map(item => ({ key: 'r' + item.id, type: '内容举报', status: item.status, text: item.description || item.reason_code, date: this.date(item.created_at) })) } },
   onShow() { this.load() },
-  methods: { date(value) { return String(value || '').slice(0, 10) }, async load() { try { const [reports, appeals] = await Promise.all([api.getMyReports(), api.getMyAppeals()]); this.reports = reports.items || []; this.appeals = appeals.items || [] } catch (error) { uni.showToast({ title: error.message || '加载失败', icon: 'none' }) } } },
+  methods: { date(value) { return String(value || '').slice(0, 10) }, async load() { try { const reports = await api.getMyReports(); this.reports = reports.items || [] } catch (error) { uni.showToast({ title: error.message || '加载失败', icon: 'none' }) } } },
 }
 </script>
 <style scoped>

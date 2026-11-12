@@ -1,0 +1,137 @@
+{
+  "dumpling_bun": {
+    "code": "dumpling_bun",
+    "name": "包子点心",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/dumpling_bun.png",
+    "enabled": true,
+    "sort_order": "10",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "noodles": {
+    "code": "noodles",
+    "name": "面馆米粉",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/noodles.png",
+    "enabled": true,
+    "sort_order": "20",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "rice_meal": {
+    "code": "rice_meal",
+    "name": "米饭简餐",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/rice_meal.png",
+    "enabled": true,
+    "sort_order": "30",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "local_dishes": {
+    "code": "local_dishes",
+    "name": "地方家常菜",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/local_dishes.png",
+    "enabled": true,
+    "sort_order": "40",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "hotpot": {
+    "code": "hotpot",
+    "name": "火锅砂锅",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/hotpot.png",
+    "enabled": true,
+    "sort_order": "50",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "bbq_skewers": {
+    "code": "bbq_skewers",
+    "name": "烧烤串串",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/bbq_skewers.png",
+    "enabled": true,
+    "sort_order": "60",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "street_snack": {
+    "code": "street_snack",
+    "name": "街头小吃",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/street_snack.png",
+    "enabled": true,
+    "sort_order": "70",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "breakfast": {
+    "code": "breakfast",
+    "name": "传统早餐",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/breakfast.png",
+    "enabled": true,
+    "sort_order": "80",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "coffee_tea": {
+    "code": "coffee_tea",
+    "name": "咖啡茶饮",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/coffee_tea.png",
+    "enabled": true,
+    "sort_order": "90",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "dessert": {
+    "code": "dessert",
+    "name": "甜品糖水",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/dessert.png",
+    "enabled": true,
+    "sort_order": "100",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "bakery": {
+    "code": "bakery",
+    "name": "面包烘焙",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/bakery.png",
+    "enabled": true,
+    "sort_order": "110",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "seafood": {
+    "code": "seafood",
+    "name": "海鲜河鲜",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/seafood.png",
+    "enabled": true,
+    "sort_order": "120",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "vegetarian": {
+    "code": "vegetarian",
+    "name": "素食轻食",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/vegetarian.png",
+    "enabled": true,
+    "sort_order": "130",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "bar_drinks": {
+    "code": "bar_drinks",
+    "name": "酒馆饮品",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/bar_drinks.png",
+    "enabled": true,
+    "sort_order": "140",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  },
+  "general": {
+    "code": "general",
+    "name": "通用餐厅",
+    "icon_url": "https://nutrilens-1429775067.cos.ap-guangzhou.myqcloud.com/cos-assets/static/route-theme-icons/general.png",
+    "enabled": true,
+    "sort_order": "150",
+    "created_at": "2026-11-10T08:26:38.963Z",
+    "updated_at": "2026-11-10T08:26:38.963Z"
+  }
+}

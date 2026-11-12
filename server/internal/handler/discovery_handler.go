@@ -156,6 +156,41 @@ func (h *Handler) PlaceExperiences(c *gin.Context) {
 	httpx.OK(c, http.StatusOK, page)
 }
 
+func (h *Handler) DiscoveryPosts(c *gin.Context) {
+	page, err := h.Discovery.ListDiscoveryPosts(c.Query("city_code"), c.Query("cursor"), queryLimit(c), 0)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, page)
+}
+
+func (h *Handler) PlaceDiscoveryPosts(c *gin.Context) {
+	id, ok := parseUintParam(c, "id")
+	if !ok {
+		return
+	}
+	page, err := h.Discovery.ListDiscoveryPosts("", c.Query("cursor"), queryLimit(c), id)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, page)
+}
+
+func (h *Handler) GetDiscoveryPost(c *gin.Context) {
+	id, ok := parseUintParam(c, "id")
+	if !ok {
+		return
+	}
+	item, err := h.Discovery.GetDiscoveryPost(id)
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, item)
+}
+
 func (h *Handler) Tags(c *gin.Context) {
 	items, err := h.Discovery.Tags()
 	if err != nil {

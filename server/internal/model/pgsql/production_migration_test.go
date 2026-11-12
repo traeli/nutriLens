@@ -76,6 +76,9 @@ func TestProductionSchemaUpgrade(t *testing.T) {
 	if err := ensureRestaurantReviewVersionSequence(db); err != nil {
 		t.Fatalf("repair restaurant review version sequence: %v", err)
 	}
+	if err := migratePublishedReviewsToDiscoveryPosts(db); err != nil {
+		t.Fatalf("migrate published reviews to discovery posts: %v", err)
+	}
 	if err := applyTableComments(db); err != nil {
 		t.Fatalf("apply upgraded schema comments: %v", err)
 	}

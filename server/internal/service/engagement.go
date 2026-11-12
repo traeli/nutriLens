@@ -61,6 +61,42 @@ func (s *EngagementService) Unhelpful(userID, recordID uint) error {
 	})
 }
 
+func (s *EngagementService) LikeDiscoveryPost(userID, postID uint) error {
+	if userID == 0 || postID == 0 {
+		return ErrInvalidInput
+	}
+	var post model.DiscoveryPost
+	if err := s.db.Where("id = ? AND status = ?", postID, "published").First(&post).Error; err != nil {
+		return mapNotFound(err)
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&model.DiscoveryPostLike{UserID: userID, PostID: postID})
+		if result.Error != nil || result.RowsAffected == 0 {
+			return result.Error
+		}
+		return tx.Model(&model.DiscoveryPost{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
+	})
+}
+
+func (s *EngagementService) UnlikeDiscoveryPost(userID, postID uint) error {
+	if userID == 0 || postID == 0 {
+		return ErrInvalidInput
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("user_id = ? AND post_id = ?", userID, postID).Delete(&model.DiscoveryPostLike{})
+		if result.Error != nil || result.RowsAffected == 0 {
+			return result.Error
+		}
+		return tx.Model(&model.DiscoveryPost{}).Where("id = ?", postID).UpdateColumn("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error
+	})
+}
+
+func (s *EngagementService) DiscoveryPostLikeIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := s.db.Model(&model.DiscoveryPostLike{}).Where("user_id = ?", userID).Order("created_at DESC").Pluck("post_id", &ids).Error
+	return ids, err
+}
+
 func (s *EngagementService) MarkOutdated(userID, recordID uint, reason string) error {
 	if len([]rune(reason)) > 500 {
 		return ErrInvalidInput

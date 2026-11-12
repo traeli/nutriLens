@@ -1,7 +1,6 @@
 const tabs = [
-  { pagePath: '/pages/home/home', text: '发现' },
-  { pagePath: '/pages/record/record', text: '记录' },
-  { pagePath: '/pages/footprints/footprints', text: '足迹' },
+  { pagePath: '/pages/home/home', text: '首页' },
+  { pagePath: '/pages/discover/discover', text: '发现' },
   { pagePath: '/pages/mine/mine', text: '我的' },
 ]
 

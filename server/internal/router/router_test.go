@@ -38,9 +38,9 @@ func TestDiscoveryRoutesDoNotRequireAuthentication(t *testing.T) {
 		"/api/v1/routes/1",
 		"/api/v1/places/search?city_code=310000",
 		"/api/v1/places/1",
-		"/api/v1/places/1/experiences",
-		"/api/v1/experiences",
-		"/api/v1/experiences/1",
+		"/api/v1/discovery/posts?city_code=310000",
+		"/api/v1/discovery/posts/1",
+		"/api/v1/places/1/discovery-posts",
 		"/api/v1/tags",
 	}
 	for _, path := range paths {
@@ -65,37 +65,12 @@ func TestProtectedRouteRequiresBearerToken(t *testing.T) {
 	}
 }
 
-func TestSpeechTranscriptionRequiresBearerToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	engine := New(&handler.Handler{}, nil, nil)
-	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/speech/transcribe", nil))
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("speech route status = %d, want 401", response.Code)
-	}
-}
-
-func TestSubmitPlaceRequiresBearerToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	engine := New(&handler.Handler{}, nil, nil)
-	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/places", nil))
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("submit place route status = %d, want 401", response.Code)
-	}
-}
-
 func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := New(&handler.Handler{}, nil, nil)
 	cases := []struct{ method, path string }{
 		{http.MethodPost, "/api/v1/reports"},
-		{http.MethodPost, "/api/v1/records/1/media"},
-		{http.MethodPost, "/api/v1/visits/1/review"},
-		{http.MethodGet, "/api/v1/reviews/1/status"},
-		{http.MethodGet, "/api/v1/me/reviews"},
-		{http.MethodPost, "/api/v1/publisher-verification/phone"},
-		{http.MethodPost, "/api/v1/nutrition/records"},
+		{http.MethodPost, "/api/v1/discovery/posts/1/like"},
 		{http.MethodPost, "/api/v1/routes/1/start"},
 		{http.MethodDelete, "/api/v1/user/account"},
 	}
@@ -104,6 +79,36 @@ func TestNewMiniappWriteRoutesRequireBearerToken(t *testing.T) {
 		engine.ServeHTTP(response, httptest.NewRequest(item.method, item.path, nil))
 		if response.Code != http.StatusUnauthorized {
 			t.Fatalf("%s %s = %d, want 401", item.method, item.path, response.Code)
+		}
+	}
+}
+
+func TestUserPublicSubmissionRoutesAreNotRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := New(&handler.Handler{}, nil, nil)
+	cases := []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/records/1/submit-public"},
+		{http.MethodGet, "/api/v1/records/1/review-status"},
+		{http.MethodPost, "/api/v1/visits/1/review"},
+		{http.MethodGet, "/api/v1/reviews/1/status"},
+		{http.MethodGet, "/api/v1/me/reviews"},
+		{http.MethodPost, "/api/v1/publisher-verification/phone"},
+		{http.MethodGet, "/api/v1/publisher-verification/status"},
+		{http.MethodPost, "/api/v1/records/1/appeals"},
+		{http.MethodGet, "/api/v1/me/appeals"},
+		{http.MethodPost, "/api/v1/records"},
+		{http.MethodGet, "/api/v1/me/records"},
+		{http.MethodPost, "/api/v1/places"},
+		{http.MethodPost, "/api/v1/speech/transcribe"},
+		{http.MethodPost, "/api/v1/nutrition/records"},
+		{http.MethodGet, "/api/v1/experiences"},
+		{http.MethodPost, "/api/v1/experiences/1/helpful"},
+	}
+	for _, item := range cases {
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequest(item.method, item.path, nil))
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("%s %s = %d, want 404", item.method, item.path, response.Code)
 		}
 	}
 }
@@ -132,7 +137,7 @@ func isPublicRoute(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/cities", "/api/v1/home/summary", "/api/v1/routes/nearby", "/api/v1/routes/:id", "/api/v1/cities/:code/poster-theme", "/api/v1/places/search", "/api/v1/places/:id", "/api/v1/places/:id/experiences", "/api/v1/experiences", "/api/v1/experiences/:id", "/api/v1/tags", "/api/v1/agreements/current":
+	case "/api/v1/cities", "/api/v1/home/summary", "/api/v1/routes/nearby", "/api/v1/routes/:id", "/api/v1/cities/:code/poster-theme", "/api/v1/places/search", "/api/v1/places/:id", "/api/v1/discovery/posts", "/api/v1/discovery/posts/:id", "/api/v1/places/:id/discovery-posts", "/api/v1/tags", "/api/v1/agreements/current":
 		return true
 	default:
 		return false

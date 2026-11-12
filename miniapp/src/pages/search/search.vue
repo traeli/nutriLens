@@ -20,45 +20,17 @@
         <view class="place-copy">
           <text class="place-name">{{ place.name }}</text>
           <text class="place-meta">{{ place.category }} · {{ place.area }} · {{ place.distance }}</text>
-          <text class="experience-count">▢ {{ place.count }} 条体验</text>
+          <text class="experience-count">▢ {{ place.count }} 篇发现帖</text>
         </view>
         <text class="row-arrow">›</text>
       </view>
     </view>
 
-    <view v-if="related.length" class="related-head"><text>相关体验</text><text class="muted">最近公开</text></view>
+    <view v-if="related.length" class="related-head"><text>相关发现帖</text><text class="muted">编辑整理</text></view>
     <view v-if="related.length" class="related-grid">
       <view v-for="item in related" :key="item.id" class="related-card surface" @tap="goDetail(item.id)">
         <image :src="item.image" mode="aspectFill" />
         <text>{{ item.title }}</text>
-      </view>
-    </view>
-
-    <view class="add-place"><text>没有找到这家店？</text><button @tap="openPlaceSheet">＋ 提交新地点</button></view>
-
-    <view v-if="placeSheet" class="place-mask" @tap="closePlaceSheet">
-      <view class="place-sheet" @tap.stop>
-        <view class="panel-handle"></view>
-        <text class="place-sheet-title">提交新地点</text>
-        <text class="place-sheet-desc">先从微信地图确认门店，提交后进入人工核验</text>
-        <view class="place-field">
-          <text>店名 *</text>
-          <input v-model="placeForm.name" placeholder="餐厅或小吃店名" maxlength="60" />
-        </view>
-        <view class="place-field">
-          <text>商圈 / 行政区</text>
-          <input v-model="placeForm.business_area" placeholder="如 曹家渡、山阴路（选填）" maxlength="30" />
-        </view>
-        <view class="place-field">
-          <text>门店位置 *</text>
-          <view v-if="placeForm.location" class="picked-location">
-            <view><text>{{ placeForm.location.name }}</text><text>{{ placeForm.location.address }}</text></view>
-            <text @tap="chooseNewPlaceLocation">重选</text>
-          </view>
-          <button v-else class="place-location-button" @tap="chooseNewPlaceLocation">⌖ 从微信地图选择</button>
-        </view>
-        <button class="place-submit" :disabled="placeSubmitting" @tap="submitPlaceForm">{{ placeSubmitting ? '正在提交' : '提交核验' }}</button>
-        <text class="place-cancel" @tap="closePlaceSheet">取消</text>
       </view>
     </view>
   </view>
@@ -69,10 +41,9 @@ import { api } from '@/api/request.js'
 import { diningImages } from '@/mock/city-dining.js'
 import { getSelectedCity } from '@/store/city.js'
 export default {
-  data() { return { keyword: '', places: [], related: [], images: diningImages, city: getSelectedCity(), loading: false, error: '', selectMode: false, recommendedMode: false, searchTimer: null, placeSheet: false, placeForm: { name: '', business_area: '', location: null }, placeSubmitting: false } },
+  data() { return { keyword: '', places: [], related: [], images: diningImages, city: getSelectedCity(), loading: false, error: '', recommendedMode: false, searchTimer: null } },
   onLoad(options) {
     if (options.keyword) this.keyword = decodeURIComponent(options.keyword)
-    this.selectMode = options.select === '1'
     this.recommendedMode = options.recommended === '1'
     if (this.recommendedMode) uni.setNavigationBarTitle({ title: '每日推荐' })
     this.loadPlaces()
@@ -109,82 +80,15 @@ export default {
     },
     async loadRelated() {
       try {
-        const page = await api.getExperiences({ city_code: this.city.code, limit: 2 })
-        this.related = (page.items || []).map((item, index) => ({ id: item.record.id, title: `${item.place.name} · ${String(item.version.content || '一条真实到店体验').slice(0, 24)}`, image: (item.media && item.media[0] && item.media[0].public_url) || (index ? diningImages.cafe : diningImages.noodles) }))
+        const page = await api.getDiscoveryPosts({ city_code: this.city.code, limit: 2 })
+        this.related = (page.items || []).map((item, index) => ({ id: item.post.id, title: `${item.place.name} · ${String(item.post.content || '饭友记编辑发现').slice(0, 24)}`, image: (item.images && item.images[0] && item.images[0].image_url) || (index ? diningImages.cafe : diningImages.noodles) }))
       } catch (error) { this.related = [] }
     },
     choosePlace(place) {
-      if (this.selectMode) {
-        uni.setStorageSync('selected_visit_place', { id: place.id, name: place.name, city_code: place.city_code, area: place.area })
-        return uni.navigateBack()
-      }
       uni.navigateTo({ url: `/pages/place-detail/place-detail?id=${place.id}` })
     },
-    goDetail(id) { uni.navigateTo({ url: `/pages/experience-detail/experience-detail?id=${id}` }) },
+    goDetail(id) { uni.navigateTo({ url: `/pages/discover-detail/discover-detail?id=${id}` }) },
     showFilter() { uni.showToast({ title: '筛选面板将在数据接入阶段完善', icon: 'none' }) },
-    openPlaceSheet() { this.placeForm.name = this.keyword.trim(); this.placeSheet = true },
-    closePlaceSheet() {
-      if (this.placeSubmitting) return
-      this.placeSheet = false
-    },
-    chooseNewPlaceLocation() {
-      uni.chooseLocation({
-        success: result => {
-          const longitude = Number(result.longitude)
-          const latitude = Number(result.latitude)
-          if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
-            uni.showToast({ title: '没有获得有效坐标，请重试', icon: 'none' })
-            return
-          }
-          const address = String(result.address || '').trim()
-          if (!address) {
-            uni.showToast({ title: '请选择带详细地址的门店位置', icon: 'none' })
-            return
-          }
-          const name = String(result.name || this.placeForm.name).trim()
-          this.placeForm.location = {
-            name,
-            address,
-            longitude,
-            latitude,
-          }
-          if (name) this.placeForm.name = name
-        },
-        fail: error => {
-          const message = String((error && error.errMsg) || '')
-          if (!message.includes('cancel')) uni.showToast({ title: '请允许位置权限后选择门店', icon: 'none' })
-        },
-      })
-    },
-    async submitPlaceForm() {
-      const name = this.placeForm.name.trim()
-      if (!name) return uni.showToast({ title: '请先填写店名', icon: 'none' })
-      if (!this.placeForm.location) return uni.showToast({ title: '请从微信地图选择门店位置', icon: 'none' })
-      if (!uni.getStorageSync('token')) {
-        this.placeSheet = false
-        return uni.navigateTo({ url: '/pages/login/login' })
-      }
-      if (this.placeSubmitting) return
-      this.placeSubmitting = true
-      try {
-        const location = this.placeForm.location
-        await api.createPlace({
-          name, city_code: this.city.code,
-          business_area: this.placeForm.business_area.trim(),
-          address: location.address,
-          longitude: location.longitude,
-          latitude: location.latitude,
-          poi_provider: 'wechat',
-        })
-        this.placeSheet = false
-        this.placeForm = { name: '', business_area: '', location: null }
-        uni.showToast({ title: '已提交，核验通过后全城可见', icon: 'none' })
-      } catch (error) {
-        uni.showToast({ title: error.message || '提交失败，请重试', icon: 'none' })
-      } finally {
-        this.placeSubmitting = false
-      }
-    },
   },
 }
 </script>

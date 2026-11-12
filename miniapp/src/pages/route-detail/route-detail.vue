@@ -57,7 +57,7 @@
           <view class="stop-copy" @tap="openPlace(stop)">
             <text class="stop-name">{{ stop.name }}</text>
             <text class="stop-address">{{ stop.address || '地址待补充' }}</text>
-            <text v-if="stop.distance_meters" class="stop-distance">距你约 {{ formatDistance(stop.distance_meters) }} · {{ stop.experience_count || 0 }} 条真实记录</text>
+            <text v-if="stop.distance_meters" class="stop-distance">距你约 {{ formatDistance(stop.distance_meters) }} · {{ stop.experience_count || 0 }} 篇编辑信息</text>
             <text v-if="stop.note" class="stop-note">{{ stop.note }}</text>
           </view>
           <button class="map-button" :disabled="!hasCoordinate(stop)" @tap.stop="openStop(stop)">打开地图</button>

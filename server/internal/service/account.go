@@ -19,10 +19,10 @@ type WeChatSessionProvider interface {
 	Code2Session(ctx context.Context, code string) (string, error)
 }
 
-const CurrentAgreementVersion = "2.0"
+const CurrentAgreementVersion = "3.0"
 
 func RequiredAgreementTypes() []string {
-	return []string{"privacy", "user_service", "community"}
+	return []string{"privacy", "user_service"}
 }
 
 type AccountService struct {
@@ -298,13 +298,19 @@ func (s *AccountService) DeleteAccount(ctx context.Context, userID uint) error {
 			WHERE records.id = reports.target_id`, userID).Error; err != nil {
 			return err
 		}
+		if err := tx.Exec(`UPDATE discovery_posts AS posts
+			SET like_count = GREATEST(0, posts.like_count - votes.vote_count::integer)
+			FROM (SELECT post_id, COUNT(*) AS vote_count FROM discovery_post_likes WHERE user_id = ? GROUP BY post_id) AS votes
+			WHERE posts.id = votes.post_id`, userID).Error; err != nil {
+			return err
+		}
 		for _, deletion := range []struct {
 			table  string
 			column string
 		}{
 			{"privacy_agreements", "user_id"}, {"user_trust_profiles", "user_id"}, {"contribution_accounts", "user_id"},
 			{"user_badges", "user_id"}, {"publisher_verifications", "user_id"}, {"place_favorites", "user_id"},
-			{"helpful_votes", "user_id"}, {"outdated_signals", "user_id"}, {"route_favorites", "user_id"},
+			{"helpful_votes", "user_id"}, {"discovery_post_likes", "user_id"}, {"outdated_signals", "user_id"}, {"route_favorites", "user_id"},
 			{"route_journeys", "user_id"}, {"nutrition_records", "user_id"}, {"content_reports", "reporter_user_id"},
 		} {
 			if err := tx.Exec("DELETE FROM "+deletion.table+" WHERE "+deletion.column+" = ?", userID).Error; err != nil {
@@ -380,7 +386,7 @@ func (s *AccountService) AcceptAgreement(userID uint, agreementType, version, ip
 	if userID == 0 || agreementType == "" || version == "" {
 		return ErrInvalidInput
 	}
-	if version != CurrentAgreementVersion || (agreementType != "privacy" && agreementType != "user_service" && agreementType != "community") {
+	if version != CurrentAgreementVersion || (agreementType != "privacy" && agreementType != "user_service") {
 		return ErrInvalidInput
 	}
 	agreement := model.PrivacyAgreement{

@@ -16,6 +16,9 @@ func TestPersistentTableNamesRemainStable(t *testing.T) {
 		"restaurant review":    (RestaurantReview{}).TableName(),
 		"review version":       (RestaurantReviewVersion{}).TableName(),
 		"review tag link":      (RestaurantReviewTagLink{}).TableName(),
+		"discovery post":       (DiscoveryPost{}).TableName(),
+		"discovery post image": (DiscoveryPostImage{}).TableName(),
+		"discovery post like":  (DiscoveryPostLike{}).TableName(),
 		"nutrition record":     (NutritionRecord{}).TableName(),
 		"user trust profile":   (UserTrustProfile{}).TableName(),
 		"contribution account": (ContributionAccount{}).TableName(),
@@ -27,6 +30,7 @@ func TestPersistentTableNamesRemainStable(t *testing.T) {
 		"visit record": "visit_records", "user trust profile": "user_trust_profiles",
 		"restaurant review": "restaurant_reviews", "review version": "restaurant_review_versions",
 		"review tag link": "restaurant_review_tag_links", "nutrition record": "nutrition_records",
+		"discovery post": "discovery_posts", "discovery post image": "discovery_post_images", "discovery post like": "discovery_post_likes",
 		"contribution account": "contribution_accounts", "badge": "badges", "user badge": "user_badges",
 	}
 	for name, got := range tests {

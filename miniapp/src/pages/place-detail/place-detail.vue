@@ -8,27 +8,27 @@
         <view class="title-line"><view><text class="place-name">{{ place.name }}</text><text class="place-meta">{{ categoryName }} · {{ areaName }}</text></view><view class="place-buttons"><button @tap="toggleFavorite">{{ favorited ? '已收藏' : '收藏' }}</button><button @tap="openMap">地图</button></view></view>
         <text class="address">⌖ {{ place.address || '地址待补充' }}</text>
         <view class="stats">
-          <view><text>{{ place.experience_count || 0 }}</text><text>真实记录</text></view>
-          <view><text>{{ place.recommend_count || 0 }}</text><text>推荐体验</text></view>
+          <view><text>{{ place.experience_count || 0 }}</text><text>发现帖子</text></view>
+          <view><text>编辑</text><text>统一整理</text></view>
           <view><text>{{ averageCost }}</text><text>参考人均</text></view>
         </view>
         <text class="section-title">店铺简介</text>
-        <text class="description">{{ place.description || '这家店的简介还在完善中。下方内容均来自用户亲自到店后的真实记录。' }}</text>
+        <text class="description">{{ place.description || '这家店的简介还在完善中。下方信息由饭友记编辑统一整理发布。' }}</text>
       </view>
 
       <view class="reviews">
-        <view class="review-head"><text>全部真实评论</text><text>{{ place.experience_count || 0 }} 条</text></view>
-        <view v-if="reviewsLoading && !reviews.length" class="review-state">正在加载真实记录…</view>
+        <view class="review-head"><text>相关发现帖</text><text>{{ place.experience_count || 0 }} 篇</text></view>
+        <view v-if="reviewsLoading && !reviews.length" class="review-state">正在加载发现帖…</view>
         <view v-else-if="reviewsError && !reviews.length" class="review-state error" @tap="loadReviews(true)">{{ reviewsError }}，点击重试</view>
-        <view v-else-if="!reviews.length" class="review-state">暂时还没有公开评论</view>
+        <view v-else-if="!reviews.length" class="review-state">饭友记编辑还在整理这家店</view>
         <view v-for="item in reviews" :key="item.id" class="review-card" @tap="goExperience(item.id)">
           <view class="review-user"><text class="avatar">{{ item.author.slice(0, 1) }}</text><text>{{ item.author }}</text><text>{{ item.date }}</text></view>
-          <text class="review-conclusion">{{ item.conclusion }}</text>
+          <text class="review-conclusion">编辑发现</text>
           <text class="review-content">{{ item.content }}</text>
           <view class="review-foot"><text v-if="item.cost">人均 ¥{{ item.cost }}</text><text>查看详情 ›</text></view>
         </view>
         <view v-if="reviewsLoading && reviews.length" class="loading-more">正在加载更多…</view>
-        <view v-else-if="!hasMore && reviews.length" class="loading-more">已经看完全部真实评论</view>
+        <view v-else-if="!hasMore && reviews.length" class="loading-more">已经看完全部发现帖</view>
       </view>
     </template>
   </view>
@@ -73,28 +73,27 @@ export default {
       if (reset) { this.cursor = ''; this.hasMore = true; this.reviews = []; this.reviewsError = '' }
       this.reviewsLoading = true
       try {
-        const page = await api.getPlaceExperiences(this.id, { cursor: this.cursor, limit: 10 })
+        const page = await api.getPlaceDiscoveryPosts(this.id, { cursor: this.cursor, limit: 10 })
         const items = (page.items || []).map(item => {
-          const version = item.version || {}
+          const post = item.post || {}
           return {
-            id: item.record && item.record.id,
-            author: (item.author && item.author.nickname) || '城市食客',
-            date: this.formatDate(version.visit_date),
-            conclusion: ({ recommend: '推荐', neutral: '一般', caution: '谨慎选择', hot: '很喜欢' })[version.conclusion] || '真实体验',
-            content: version.content || '这位用户留下了一条真实到店记录。',
-            cost: version.average_cost == null ? '' : Math.round(Number(version.average_cost)),
+            id: post.id,
+            author: post.author_name || '饭友记编辑',
+            date: this.formatDate(post.published_at || post.created_at),
+            content: post.content || '饭友记编辑暂未补充详细文字。',
+            cost: '',
           }
         }).filter(item => item.id)
         this.reviews = reset ? items : this.reviews.concat(items)
         this.cursor = page.next_cursor || ''
         this.hasMore = Boolean(page.has_more)
       } catch (error) {
-        this.reviewsError = error.message || '评论加载失败'
+        this.reviewsError = error.message || '食记加载失败'
       } finally { this.reviewsLoading = false }
     },
     formatDate(value) {
       const date = new Date(value)
-      return Number.isNaN(date.getTime()) ? '最近到店' : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+      return Number.isNaN(date.getTime()) ? '最近整理' : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
     },
     openMap() {
       const longitude = Number(this.place.longitude)
@@ -102,7 +101,7 @@ export default {
       if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || (!longitude && !latitude)) return uni.showToast({ title: '这家店暂无有效坐标', icon: 'none' })
       uni.openLocation({ longitude, latitude, name: this.place.name, address: this.place.address || '', scale: 18 })
     },
-    goExperience(id) { uni.navigateTo({ url: `/pages/experience-detail/experience-detail?id=${id}` }) },
+    goExperience(id) { uni.navigateTo({ url: `/pages/discover-detail/discover-detail?id=${id}` }) },
     async toggleFavorite() { try { if (this.favorited) await api.unfavoritePlace(this.id); else await api.favoritePlace(this.id); this.favorited = !this.favorited } catch (error) { uni.showToast({ title: error.message || '操作失败', icon: 'none' }) } },
   },
 }

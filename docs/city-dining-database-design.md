@@ -1,5 +1,7 @@
 # 城市餐饮体验：数据库表结构草案
 
+> **2026-11-12 版本说明：** 当前运营内容使用 `discovery_posts`、`discovery_post_images` 和 `discovery_post_likes`，详见 `docs/discovery-posts-design.md`。下文的足迹与评论表只用于历史数据兼容和账号注销清理。
+
 > 版本：0.1
 > 范围：私人足迹、公开餐厅评论、私人饮食记录；仅评论先审后公开
 > 数据库：PostgreSQL + GORM
@@ -173,20 +175,20 @@ Directus 维护餐厅主题与 COS 公开图标地址之间的映射。路线接
 
 关键索引：`(user_id, created_at desc)`、`(place_id, publish_status, published_at desc)`、`(visibility, publish_status, published_at desc)`。
 
-足迹的正文、标签、媒体和凭证都属于同一聚合，统一保存在这张表。更新直接覆盖当前值；公开评论创建时仍复制独立快照，因此之后修改私人足迹不会改变已提交评论。
+足迹的正文、标签、媒体和凭证都属于同一聚合，统一保存在这张表。更新直接覆盖当前值；个人主体版本不再从私人足迹创建公开内容。
 
 历史库中的 `visit_record_versions`、`visit_record_tag_links`、`record_media` 和 `record_evidences` 会在服务启动时幂等回填到本表，验证完成后再单独下线旧表。
 
-### 3.5 `restaurant_reviews` 与评论快照（MVP）
+### 3.5 `restaurant_reviews` 历史表与运营食记快照（MVP）
 
-公开餐厅评论保存独立快照：
+为兼容现有公开链接，运营方编辑食记暂时沿用历史评论表：
 
-- `restaurant_reviews`：评论主记录，关联 `user_id`、`place_id` 和来源 `visit_record_id`；每次足迹最多一条评论，状态为 `pending/published/rejected`。
+- `restaurant_reviews`：历史内容主记录，关联运营账号、`place_id` 和历史来源记录；公开接口只读取运营方维护的 `published` 内容。
 - `restaurant_review_versions`：评论内容快照，保存到店日期、结论、消费、排队、菜品和正文。
 - `restaurant_review_tag_links`：评论版本与标签的关系。
 - 媒体快照保存在 `restaurant_reviews.media` JSONB 字段；旧库的 `restaurant_review_media` 仅保留用于回滚。
 
-评论 ID 与来源足迹 ID 在兼容期保持一致，使已有体验详情、投票、举报和申诉外键能够平滑迁移。一个用户可以通过多次到店足迹对同一餐厅提交多条评论。发现流、餐厅平均值和“我的评论”只能查询这些评论表，不能读取饮食记录或私人足迹。
+内容 ID 与历史来源足迹 ID 在兼容期保持一致，使已有食记详情、有帮助投票和举报外键能够平滑迁移。普通用户没有写入这些表的产品入口；公开发现流只读取运营方维护的内容，不能读取用户私人足迹或营养记录。
 
 ### 3.6 `tags`（MVP）
 
@@ -196,7 +198,7 @@ Directus 维护餐厅主题与 COS 公开图标地址之间的映射。路线接
 
 ### 3.10 `nutrition_records`（MVP）
 
-私人饮食记录，仅关联 `user_id`，保存餐次、进食时间、食物明细、营养估算和建议。该表没有地点、可见性、审核或社交互动字段；数据只出现在饮食记录页面，不进入足迹、我的评论、城市最近足迹和餐厅平均统计。
+私人饮食记录，仅关联 `user_id`，保存餐次、进食时间、食物明细、营养估算和建议。该表没有公开发布或社交互动字段；数据只出现在本人饮食记录页面。
 
 ## 4. 用户互动表
 

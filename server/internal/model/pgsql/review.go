@@ -6,8 +6,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// RestaurantReview 是从一次私人足迹创建的公开评论。兼容迁移期间评论 ID 与来源足迹 ID 保持一致，
-// 以便在拆分业务边界时继续兼容已有公开链接和互动数据。
+// RestaurantReview 保存历史运营食记快照。个人主体版本不提供用户公开发布入口；
+// 已发布内容由运营方统一维护，用户只能阅读、收藏或标记“有帮助”。
 type RestaurantReview struct {
 	ID               uint                  `gorm:"primaryKey;autoIncrement:false;comment:评论编号" json:"id"`
 	UserID           uint                  `gorm:"not null;index;comment:用户编号" json:"-"`

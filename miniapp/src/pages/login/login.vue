@@ -5,9 +5,9 @@
       <view class="hero-shade"></view>
       <view class="brand"><view class="brand-dot"></view><text>饭友记</text></view>
       <view class="hero-copy">
-        <text class="hero-kicker">城市真实食记</text>
-        <text class="hero-title">跟着真实食客，\n吃懂一座城</text>
-        <text class="hero-subtitle">发现走得完、吃得好的路线，把真实到店经历留成自己的城市食记。</text>
+        <text class="hero-kicker">城市餐饮发现</text>
+        <text class="hero-title">跟着编辑整理，\n吃懂一座城</text>
+        <text class="hero-subtitle">浏览编辑从公开信息中整理的店铺帖子，收藏下一家想去的地方。</text>
       </view>
     </view>
 
@@ -21,7 +21,6 @@
         <view class="legal-links">
           <text @tap="openAgreement('privacy')">《隐私保护政策》</text>
           <text @tap="openAgreement('user_service')">《用户服务协议》</text>
-          <text @tap="openAgreement('community')">《社区内容规范》</text>
         </view>
       </view>
     </view>
@@ -29,15 +28,14 @@
     <view v-if="!privacyAgreed" class="privacy-mask">
       <view class="privacy-dialog" role="dialog" aria-label="用户协议确认">
         <text class="privacy-title">开始使用饭友记</text>
-        <text class="privacy-copy">为了提供账号、到店记录和个性化服务，请阅读并一次性确认以下协议。协议版本更新时，我们会再次征求你的同意。</text>
+        <text class="privacy-copy">为了提供账号、收藏和点赞服务，请阅读并一次性确认以下协议。协议版本更新时，我们会再次征求你的同意。</text>
         <view class="privacy-links">
           <view class="privacy-link" @tap="openAgreement('privacy')"><text>隐私保护政策</text><text>›</text></view>
           <view class="privacy-link" @tap="openAgreement('user_service')"><text>用户服务协议</text><text>›</text></view>
-          <view class="privacy-link" @tap="openAgreement('community')"><text>社区内容规范</text><text>›</text></view>
         </view>
         <view class="consent-row" @tap="checked = !checked">
           <view class="checkbox" :class="{ checked }"><text v-if="checked">✓</text></view>
-          <text class="consent-copy">我已阅读并同意以上三份协议</text>
+          <text class="consent-copy">我已阅读并同意以上两份协议</text>
         </view>
         <view class="privacy-actions">
           <button class="secondary-button" @tap="denyPrivacy">暂不同意</button>
@@ -57,7 +55,6 @@ import { AGREEMENT_TYPES, AGREEMENT_VERSION } from '@/content/agreements.js'
 const agreementPages = {
   privacy: '/pages/privacy/privacy',
   user_service: '/pages/agreement/agreement',
-  community: '/pages/community/community',
 }
 
 export default {

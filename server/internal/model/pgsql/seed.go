@@ -237,7 +237,7 @@ func seedRoutes() []CityRoute {
 
 func seedFeatureFlags() []FeatureFlag {
 	return []FeatureFlag{
-		{Key: "public_submission_enabled", Enabled: true, Value: JSONDocument(`{}`), Description: "公开评论提交总开关"},
-		{Key: "media_upload_enabled", Enabled: true, Value: JSONDocument(`{}`), Description: "评论图片和私密消费凭证上传开关"},
+		{Key: "public_submission_enabled", Enabled: false, Value: JSONDocument(`{}`), Description: "个人主体版本不开放用户公开发布"},
+		{Key: "media_upload_enabled", Enabled: true, Value: JSONDocument(`{}`), Description: "私人记录图片和消费凭证上传开关"},
 	}
 }

@@ -38,6 +38,23 @@ func (h *Handler) FavoritePlaces(c *gin.Context) {
 func (h *Handler) Helpful(c *gin.Context)   { h.simpleExperienceAction(c, h.Engagement.Helpful) }
 func (h *Handler) Unhelpful(c *gin.Context) { h.simpleExperienceAction(c, h.Engagement.Unhelpful) }
 
+func (h *Handler) LikeDiscoveryPost(c *gin.Context) {
+	h.simpleExperienceAction(c, h.Engagement.LikeDiscoveryPost)
+}
+
+func (h *Handler) UnlikeDiscoveryPost(c *gin.Context) {
+	h.simpleExperienceAction(c, h.Engagement.UnlikeDiscoveryPost)
+}
+
+func (h *Handler) MyDiscoveryPostLikes(c *gin.Context) {
+	ids, err := h.Engagement.DiscoveryPostLikeIDs(middleware.UserID(c))
+	if err != nil {
+		writeServiceError(c, err)
+		return
+	}
+	httpx.OK(c, http.StatusOK, gin.H{"post_ids": ids})
+}
+
 func (h *Handler) simpleExperienceAction(c *gin.Context, action func(uint, uint) error) {
 	id, ok := parseUintParam(c, "id")
 	if !ok {

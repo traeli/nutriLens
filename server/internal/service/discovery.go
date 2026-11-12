@@ -30,6 +30,8 @@ type AuthorSummary struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
+const editorialAuthorName = "饭友记编辑"
+
 type PlaceSearchView struct {
 	model.Place
 	ExperienceCount int64 `json:"experience_count"`
@@ -157,14 +159,14 @@ type HomeStatsView struct {
 }
 
 type HomeSummaryView struct {
-	City             model.City           `json:"city"`
-	Cities           []model.City         `json:"cities"`
-	ScenarioFilters  []ScenarioFilterView `json:"scenario_filters"`
-	RouteGuides      []RouteGuideView     `json:"route_guides"`
-	FeaturedRoute    *FeaturedRouteView   `json:"featured_route"`
-	DailyPicks       []DailyPlaceView     `json:"daily_picks"`
-	CommunityRecords []HomeCardView       `json:"community_records"`
-	Stats            HomeStatsView        `json:"stats"`
+	City            model.City           `json:"city"`
+	Cities          []model.City         `json:"cities"`
+	ScenarioFilters []ScenarioFilterView `json:"scenario_filters"`
+	RouteGuides     []RouteGuideView     `json:"route_guides"`
+	FeaturedRoute   *FeaturedRouteView   `json:"featured_route"`
+	DailyPicks      []DailyPlaceView     `json:"daily_picks"`
+	DiscoveryPosts  []HomeCardView       `json:"discovery_posts"`
+	Stats           HomeStatsView        `json:"stats"`
 }
 
 func NewDiscoveryService(db *gorm.DB) *DiscoveryService { return &DiscoveryService{db: db} }
@@ -178,7 +180,7 @@ func (s *DiscoveryService) Cities() ([]model.City, error) {
 }
 
 // HomeSummary 按必填城市编码聚合小程序首页需要的城市切换、路线轮播、精选路线、
-// 每日推荐、社区记录和城市概览数据。
+// 每日推荐、编辑食记和城市概览数据。
 func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error) {
 	cityCode = strings.TrimSpace(cityCode)
 	if cityCode == "" {
@@ -226,27 +228,23 @@ func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error
 		return nil, err
 	}
 
-	page, err := s.listExperiences(cityCode, 0, "", 30)
+	page, err := s.ListDiscoveryPosts(cityCode, "", 30, 0)
 	if err != nil {
 		return nil, err
 	}
 	views := page.Items
 	dailyPicks := make([]DailyPlaceView, 0, 2)
-	communityRecords := make([]HomeCardView, 0, 3)
+	editorialNotes := make([]HomeCardView, 0, 3)
 	seenPlaces := make(map[uint]bool)
 	for _, view := range views {
-		if len(communityRecords) < 3 {
-			communityRecords = append(communityRecords, s.homeCard(view, true))
+		if len(editorialNotes) < 3 {
+			editorialNotes = append(editorialNotes, s.discoveryHomeCard(view))
 		}
 		if len(dailyPicks) < 2 && !seenPlaces[view.Place.ID] {
-			pick, pickErr := s.dailyPlace(view)
-			if pickErr != nil {
-				return nil, pickErr
-			}
-			dailyPicks = append(dailyPicks, pick)
+			dailyPicks = append(dailyPicks, s.discoveryDailyPlace(view))
 			seenPlaces[view.Place.ID] = true
 		}
-		if len(dailyPicks) == 2 && len(communityRecords) == 3 {
+		if len(dailyPicks) == 2 && len(editorialNotes) == 3 {
 			break
 		}
 	}
@@ -258,8 +256,46 @@ func (s *DiscoveryService) HomeSummary(cityCode string) (*HomeSummaryView, error
 
 	return &HomeSummaryView{
 		City: city, Cities: cities, ScenarioFilters: scenarioFilters, RouteGuides: routeGuides, FeaturedRoute: featured,
-		DailyPicks: dailyPicks, CommunityRecords: communityRecords, Stats: stats,
+		DailyPicks: dailyPicks, DiscoveryPosts: editorialNotes, Stats: stats,
 	}, nil
+}
+
+func (s *DiscoveryService) discoveryHomeCard(view DiscoveryPostView) HomeCardView {
+	area := view.Place.BusinessArea
+	if area == "" {
+		area = view.Place.District
+	}
+	imageURL := ""
+	if len(view.Images) > 0 {
+		imageURL = view.Images[0].ImageURL
+	}
+	publishedAt := view.Post.CreatedAt
+	if view.Post.PublishedAt != nil {
+		publishedAt = *view.Post.PublishedAt
+	}
+	return HomeCardView{
+		ID: view.Post.ID, RecordID: view.Post.ID, PlaceID: view.Place.ID, PlaceName: view.Place.Name,
+		Area: area, Excerpt: truncateRunes(view.Post.Content, 28), VisitedAt: publishedAt.Format("2006-01-02"),
+		ImageURL: imageURL, Conclusion: "editorial", ConclusionLabel: "编辑发现", Verdict: "信息整理",
+		Author: &HomeCardAuthor{Nickname: view.Post.AuthorName},
+	}
+}
+
+func (s *DiscoveryService) discoveryDailyPlace(view DiscoveryPostView) DailyPlaceView {
+	area := view.Place.BusinessArea
+	if area == "" {
+		area = view.Place.District
+	}
+	publishedAt := view.Post.CreatedAt
+	if view.Post.PublishedAt != nil {
+		publishedAt = *view.Post.PublishedAt
+	}
+	pick := DailyPlaceView{PlaceID: view.Place.ID, Name: view.Place.Name, Category: view.Place.Category, Area: area,
+		Address: view.Place.Address, ExperienceCount: 1, AverageCost: view.Place.AverageCost, LatestVisitAt: publishedAt.Format("2006-01-02")}
+	if len(view.Images) > 0 {
+		pick.ImageURL = view.Images[0].ImageURL
+	}
+	return pick
 }
 
 func (s *DiscoveryService) scenarioFilters(cityCode string) ([]ScenarioFilterView, error) {
@@ -457,7 +493,7 @@ var homeConclusionLabels = map[string][2]string{
 func (s *DiscoveryService) homeCard(view ExperienceView, withAuthor bool) HomeCardView {
 	labels, ok := homeConclusionLabels[view.Version.Conclusion]
 	if !ok {
-		labels = [2]string{"到店", "真实记录"}
+		labels = [2]string{"编辑食记", "编辑推荐"}
 	}
 	area := view.Place.BusinessArea
 	if area == "" {
@@ -521,9 +557,9 @@ func truncateRunes(value string, limit int) string {
 
 func (s *DiscoveryService) homeStats(cityCode string) (HomeStatsView, error) {
 	var stats HomeStatsView
-	if err := s.db.Model(&model.RestaurantReview{}).
-		Joins("JOIN places ON places.id = restaurant_reviews.place_id").
-		Where("places.city_code = ? AND restaurant_reviews.status = ? AND restaurant_reviews.deleted_at IS NULL", cityCode, "published").
+	if err := s.db.Model(&model.DiscoveryPost{}).
+		Joins("JOIN places ON places.id = discovery_posts.place_id").
+		Where("places.city_code = ? AND discovery_posts.status = ?", cityCode, "published").
 		Count(&stats.ExperienceCount).Error; err != nil {
 		return stats, err
 	}
@@ -564,8 +600,8 @@ func (s *DiscoveryService) CityPosterTheme(cityCode string) (*CityPosterThemeVie
 
 func (s *DiscoveryService) SearchPlaces(cityCode, query, cursor string, limit int, recommended bool) (Page[PlaceSearchView], error) {
 	limit = normalizeLimit(limit)
-	db := s.db.Table("places").Select("places.*, COUNT(reviews.id) AS experience_count").
-		Joins("LEFT JOIN restaurant_reviews AS reviews ON reviews.place_id = places.id AND reviews.status = 'published' AND reviews.deleted_at IS NULL").
+	db := s.db.Table("places").Select("places.*, COUNT(posts.id) AS experience_count").
+		Joins("LEFT JOIN discovery_posts AS posts ON posts.place_id = places.id AND posts.status = 'published'").
 		Where("places.status = ?", "active")
 	if cityCode = strings.TrimSpace(cityCode); cityCode != "" {
 		db = db.Where("places.city_code = ?", cityCode)
@@ -580,8 +616,8 @@ func (s *DiscoveryService) SearchPlaces(cityCode, query, cursor string, limit in
 	var rows []PlaceSearchView
 	order := "places.id DESC"
 	if recommended {
-		order = "COUNT(reviews.id) DESC, places.id DESC"
-		db = db.Having("COUNT(reviews.id) > 0")
+		order = "COUNT(posts.id) DESC, places.id DESC"
+		db = db.Having("COUNT(posts.id) > 0")
 	}
 	if err := db.Group("places.id").Order(order).Limit(limit + 1).Scan(&rows).Error; err != nil {
 		return Page[PlaceSearchView]{}, err
@@ -598,32 +634,21 @@ func (s *DiscoveryService) GetPlace(id uint) (*PlaceDetailView, error) {
 		return nil, err
 	}
 	detail := &PlaceDetailView{Place: place}
-	var stats struct {
-		ExperienceCount int64
-		RecommendCount  int64
-		AverageCost     *float64
-	}
-	if err := s.db.Table("restaurant_reviews AS reviews").
-		Select("COUNT(reviews.id) AS experience_count, COUNT(reviews.id) FILTER (WHERE versions.conclusion = 'recommend') AS recommend_count, AVG(versions.average_cost) AS average_cost").
-		Joins("JOIN restaurant_review_versions AS versions ON versions.id = reviews.current_version_id").
-		Where("reviews.place_id = ? AND reviews.status = ? AND reviews.deleted_at IS NULL", id, "published").
-		Scan(&stats).Error; err != nil {
+	var postCount int64
+	if err := s.db.Model(&model.DiscoveryPost{}).
+		Where("place_id = ? AND status = ?", id, "published").Count(&postCount).Error; err != nil {
 		return nil, err
 	}
-	detail.ExperienceCount = stats.ExperienceCount
-	detail.RecommendCount = stats.RecommendCount
-	detail.AverageCost = stats.AverageCost
-	var reviews []model.RestaurantReview
-	if err := s.db.Where("place_id = ? AND status = ? AND deleted_at IS NULL", id, "published").Order("id DESC").Find(&reviews).Error; err != nil {
+	detail.ExperienceCount = postCount
+	detail.AverageCost = place.AverageCost
+	var image model.DiscoveryPostImage
+	if err := s.db.Table("discovery_post_images AS images").
+		Joins("JOIN discovery_posts AS posts ON posts.id = images.post_id AND posts.status = 'published'").
+		Where("posts.place_id = ?", id).Order("posts.published_at DESC, images.sort_order, images.id").First(&image).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	for _, review := range reviews {
-		for _, media := range review.Media {
-			if media.SafetyStatus == "passed" && media.DesensitizeStatus == "completed" {
-				detail.ImageURL = media.PublicURL
-				return detail, nil
-			}
-		}
+	if image.ID > 0 {
+		detail.ImageURL = image.ImageURL
 	}
 	return detail, nil
 }
@@ -706,10 +731,7 @@ func (s *DiscoveryService) loadExperienceViews(records []model.RestaurantReview)
 		if err := s.db.First(&view.Place, record.PlaceID).Error; err != nil {
 			return nil, err
 		}
-		var user model.User
-		if err := s.db.Select("nickname", "avatar_url").First(&user, record.UserID).Error; err == nil {
-			view.Author = AuthorSummary{Nickname: user.Nickname, AvatarURL: user.AvatarURL}
-		}
+		view.Author = AuthorSummary{Nickname: editorialAuthorName}
 		for _, media := range record.Media {
 			if media.SafetyStatus == "passed" && media.DesensitizeStatus == "completed" {
 				view.Media = append(view.Media, media)
@@ -717,16 +739,6 @@ func (s *DiscoveryService) loadExperienceViews(records []model.RestaurantReview)
 		}
 		if err := s.db.Table("tags").Joins("JOIN restaurant_review_tag_links links ON links.tag_id = tags.id").Where("links.review_version_id = ?", view.Version.ID).Order("tags.sort_order").Find(&view.Tags).Error; err != nil {
 			return nil, err
-		}
-		var source model.VisitRecord
-		if err := s.db.Select("evidences").First(&source, record.VisitRecordID).Error; err != nil {
-			return nil, err
-		}
-		for _, evidence := range source.Evidences {
-			if evidence.VerifyStatus == "verified" {
-				view.EvidenceVerified = true
-				break
-			}
 		}
 		views = append(views, view)
 	}

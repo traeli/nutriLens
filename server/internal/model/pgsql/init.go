@@ -50,6 +50,10 @@ func Init() error {
 		_ = closeDB(db)
 		return fmt.Errorf("restaurant review version sequence migration: %w", err)
 	}
+	if err := migratePublishedReviewsToDiscoveryPosts(db); err != nil {
+		_ = closeDB(db)
+		return fmt.Errorf("discovery post compatibility migration: %w", err)
+	}
 	if err := migrateLegacyVisitRecords(db); err != nil {
 		_ = closeDB(db)
 		return fmt.Errorf("visit record consolidation migration: %w", err)
@@ -78,6 +82,7 @@ func autoMigrateModels() []any {
 		&CityRoute{}, &CityRouteStop{},
 		&VisitRecord{},
 		&RestaurantReview{}, &RestaurantReviewVersion{}, &RestaurantReviewTagLink{},
+		&DiscoveryPost{}, &DiscoveryPostImage{}, &DiscoveryPostLike{},
 		&UserTrustProfile{}, &ContributionAccount{}, &Badge{}, &UserBadge{},
 		&PublisherVerification{}, &ContentSafetyCheck{}, &ModerationTask{}, &FeatureFlag{},
 		&PlaceFavorite{}, &HelpfulVote{}, &OutdatedSignal{},
@@ -103,6 +108,9 @@ func applyTableComments(tx *gorm.DB) error {
 		`COMMENT ON TABLE restaurant_reviews IS '用户公开餐厅评论'`,
 		`COMMENT ON TABLE restaurant_review_versions IS '餐厅评论版本'`,
 		`COMMENT ON TABLE restaurant_review_tag_links IS '餐厅评论版本与标签关联'`,
+		`COMMENT ON TABLE discovery_posts IS '运营方发现帖子'`,
+		`COMMENT ON TABLE discovery_post_images IS '发现帖子图片，单帖最多六张'`,
+		`COMMENT ON TABLE discovery_post_likes IS '用户对发现帖子的有用标记'`,
 		`COMMENT ON TABLE user_trust_profiles IS '用户可信度档案'`,
 		`COMMENT ON TABLE contribution_accounts IS '用户贡献账户'`,
 		`COMMENT ON TABLE badges IS '贡献徽章定义'`,
@@ -123,6 +131,43 @@ func applyTableComments(tx *gorm.DB) error {
 	for _, statement := range statements {
 		if err := tx.Exec(statement).Error; err != nil {
 			return fmt.Errorf("apply table comments: %w", err)
+		}
+	}
+	return nil
+}
+
+// migratePublishedReviewsToDiscoveryPosts 将历史运营食记一次性迁入新的发现内容域。
+// legacy_review_id 和复合唯一索引保证应用重复启动时迁移保持幂等。
+func migratePublishedReviewsToDiscoveryPosts(tx *gorm.DB) error {
+	statements := []string{
+		`INSERT INTO discovery_posts (place_id, legacy_review_id, title, content, author_name, source_name, source_url, status, like_count, published_at, created_at, updated_at)
+		 SELECT reviews.place_id, reviews.id, places.name,
+		        COALESCE(NULLIF(BTRIM(versions.content), ''), places.description, ''),
+		        '饭友记编辑', '饭友记历史编辑食记', '', 'published', reviews.helpful_count,
+		        COALESCE(reviews.published_at, reviews.created_at), reviews.created_at, reviews.updated_at
+		 FROM restaurant_reviews AS reviews
+		 JOIN restaurant_review_versions AS versions ON versions.id = reviews.current_version_id
+		 JOIN places ON places.id = reviews.place_id
+		 WHERE reviews.status = 'published' AND reviews.deleted_at IS NULL
+		 ON CONFLICT (legacy_review_id) DO NOTHING`,
+		`INSERT INTO discovery_post_images (post_id, image_url, object_key, sort_order, width, height, alt_text, created_at)
+		 SELECT posts.id, media.value->>'public_url', '', (media.ordinality - 1)::integer,
+		        COALESCE(NULLIF(media.value->>'width', '')::integer, 0), COALESCE(NULLIF(media.value->>'height', '')::integer, 0), '', NOW()
+		 FROM restaurant_reviews AS reviews
+		 JOIN discovery_posts AS posts ON posts.legacy_review_id = reviews.id
+		 CROSS JOIN LATERAL jsonb_array_elements(COALESCE(reviews.media, '[]'::jsonb)) WITH ORDINALITY AS media(value, ordinality)
+		 WHERE media.ordinality <= 6 AND COALESCE(media.value->>'public_url', '') <> ''
+		   AND media.value->>'safety_status' = 'passed' AND media.value->>'desensitize_status' = 'completed'
+		 ON CONFLICT (post_id, sort_order) DO NOTHING`,
+		`INSERT INTO discovery_post_likes (post_id, user_id, created_at)
+		 SELECT posts.id, votes.user_id, votes.created_at
+		 FROM helpful_votes AS votes
+		 JOIN discovery_posts AS posts ON posts.legacy_review_id = votes.record_id
+		 ON CONFLICT (post_id, user_id) DO NOTHING`,
+	}
+	for _, statement := range statements {
+		if err := tx.Exec(statement).Error; err != nil {
+			return fmt.Errorf("migrate published reviews to discovery posts: %w", err)
 		}
 	}
 	return nil

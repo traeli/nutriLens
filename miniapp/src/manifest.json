@@ -1,7 +1,7 @@
 {
   "name": "饭友记",
   "appid": "__UNI__NUTRILENS",
-  "description": "记录真实到店餐饮体验，查看经审核的价格、口味、排队与服务信息",
+  "description": "发现运营编辑整理的餐饮帖子与城市吃喝路线",
   "versionName": "1.0.0",
   "versionCode": "100",
   "transformPx": false,
@@ -16,12 +16,11 @@
     "permission": {
       "scope.userLocation": {
         "desc": "用于你主动生成附近路线、选择餐厅位置并打开地图导航"
-      },
-      "scope.record": {
-        "desc": "用于将你的到店体验语音转成可编辑文字"
       }
     },
-    "requiredPrivateInfos": ["getLocation", "chooseLocation"],
+    "requiredPrivateInfos": [
+      "getLocation"
+    ],
     "usingComponents": true,
     "lazyCodeLoading": "requiredComponents"
   }

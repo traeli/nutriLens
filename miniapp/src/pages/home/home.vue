@@ -99,14 +99,14 @@
       <view class="skel-bar w45"></view>
     </view>
 
-    <!-- 附近真实记录 -->
+    <!-- 编辑发现 -->
     <view class="sec">
       <view class="sec-ic" :style="dz('quote', '#332E26', 38)"></view>
-      <text class="sec-h">附近真实到店记录</text>
-      <text class="sec-p">事实核验后展示</text>
-      <view class="stamp-btn" hover-class="hv" @tap="quickRecord('quick')">
-        <view class="stamp-ic" :style="dz('plus', '#332E26', 26)"></view>
-        <text class="stamp-t">记一笔</text>
+      <text class="sec-h">编辑发现</text>
+      <text class="sec-p">从公开信息中挑选整理</text>
+      <view class="stamp-btn">
+        <view class="stamp-ic" :style="dz('stamp', '#332E26', 26)"></view>
+        <text class="stamp-t">发现帖</text>
       </view>
     </view>
     <view v-if="jotCard" class="jot" hover-class="hv" @tap="goDetail(jotCard.id)">
@@ -124,7 +124,7 @@
       <view class="skel-bar w60"></view>
       <view class="skel-bar w40"></view>
     </view>
-    <view v-else class="jot-empty" hover-class="hv" @tap="quickRecord('text')">
+    <view v-else class="jot-empty">
       <view class="empty-trail">
         <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('bowl', '#332E26', 34)"></view></view>
         <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
@@ -132,8 +132,8 @@
         <view class="empty-squig" :style="dzBg('squiggle-wide')"></view>
         <view class="empty-stop" :style="dzBg('blob-cream')"><view class="empty-ic" :style="dz('coffee', '#332E26', 34)"></view></view>
       </view>
-      <text class="empty-t">这座城市还没有公开体验</text>
-      <text class="empty-s">去留下第一条记录，给后来人引路 ›</text>
+      <text class="empty-t">这座城市的发现帖还在整理</text>
+      <text class="empty-s">先看看路线和餐厅，稍后再来 ›</text>
     </view>
     <view class="moreline" hover-class="hv" @tap="goExperienceList">
       <text>{{ communityMoreLabel }}</text>
@@ -143,7 +143,7 @@
     <!-- 信任行 -->
     <view class="trust">
       <view class="trust-ic" :style="dz('stamp', '#8B8271', 28)"></view>
-      <text>编辑实地核验 · 食客事实核验后合并 · 商业内容显著标注</text>
+      <text>运营方统一编辑 · 信息持续核验 · 商业内容显著标注</text>
     </view>
 
     <view v-if="cityPickerVisible" class="city-picker-mask" @tap="closeCityPicker">
@@ -225,7 +225,7 @@ export default {
         { key: 'day', label: '一天' },
       ],
       scenes: [],
-      communityRecords: [],
+      editorialNotes: [],
       homeLoading: false,
       featuredRoute: null,
       fallbackFeaturedRoute: null,
@@ -252,19 +252,19 @@ export default {
       return { id: route.id, title: route.title || '附近的吃喝路线', meta, total, stops }
     },
     jotCard() {
-      const item = this.communityRecords[0]
+      const item = this.editorialNotes[0]
       if (!item) return null
       return {
         id: item.id,
-        text: item.excerpt || '这家店值得留下一条真实记录。',
-        author: item.author || '城市食客',
+        text: item.excerpt || '这家店值得饭友记编辑认真记下。',
+        author: item.author || '饭友记编辑',
         time: item.time || '最近',
         place: item.place || '',
       }
     },
     communityMoreLabel() {
-      const rest = Math.max(0, this.communityRecords.length - 1)
-      return rest > 0 ? `还有 ${rest} 条真实记录` : '看看全部真实记录'
+      const rest = Math.max(0, this.editorialNotes.length - 1)
+      return rest > 0 ? `还有 ${rest} 篇发现帖` : '看看全部发现帖'
     },
     cityGroups() {
       return citySearchGroups(this.cities, this.cityQuery)
@@ -343,8 +343,8 @@ export default {
         }
         this.fallbackFeaturedRoute = data.featured_route || null
         this.featuredRoute = this.fallbackFeaturedRoute
-        const community = (data.community_records || []).map(card => this.normalizeSummaryCard(card, true)).filter(item => item.place)
-        this.communityRecords = community.slice(0, 3)
+        const notes = (data.discovery_posts || []).map(card => this.normalizeSummaryCard(card, true)).filter(item => item.place)
+        this.editorialNotes = notes.slice(0, 3)
       } catch (error) {
         console.warn('[home] use preview summary:', error && error.message ? error.message : error)
         this.refreshCities()
@@ -377,7 +377,7 @@ export default {
         time: this.formatDate(card.visited_at),
         image: card.image_url || '',
         score: card.conclusion_label || '到店',
-        verdict: card.verdict || '真实记录',
+        verdict: card.verdict || '编辑推荐',
         author: withAuthor && card.author ? card.author.nickname : '',
       }
     },
@@ -442,7 +442,6 @@ export default {
       return (scene && scene.query && scene.query.value) || ''
     },
     goScene(keyword) { uni.navigateTo({ url: `/pages/search/search?keyword=${encodeURIComponent(keyword)}` }) },
-    quickRecord(mode) { uni.setStorageSync('record_entry_mode', mode); uni.switchTab({ url: '/pages/record/record' }) },
     openGuide(guide) {
       if (guide && guide.source === 'nearby' && this.nearbyLocation) {
         const query = [
@@ -463,8 +462,8 @@ export default {
     },
     openRoute() { this.openGuide(this.featuredRoute || this.routeGuides[0]) },
     goSearch() { uni.navigateTo({ url: '/pages/search/search' }) },
-    goExperienceList() { uni.navigateTo({ url: '/pages/experience-list/experience-list' }) },
-    goDetail(id) { if (id) uni.navigateTo({ url: `/pages/experience-detail/experience-detail?id=${id}` }) },
+    goExperienceList() { uni.switchTab({ url: '/pages/discover/discover' }) },
+    goDetail(id) { if (id) uni.navigateTo({ url: `/pages/discover-detail/discover-detail?id=${id}` }) },
   },
   onShareAppMessage() { return { title: `饭友记｜在${this.city.name}认真吃饭`, path: '/pages/home/home' } },
 }
@@ -748,7 +747,7 @@ export default {
 }
 .jrow-meta { font-size: 23rpx; color: #8B8271; }
 
-/* 社区空态（blob 小径引路） */
+/* 编辑食记空态（blob 小径引路） */
 .jot-empty {
   background: #FFFFFF; border: 3rpx dashed #EFE5D0; border-radius: 36rpx;
   padding: 40rpx 30rpx 44rpx; text-align: center;
